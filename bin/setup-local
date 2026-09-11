@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+require "securerandom"
+require "base64"
+require_relative "../lib/area_configuration"
+path = File.expand_path("../.env", __dir__)
+if File.exist?(path)
+  puts ".env ist vorhanden und bleibt erhalten."
+  exit
+end
+File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+  file.puts "AUTH_MODE=local"
+  AreaConfiguration.ids.each do |area|
+    file.puts "#{AreaConfiguration.key_variable(area)}=#{Base64.strict_encode64(SecureRandom.random_bytes(32))}"
+  end
+end
+puts "Lokale .env mit getrennten Bereichsschlüsseln erstellt."

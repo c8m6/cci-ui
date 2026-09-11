@@ -1,0 +1,42 @@
+<% content_for :title, "Zertifikate" %>
+<div class="page-heading"><div><span class="eyebrow">IHR ZERTIFIKATSBESTAND</span><h1>Zertifikate</h1><p class="muted">Alles finden. Gültigkeit prüfen. Sicher bereitstellen.</p></div>
+<% if current_identity.any_writer? %><%= link_to new_import_path, class: "button primary" do %><%= icon("upload") %> Zertifikate importieren<% end %><% end %></div>
+<section class="stats" aria-label="Bestandsübersicht">
+  <div class="stat-card"><span>Aktuelle Zertifikate</span><strong><%= number_with_delimiter(@stats[:total], delimiter: ".") %></strong><small>In Ihren berechtigten Bereichen</small></div>
+  <div class="stat-card"><span><i class="dot warning"></i> Läuft bald ab</span><strong><%= @stats[:expiring] %></strong><small>Innerhalb der nächsten 30 Tage</small></div>
+  <div class="stat-card"><span><i class="dot danger"></i> Abgelaufen</span><strong><%= @stats[:expired] %></strong><small>Erneuerung prüfen</small></div>
+</section>
+<section class="panel catalog" data-controller="selection">
+  <%= form_with url: certificates_path, method: :get, class: "search-form", data: { controller: "search", turbo_frame: "results", turbo_action: "advance" } do |form| %>
+    <div class="search-box"><%= icon("search") %><%= form.search_field :q, value: params[:q], placeholder: "Name, Domain, IP, Aussteller, Seriennummer oder Fingerprint suchen …", aria: { label: "Zertifikate durchsuchen" }, data: { action: "input->search#schedule" } %><kbd>Suche</kbd></div>
+    <div class="filters">
+      <label>Bereich<%= form.select :area, [["Alle Bereiche", ""], *current_identity.areas.map { |a| [area_label(a), a] }], { selected: params[:area] }, data: { action: "change->search#submit" } %></label>
+      <label>Status<%= form.select :status, [["Alle Status", ""], ["Gültig", "valid"], ["Läuft bald ab", "soon"], ["Abgelaufen", "expired"], ["Noch nicht gültig", "future"]], { selected: params[:status] }, data: { action: "change->search#submit" } %></label>
+      <label>Quelle<%= form.select :source, [["Alle Quellen", ""], ["Dateibestand", "filesystem"], ["Consul", "consul"]], { selected: params[:source] }, data: { action: "change->search#submit" } %></label>
+      <label>Schlüssel<%= form.select :key, [["Alle", ""], ["Vorhanden", "1"], ["Nicht vorhanden", "0"]], { selected: params[:key] }, data: { action: "change->search#submit" } %></label>
+      <label>Sortierung<%= form.select :sort, [["Ablaufdatum", "ablauf"], ["Name", "name"], ["Neueste zuerst", "neueste"]], { selected: params[:sort] }, data: { action: "change->search#submit" } %></label>
+      <label class="check-label"><%= form.check_box :history, { checked: params[:history] == "1", data: { action: "change->search#submit" } }, "1", "0" %> Alte Versionen</label>
+      <%= form.submit "Suchen", class: "button secondary" %>
+    </div>
+  <% end %>
+  <%= turbo_frame_tag "results" do %>
+    <div class="results-heading"><h2><%= @total %> <%= @total == 1 ? "Zertifikat" : "Zertifikate" %></h2><span class="muted small">UND-Suche · alle Datenquellen</span></div>
+    <%= form_with url: export_certificates_path, data: { turbo: false }, class: "export-form" do |form| %>
+      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="Alle exportierbaren Zertifikate dieser Seite auswählen" data-action="selection#toggleAll"><% end %></th><th>Zertifikat / Aussteller</th><th>Bereich</th><th>Status</th><th>Gültig bis</th><th>Quelle</th><th>Puppet-Lookup</th><th><span class="sr-only">Details</span></th></tr></thead>
+      <tbody>
+      <% @certificates.each do |cert| %>
+        <tr><td><% if current_identity.export?(cert.area) %><%= check_box_tag "ids[]", cert.id, false, aria: { label: "#{cert.common_name} auswählen" }, data: { selection_target: "checkbox", action: "selection#update" } %><% end %></td>
+        <td class="certificate-cell"><%= link_to certificate_path(cert), data: { turbo_frame: "_top" }, class: "certificate-name" do %><%= cert.common_name %><% end %><% if cert.has_key %><span title="Schlüsseldatei vorhanden"><%= icon("key") %></span><% end %><div class="truncate muted small" title="<%= cert.issuer %>"><%= cert.issuer %></div><% if cert.tags.any? %><div class="tags"><% cert.tags.each do |tag| %><span><%= tag %></span><% end %></div><% end %></td>
+        <td><span class="area-pill"><%= area_label(cert.area) %></span></td>
+        <td><span class="badge <%= cert.status_class %>"><%= cert.status %></span><% unless cert.active %><div class="muted small">Alte Version</div><% end %></td>
+        <td class="nowrap"><%= date_label(cert.not_after) %></td><td><span class="source-label"><%= cert.source_label %></span></td><td class="lookup-cell mono"><%= cert.lookup.presence || "Issuer / Subject (Hiera)" %></td>
+        <td><%= link_to certificate_path(cert), aria: { label: "Details zu #{cert.common_name}" }, data: { turbo_frame: "_top" }, class: "row-link" do %><%= icon("arrow") %><% end %></td></tr>
+      <% end %>
+      </tbody></table></div>
+      <% if @total.zero? %><div class="empty-state"><%= icon("search") %><h2>Keine Zertifikate gefunden</h2><p>Ändern Sie die Filter oder importieren Sie Zertifikate.<br>Ein neu eingebundener Dateibestand wird automatisch indexiert.</p></div><% end %>
+      <% if current_identity.any_writer? %><div class="batch-toolbar"><span data-selection-target="count">Auswahl exportieren</span><%= render "export_fields", form: form, writer: current_identity.any_key_exporter? %><%= form.submit "Exportieren ↓", class: "button secondary" %></div><% end %>
+    <% end %>
+    <div class="pagination"><span class="muted small">Seite <%= @page %> von <%= @pages %></span><div><% if @page > 1 %><%= link_to "← Zurück", certificates_path(filter_params.merge(page: @page - 1)), class: "button quiet" %><% end %><% if @page < @pages %><%= link_to "Weiter →", certificates_path(filter_params.merge(page: @page + 1)), class: "button quiet" %><% end %></div></div>
+  <% end %>
+</section>
+<p class="index-note">Stand des Suchindex: <%= @indexed_at ? @indexed_at.strftime("%d.%m.%Y, %H:%M") : "Indexierung steht noch aus" %></p>

@@ -1,0 +1,18 @@
+class Certificate < ApplicationRecord
+  validates :area, inclusion: { in: ->(_) { AreaConfiguration.ids } }
+  validates :source, inclusion: { in: %w[filesystem consul] }
+  scope :visible_to, ->(identity) { where(area: identity.areas, source: %w[filesystem consul]) }
+
+  def status
+    return "Noch nicht gültig" if not_before > Time.current
+    return "Abgelaufen" if not_after <= Time.current
+    return "Läuft bald ab" if not_after < 30.days.from_now
+    "Gültig"
+  end
+
+  def status_class
+    { "Noch nicht gültig" => "neutral", "Abgelaufen" => "danger", "Läuft bald ab" => "warning", "Gültig" => "success" }.fetch(status)
+  end
+
+  def source_label = source == "consul" ? "Consul" : "Dateibestand"
+end

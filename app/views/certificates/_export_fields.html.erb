@@ -1,0 +1,4 @@
+<label class="sr-only" for="format_name">Exportformat</label><%= form.select :format_name, [["PEM", "pem"], ["DER", "der"], ["PKCS#12 / PFX", "p12"], ["JKS", "jks"]] %>
+<label class="check-label"><%= form.check_box :include_chain %> Mit Kette</label>
+<% if writer %><label class="check-label"><%= form.check_box :include_key %> Mit privatem Schlüssel</label><% end %>
+<%= form.password_field :password, placeholder: "Exportpasswort (min. 12 Zeichen)", aria: { label: "Exportpasswort, mindestens 12 Zeichen für Schlüssel, PFX oder JKS" }, autocomplete: "new-password" %>

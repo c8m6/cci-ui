@@ -1,0 +1,13 @@
+<% content_for :title, "Import" %>
+<div class="page-heading"><div><span class="eyebrow">NEUE ZERTIFIKATE</span><h1>Zertifikate importieren</h1><p class="muted">Dateien hinzufügen, Vorschau prüfen und im gewählten Bereich speichern.</p></div></div>
+<% if @errors %><ul class="flash flash-error"><% @errors.each do |error| %><li><%= error %></li><% end %></ul><% end %>
+<%= form_with url: imports_path, multipart: true, data: { turbo: false }, class: "import-layout" do |form| %>
+<section class="panel detail-panel"><h2>1. Zertifikate hinzufügen</h2><label class="dropzone" data-controller="upload" data-action="dragover->upload#over dragleave->upload#leave drop->upload#drop"><%= icon("upload") %><strong>Dateien auswählen oder hier ablegen</strong><span>PEM, DER, PFX / PKCS#12 oder JKS · insgesamt bis 20 MB</span><%= form.file_field :files, multiple: true, data: { upload_target: "input", action: "change->upload#change" } %><span data-upload-target="label" aria-live="polite"></span></label>
+<details><summary>Alternativ PEM-Text einfügen</summary><%= form.text_area :pem, rows: 8, placeholder: "-----BEGIN CERTIFICATE-----", aria: { label: "Zertifikat und optional privater Schlüssel als PEM" }, spellcheck: false %></details>
+<%= form.label :password, "Passwort der Quelldatei (falls geschützt)" %><%= form.password_field :password, autocomplete: "off" %>
+<p class="muted small">Separate Schlüsseldateien können zusammen mit den Zertifikaten hochgeladen werden. JKS: Store- und Schlüsselpasswort müssen übereinstimmen.</p>
+</section><section class="panel detail-panel"><h2>2. Zuordnung festlegen</h2><fieldset class="area-choices"><legend>Zielbereiche</legend><% current_identity.areas.select { |area| current_identity.writer?(area) }.each_with_index do |area, index| %><label class="check-label"><%= check_box_tag "areas[]", area, index.zero?, id: "area_#{area}" %> <%= area_label(area) %></label><% end %></fieldset><p class="muted small">Wählen Sie einen oder mehrere berechtigte Bereiche aus.</p>
+<%= form.label :tags, "Tags" %><%= form.text_field :tags, placeholder: "z. B. Produktion, Webserver", maxlength: 500 %><p class="muted small">Mehrere Tags durch Komma trennen.</p>
+<%= form.label :lookup, "Puppet-Lookup (optional)" %><%= form.text_field :lookup, placeholder: "z. B. portal.produktion", maxlength: 120, pattern: "[a-zA-Z0-9_.-]+" %><p class="muted small">Für ein einzelnes Zertifikat. Ein bestehender Lookup erhält eine neue aktive Version. Ohne Angabe wird der Fingerprint verwendet.</p>
+<div class="info-note">Neue Zertifikate werden in Consul gespeichert. Der Dateibestand bleibt erhalten.</div><%= form.submit "Vorschau prüfen →", class: "button primary full-width" %></section>
+<% end %>

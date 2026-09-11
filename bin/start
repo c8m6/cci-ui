@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require_relative "../config/boot"
+abort "Datenbankvorbereitung fehlgeschlagen" unless system("ruby", "bin/rails", "db:prepare")
+exec "bundle", "exec", "puma", "-C", "config/puma.rb"

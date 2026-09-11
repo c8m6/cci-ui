@@ -1,0 +1,66 @@
+name: certui
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: certui
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-certui}
+      POSTGRES_DB: certui_development
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "certui"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  consul:
+    image: hashicorp/consul:1.22
+    command: ["agent", "-server", "-bootstrap-expect=1", "-node=cci-local", "-client=0.0.0.0", "-data-dir=/consul/data"]
+    volumes:
+      - consul_data:/consul/data
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: ${CCI_ENV_FILE:-.env}
+    environment: &app_environment
+      RAILS_ENV: development
+      AUTH_MODE: ${AUTH_MODE:-local}
+      DATABASE_URL: postgresql://certui:${POSTGRES_PASSWORD:-certui}@db/certui_development
+      TEST_DATABASE_URL: postgresql://certui:${POSTGRES_PASSWORD:-certui}@db/certui_test
+      CONSUL_URL: http://consul:8500
+      CONSUL_TOKEN: ${CONSUL_TOKEN:-}
+      LEGACY_PATH: /legacy
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_ROLE_MAP: ${OIDC_ROLE_MAP:-{}}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:3000/auth/keycloak/callback}
+    volumes:
+      - ./data:/legacy:ro
+      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+  indexer:
+    build: .
+    command: ["ruby", "bin/indexer"]
+    env_file: ${CCI_ENV_FILE:-.env}
+    environment: *app_environment
+    volumes:
+      - ./data:/legacy:ro
+      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
+    depends_on:
+      web:
+        condition: service_started
+    restart: on-failure
+volumes:
+  postgres_data:
+  consul_data:

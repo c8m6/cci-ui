@@ -1,0 +1,58 @@
+name: cci-ui-production
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: cci
+      POSTGRES_DB: cci
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD setzen}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "cci"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+  web:
+    build: .
+    image: cci-ui:local
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: ${CCI_ENV_FILE:-.env.production}
+    environment: &production_environment
+      RAILS_ENV: production
+      AUTH_MODE: oidc
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE setzen}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS setzen}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL auf postgres db setzen}
+      CONSUL_URL: ${CONSUL_URL:?CONSUL_URL setzen}
+      CONSUL_TOKEN: ${CONSUL_TOKEN:?CONSUL_TOKEN setzen}
+      CONSUL_PREFIX: ${CONSUL_PREFIX:-cci/v1}
+      OIDC_ISSUER: ${OIDC_ISSUER:?OIDC_ISSUER setzen}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?OIDC_CLIENT_ID setzen}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET setzen}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?OIDC_REDIRECT_URI setzen}
+      OIDC_ROLE_MAP: ${OIDC_ROLE_MAP:-{}}
+      LEGACY_PATH: /legacy
+      INDEX_INTERVAL: ${INDEX_INTERVAL:-60}
+    volumes:
+      - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
+      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  indexer:
+    image: cci-ui:local
+    command: ["ruby", "bin/indexer"]
+    env_file: ${CCI_ENV_FILE:-.env.production}
+    environment: *production_environment
+    volumes:
+      - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
+      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+volumes:
+  postgres_data:

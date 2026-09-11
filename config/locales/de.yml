@@ -1,0 +1,11 @@
+de:
+  date:
+    formats:
+      default: "%d.%m.%Y"
+  time:
+    formats:
+      default: "%d.%m.%Y %H:%M"
+  errors:
+    messages:
+      blank: "darf nicht leer sein"
+      taken: "ist bereits vergeben"

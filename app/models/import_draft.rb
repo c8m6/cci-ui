@@ -1,0 +1,2 @@
+class ImportDraft < ApplicationRecord
+end

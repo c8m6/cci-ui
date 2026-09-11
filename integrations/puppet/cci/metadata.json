@@ -1,0 +1,10 @@
+{
+  "name": "local-cci",
+  "version": "0.1.0",
+  "author": "CCI-UI",
+  "license": "proprietary",
+  "summary": "Idempotente Bereitstellung von Zertifikaten aus Consul",
+  "source": "local",
+  "dependencies": [],
+  "requirements": [{ "name": "puppet", "version_requirement": ">= 8.0.0 < 9.0.0" }]
+}

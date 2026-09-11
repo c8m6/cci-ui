@@ -1,0 +1,12 @@
+/data/
+/quelle/
+/.bundle/
+/vendor/bundle/
+/log/*
+/tmp/*
+/storage/*
+/.env
+/.env.*
+!/.env.example
+/node_modules/
+/public/assets/

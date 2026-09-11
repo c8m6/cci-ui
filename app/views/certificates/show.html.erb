@@ -1,0 +1,21 @@
+<% content_for :title, @certificate.common_name %>
+<%= link_to "← Alle Zertifikate", root_path, class: "back-link" %>
+<div class="page-heading"><div><span class="eyebrow">ZERTIFIKATSDETAILS</span><h1 class="break-word"><%= @certificate.common_name %></h1><p><span class="area-pill"><%= area_label(@certificate.area) %></span> <span class="badge <%= @certificate.status_class %>"><%= @certificate.status %></span> <span class="source-label"><%= @certificate.source_label %></span></p></div></div>
+<div class="detail-grid"><section class="panel detail-panel"><h2>Überblick</h2><dl>
+  <dt>Subject</dt><dd><%= @certificate.subject %></dd><dt>Aussteller</dt><dd><%= @certificate.issuer %></dd>
+  <dt>Gültigkeit</dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %></dd>
+  <dt>Alternative Namen (SAN)</dt><dd><% @certificate.sans.each do |san| %><span class="san"><%= san %></span><% end %><%= "Keine" if @certificate.sans.empty? %></dd>
+  <dt>Seriennummer (Hex)</dt><dd class="mono"><%= @certificate.serial %></dd><dt>SHA-256-Fingerprint</dt><dd class="mono"><%= @certificate.fingerprint %></dd>
+  <dt>Signaturalgorithmus</dt><dd><%= @certificate.algorithm %></dd><dt>Schlüsseldatei</dt><dd><%= @certificate.has_key ? "Vorhanden · Zuordnung wird beim Export geprüft" : "Nicht vorhanden" %></dd>
+  <dt>Tags</dt><dd><%= @certificate.tags.join(", ").presence || "Keine" %></dd>
+  <% if @certificate.lookup %><dt>Puppet-Lookup</dt><dd class="mono"><%= @certificate.lookup %></dd><% end %>
+</dl></section><section class="panel detail-panel"><h2>Zertifikatskette</h2><ol class="chain-list"><% [@material[:certificate], *@material[:chain]].each do |cert| %><li><% linked = @chain_records[Certificates::Codec.fingerprint(cert)] %><% if linked %><%= link_to Certificates::Codec.metadata(cert)[:common_name], certificate_path(linked) %><% else %><%= Certificates::Codec.metadata(cert)[:common_name] %><span class="muted small"> · Kein eigener zugänglicher Eintrag</span><% end %></li><% end %></ol>
+<% root_cert = @material[:chain].last || @material[:certificate] %>
+<p class="muted small"><%= root_cert.subject == root_cert.issuer && root_cert.verify(root_cert.public_key) ? "Kette bis zum selbstsignierten Zertifikat vorhanden. Dies ist keine Vertrauensprüfung." : "Kette unvollständig: Ein Ausstellerzertifikat fehlt oder ist nicht zugänglich." %></p>
+<% if current_identity.export?(@certificate.area) %><h2>Exportieren</h2><%= form_with url: export_certificates_path, data: { turbo: false }, class: "detail-export" do |form| %><%= hidden_field_tag "ids[]", @certificate.id %><%= render "export_fields", form: form, writer: current_identity.export_key?(@certificate.area) %><% if @certificate.source == "filesystem" && current_identity.export_key?(@certificate.area) %><%= form.password_field :source_password, placeholder: "Quellpasswort, falls Schlüssel geschützt", aria: { label: "Passwort des gespeicherten Schlüssels" }, autocomplete: "off" %><% end %><%= form.submit "Zertifikat herunterladen ↓", class: "button primary" %><% end %>
+<% end %></section></div>
+<% if @versions.any? %><section class="panel detail-panel"><h2>Versionen</h2><% @versions.each do |version| %><div class="version-row"><%= link_to "#{date_label(version.not_before)} – #{date_label(version.not_after)}", certificate_path(version) %><span class="mono small"><%= version.fingerprint.first(16) %>…</span><% if version.active %><span class="badge success">Aktiv für Puppet</span><% elsif current_identity.writer?(version.area) %><%= button_to "Aktivieren", certificate_path(version), method: :patch, class: "button secondary", data: { turbo_confirm: "Diese Version für Puppet aktivieren?" } %><%= button_to "Löschen", certificate_path(version), method: :delete, class: "button quiet", data: { turbo_confirm: "Diese inaktive Version und ihren privaten Schlüssel endgültig löschen?" } %><% end %></div><% end %></section><% end %>
+<section class="panel detail-panel"><h2>Hiera-Konfiguration</h2><pre><%= @hiera %></pre></section>
+<% if current_identity.export?(@certificate.area) %><details class="panel detail-panel"><summary>Öffentliches Zertifikat als PEM</summary><pre><%= @material[:certificate].to_pem %></pre></details>
+
+<% end %>
