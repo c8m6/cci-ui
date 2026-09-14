@@ -69,6 +69,8 @@ PKCS#12 supports AES/PBES2 and 3DES; legacy RC2 is not supported.
 
 - [Installation and operations](docs/installation.md)
 - [Technical architecture and data storage](docs/technik.md)
+- [Consul schema, client provenance and Ruby import examples](docs/consul-schema.md)
+- [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)
 - [Puppet integration and idempotence](docs/puppet.md)
 - [Implemented change requests](docs/aenderungen.md)
 

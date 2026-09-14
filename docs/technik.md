@@ -36,7 +36,7 @@ requests. Existing NFS access is unchanged.
 
 | Table | Contents and responsibility |
 | --- | --- |
-| `certificates` | Area, source, source reference, lookup, fingerprint, subject, issuer, SANs, tags, validity, key availability, active version and search text |
+| `certificates` | Area, source, source reference, originating `client`, `created_by` actor, lookup, fingerprint, subject, issuer, SANs, tags, validity, key availability, active version and search text |
 | `audit_events` | Actor, action, area, event time in `occurred_at`, references and persistent certificate metadata/export options in `details`; `store_event_id` prevents duplicate ingestion of Consul events |
 | `import_drafts` | Session owner, random preview token, expiry after 15 minutes, parsed import data with private keys already encrypted |
 
@@ -59,7 +59,7 @@ Default prefix: `cci/v1`. `<area>` is a stable ID from `config/areas.yml`.
 | KV path below the prefix | Value |
 | --- | --- |
 | `areas/<area>/lookups/<lookup>` | JSON containing `entry_id` and `active_version` |
-| `areas/<area>/versions/<version_id>` | JSON containing `schema`, `entry_id`, `lookup`, `pem`, `chain`, `tags`, `fingerprint`, `public_key_fingerprint`, `has_key`, `created_at` |
+| `areas/<area>/versions/<version_id>` | JSON containing `schema`, `entry_id`, `lookup`, `pem`, `chain`, `tags`, `fingerprint`, `public_key_fingerprint`, `has_key`, `created_at`, `client`, `created_by` |
 | `areas/<area>/private-keys/<version_id>` | JSON containing encryption version, IV, authentication tag and ciphertext |
 | `events/<uuid>` | JSON containing `action`, `area`, `id`, `actor`, `at`, `details` (certificate metadata and change context) |
 
@@ -68,6 +68,11 @@ Default prefix: `cci/v1`. `<area>` is a stable ID from `config/areas.yml`.
 public-key fingerprints refer to SubjectPublicKeyInfo DER. In the v1 contract,
 `chain` and `tags` are JSON-encoded strings inside the outer JSON object.
 The Consul HTTP API additionally Base64-encodes KV values for transport.
+
+Every new writer identifies itself using `client` and records the initiating
+user/service in `created_by`. CCI-UI uploads use `cci-ui`; historical versions
+without provenance remain readable and display an unknown client. This is an
+additive v1 extension. See the [complete schema and standalone Ruby example](consul-schema.md).
 
 An explicit lookup is a stable name such as `portal.production`. Without a
 custom name, the certificate fingerprint becomes the lookup. Renewing a stable

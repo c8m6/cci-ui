@@ -67,6 +67,8 @@ class CatalogIndexer
         cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
         seen << upsert(cert, area: area, source: "consul", source_id: id, entry_id: data.fetch("entry_id"),
           lookup: data.fetch("lookup"), tags: JSON.parse(data.fetch("tags")), has_key: data["has_key"] == "1",
+          client: data["client"].is_a?(String) ? data["client"].presence : nil,
+          created_by: data["created_by"].is_a?(String) ? data["created_by"].presence : nil,
           active: lookups[data.fetch("entry_id")] == id).id
       end
     end

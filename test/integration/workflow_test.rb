@@ -28,6 +28,8 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     get certificate_path(@record)
     assert_response :success
     assert_not_includes response.body, "PRIVATE KEY"
+    assert_includes response.body, "Externer Client: test-client"
+    assert_select "dt", text: "Erstellt durch"
     post export_certificates_path, params: { ids: [@record.id], format_name: "pem" }
     assert_response :see_other
     assert_not_includes response.body, "PRIVATE KEY"
@@ -50,6 +52,13 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     post imports_path, params: { token: token }
     assert_redirected_to root_path
     assert Certificate.exists?(common_name: "new.example.test", source: "consul", area: "zone_a")
+    imported = Certificate.find_by!(common_name: "new.example.test")
+    assert_equal "cci-ui", imported.client
+    assert_equal "Zone A · Writer", imported.created_by
+    get certificate_path(imported)
+    assert_response :success
+    assert_includes response.body, "CCI-UI (Upload)"
+    assert_includes response.body, "Zone A · Writer"
     post imports_path, params: { token: token }
     assert_response :see_other
     post imports_path, params: { areas: ["zone_b"], pem: newer.to_pem }

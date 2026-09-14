@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
   web:
     build: .
-    image: cci-ui:local
+    image: ${CCI_IMAGE:-cci-ui:local}
     ports:
       - "127.0.0.1:3000:3000"
     env_file: ${CCI_ENV_FILE:-.env.production}
@@ -44,7 +44,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
   indexer:
-    image: cci-ui:local
+    image: ${CCI_IMAGE:-cci-ui:local}
     command: ["ruby", "bin/indexer"]
     env_file: ${CCI_ENV_FILE:-.env.production}
     environment: *production_environment
