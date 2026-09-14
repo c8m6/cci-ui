@@ -1,5 +1,8 @@
 # Installing CCI-UI
 
+For prebuilt images and CI setup, see [GitHub Actions and Docker Hub](container-publishing.md).
+For direct imports and client identity, see [Consul schema and Ruby examples](consul-schema.md).
+
 ## Local development on a VM
 
 Requirements: Docker Engine with the Compose plugin, an available local port

@@ -34,8 +34,8 @@ module CertificateFixtures
     ConsulStore.client.request("delete", ConsulStore.client.path(prefix + "/") + "?recurse")
   end
 
-  def store(cert, key: nil, area: "zone_a", lookup: "test", chain: [])
-    id = ConsulStore.save(area: area, cert: cert, key: key, chain: chain, tags: ["Produktion"], lookup: lookup, actor: "test")
+  def store(cert, key: nil, area: "zone_a", lookup: "test", chain: [], client: "test-client")
+    id = ConsulStore.save(area: area, cert: cert, key: key, chain: chain, tags: ["Produktion"], lookup: lookup, actor: "test", client: client)
     CatalogIndexer.new.consul
     Certificate.find_by!(area: area, source_id: id)
   end

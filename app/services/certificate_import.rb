@@ -46,7 +46,7 @@ class CertificateImport
         key = entry["key"] && OpenSSL::PKey.read(Certificates::Vault.decrypt(entry["key"], area: area, id: "preview:#{token}:#{entry.fetch('fingerprint')}"))
         id = ConsulStore.save(area: area, cert: cert, key: key,
           chain: entry.fetch("chain").map { |pem| OpenSSL::X509::Certificate.new(pem) },
-          tags: entry.fetch("tags"), lookup: entry.fetch("lookup"), actor: identity.name)
+          tags: entry.fetch("tags"), lookup: entry.fetch("lookup"), actor: identity.name, client: "cci-ui")
         successes << id
       rescue Certificates::Error, ConsulConnection::Error => error
         errors << "#{AreaConfiguration.label(area)} / #{entry.fetch('name')}: #{error.message}"

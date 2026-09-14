@@ -2,6 +2,9 @@
 <%= link_to "← Alle Zertifikate", root_path, class: "back-link" %>
 <div class="page-heading"><div><span class="eyebrow">ZERTIFIKATSDETAILS</span><h1 class="break-word"><%= @certificate.common_name %></h1><p><span class="area-pill"><%= area_label(@certificate.area) %></span> <span class="badge <%= @certificate.status_class %>"><%= @certificate.status %></span> <span class="source-label"><%= @certificate.source_label %></span></p></div></div>
 <div class="detail-grid"><section class="panel detail-panel"><h2>Überblick</h2><dl>
+  <dt>Speicherort</dt><dd><%= @certificate.source_label %></dd>
+  <dt>Quelle / Client</dt><dd><%= @certificate.origin_label %></dd>
+  <dt>Erstellt durch</dt><dd><%= @certificate.created_by.presence || "Unbekannt (nicht erfasst)" %></dd>
   <dt>Subject</dt><dd><%= @certificate.subject %></dd><dt>Aussteller</dt><dd><%= @certificate.issuer %></dd>
   <dt>Gültigkeit</dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %></dd>
   <dt>Alternative Namen (SAN)</dt><dd><% @certificate.sans.each do |san| %><span class="san"><%= san %></span><% end %><%= "Keine" if @certificate.sans.empty? %></dd>

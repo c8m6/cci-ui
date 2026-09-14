@@ -15,4 +15,10 @@ class Certificate < ApplicationRecord
   end
 
   def source_label = source == "consul" ? "Consul" : "Dateibestand"
+
+  def origin_label
+    return "Dateibestand" if source == "filesystem"
+    return "Unbekannt (keine Client-Angabe)" if client.blank?
+    client == "cci-ui" ? "CCI-UI (Upload)" : "Externer Client: #{client}"
+  end
 end
