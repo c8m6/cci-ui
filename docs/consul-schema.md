@@ -1,137 +1,138 @@
-# Consul-Schema und schreibende Clients
+# Consul schema and writing clients
 
-Consul ist die maßgebliche Ablage für neue Zertifikate. PostgreSQL enthält den
-wiederherstellbaren Suchindex, einschließlich Herkunft. Direkte Consul-Imports
-werden beim nächsten Indexlauf sichtbar (standardmäßig nach spätestens etwa
-60 Sekunden bei erfolgreichem Lauf). Es gibt keine separate HTTP-Upload-API.
+Consul is the source of truth for new certificates. PostgreSQL contains the
+rebuildable search index, including provenance. Direct Consul imports become
+visible on the next successful indexing pass (normally within approximately
+60 seconds). There is no separate HTTP upload API.
 
-## Einrichtung
+## Setup
 
-1. Bereiche mit stabilen IDs in `config/areas.yml` konfigurieren, beispielsweise
-   `zone_a`. Jeder externe Client verwendet dieselben IDs.
-2. Consul bereitstellen und `CONSUL_URL`, `CONSUL_TOKEN` und optional
-   `CONSUL_PREFIX` (Standard `cci/v1`) setzen. Für TLS kann `CONSUL_CA_FILE`
-   auf eine CA-Datei zeigen.
-3. Schreibenden Clients eigene ACL-Tokens zuweisen: Schreibzugriff auf die
-   benötigten `areas/<area>/lookups/`, `versions/`, gegebenenfalls `private-keys/`
-   und `events/` unter dem Prefix. Lookup-Lesen ist für CAS erforderlich.
-4. Für private Schlüssel je Bereich ein gemeinsames Verschlüsselungs-Secret
-   konfigurieren: `<UPPERCASE_AREA_ID>_KEY`, Base64-kodierte 32 Zufallsbytes.
-   Schreibende und entschlüsselnde Clients verwenden denselben Bereichsschlüssel.
-5. PostgreSQL mit `ruby bin/rails db:prepare` aktualisieren und Web sowie Indexer
-   mit dem neuen Image starten. `bin/start` führt `db:prepare` automatisch aus.
+1. Configure areas with stable IDs in `config/areas.yml`, for example `zone_a`.
+   Every external client must use the same IDs.
+2. Provide Consul and set `CONSUL_URL`, `CONSUL_TOKEN`, and optionally
+   `CONSUL_PREFIX` (default: `cci/v1`). For TLS, `CONSUL_CA_FILE` can point to
+   a CA certificate file.
+3. Assign separate ACL tokens to writing clients. Grant write access to the
+   required `areas/<area>/lookups/`, `versions/`, optionally `private-keys/`,
+   and `events/` paths under the prefix. Reading lookups is required for CAS.
+4. For private keys, configure a shared encryption secret per area:
+   `<UPPERCASE_AREA_ID>_KEY`, containing 32 random bytes encoded as Base64.
+   Writing and decrypting clients must use the same area key.
+5. Update PostgreSQL with `ruby bin/rails db:prepare` and start the web and
+   indexer services with the new image. `bin/start` runs `db:prepare` automatically.
 
-Consul benötigt keine Tabellenmigration: Die Clients legen die folgenden Keys
-beim Schreiben an. Vorhandene Consul-Einträge werden nicht umgeschrieben.
-Die Rails-Migration ergänzt die nullable Indexspalten `client` und `created_by`.
+Consul requires no table migration: clients create the following keys when
+writing. Existing Consul entries are not rewritten. The Rails migration adds
+the nullable `client` and `created_by` columns to the search index.
 
-## KV-Struktur
+## KV structure
 
-Alle Werte sind JSON-Objekte. Die Consul-KV- und Transaktions-API transportiert
-sie zusätzlich Base64-kodiert. `<base>` bedeutet `<prefix>/areas/<area>`.
+All values are JSON objects. The Consul KV and transaction APIs additionally
+encode them as Base64 for transport. `<base>` means `<prefix>/areas/<area>`.
 
-| Pfad | Bedeutung |
+| Path | Meaning |
 | --- | --- |
 | `<base>/lookups/<lookup>` | `{ "entry_id": "<uuid>", "active_version": "<version_id>" }` |
-| `<base>/versions/<version_id>` | Öffentliches Zertifikat, Kette, Metadaten und Herkunft |
-| `<base>/private-keys/<version_id>` | Optionaler AES-256-GCM-Umschlag des privaten Schlüssels |
-| `<prefix>/events/<uuid>` | Audit-Ereignis zur Änderung |
+| `<base>/versions/<version_id>` | Public certificate, chain, metadata, and provenance |
+| `<base>/private-keys/<version_id>` | Optional AES-256-GCM envelope containing the private key |
+| `<prefix>/events/<uuid>` | Audit event for the change |
 
-Ein Lookup besteht aus 1–120 Zeichen: `a-z`, `A-Z`, `0-9`, `.`, `_`, `-`.
-Er bleibt bei Erneuerungen gleich. Die `entry_id` ist eine pro Bereich/Lookup
-einmal erzeugte UUID. Die `version_id` ist der kleingeschriebene SHA-256-Hexwert
-des UTF-8-Strings `<entry_id>:<fingerprint>`.
+A lookup contains 1–120 characters from `a-z`, `A-Z`, `0-9`, `.`, `_`, and `-`.
+It remains stable across renewals. The `entry_id` is a UUID generated once per
+area/lookup pair. The `version_id` is the lowercase SHA-256 hexadecimal digest
+of the UTF-8 string `<entry_id>:<fingerprint>`.
 
-### Zertifikatsversion
+### Certificate version
 
-| Feld | JSON-Typ und Inhalt |
+| Field | JSON type and contents |
 | --- | --- |
 | `schema` | String `"1"` |
-| `entry_id` | UUID als String; unverändert für weitere Versionen desselben Lookups |
-| `lookup` | Stabiler Lookup-Name |
-| `pem` | Ein öffentliches X.509-Zertifikat als PEM-String |
-| `chain` | **String mit JSON-Array** aus PEM-Strings, ohne das eigene Zertifikat, Aussteller zuerst; leer: `"[]"` |
-| `tags` | **String mit JSON-Array** aus Tag-Strings; leer: `"[]"` |
-| `fingerprint` | SHA-256 über Zertifikats-DER, 64 kleingeschriebene Hexzeichen |
-| `public_key_fingerprint` | SHA-256 über SubjectPublicKeyInfo-DER (`public_to_der`), 64 Hexzeichen |
-| `has_key` | String `"1"` oder `"0"`; bei `"1"` muss der Schlüsselumschlag existieren |
-| `created_at` | Erstellzeit dieser gespeicherten Version als ISO-8601-String mit Zeitzone |
-| `client` | Kennung des schreibenden Programms; Pflicht für neue Schreibvorgänge, 1–120 Zeichen wie Lookup |
-| `created_by` | Auslösender Benutzer bzw. Dienstaccount; Pflicht für neue Schreibvorgänge, 1–255 Zeichen, nicht nur Leerraum |
+| `entry_id` | UUID string; unchanged for subsequent versions of the same lookup |
+| `lookup` | Stable lookup name |
+| `pem` | One public X.509 certificate as a PEM string |
+| `chain` | **String containing a JSON array** of PEM strings, excluding the certificate itself, immediate issuer first; empty: `"[]"` |
+| `tags` | **String containing a JSON array** of tag strings; empty: `"[]"` |
+| `fingerprint` | SHA-256 of certificate DER, 64 lowercase hexadecimal characters |
+| `public_key_fingerprint` | SHA-256 of SubjectPublicKeyInfo DER (`public_to_der`), 64 hexadecimal characters |
+| `has_key` | String `"1"` or `"0"`; `"1"` requires a corresponding private-key envelope |
+| `created_at` | Creation time of this stored version as an ISO 8601 string with a time zone |
+| `client` | Writing application's identifier; required for new writes, 1–120 characters using the same character set as lookups |
+| `created_by` | Initiating user or service account; required for new writes, 1–255 characters, not whitespace-only |
 
-CCI-UI setzt `client: "cci-ui"` fest im Uploadpfad und übernimmt `created_by`
-aus der angemeldeten Identität. Andere Programme setzen eine eigene stabile
-Kennung, etwa `acme-renewer` oder `inventory-import`. Eine reine Leseanfrage,
-beispielsweise durch Puppet, verändert den Urheber nicht. Aktivieren einer
-älteren Version verändert ebenfalls nicht ihre Herkunft.
+CCI-UI sets `client: "cci-ui"` in its upload path and takes `created_by` from
+the authenticated identity. Other applications use their own stable identifier,
+such as `acme-renewer` or `inventory-import`. Read requests, for example from
+Puppet, do not change the creator. Activating an older version also preserves
+that version's provenance.
 
-Dies ist eine additive Erweiterung von Schema `"1"`; Namespace, ID-Berechnung
-und Verschlüsselung bleiben gleich. Bestehende Leser können zusätzliche Felder
-ignorieren. Alte Versionen ohne Herkunft bleiben lesbar und erscheinen als
-„Unbekannt (keine Client-Angabe)“. Aus dem Speicherort Consul lässt sich kein
-Client ableiten. Dateibestand wird separat als solcher angezeigt. Neue Clients
-müssen die Herkunft mitschreiben; Consul selbst erzwingt kein JSON-Schema.
+This is an additive extension of schema `"1"`; the namespace, ID calculation,
+and encryption remain unchanged. Existing readers can ignore additional fields.
+Older versions without provenance remain readable and display
+“Unbekannt (keine Client-Angabe)” (unknown: no client specified). The Consul
+storage location alone cannot identify the client. Legacy files are displayed
+separately as file-based inventory. New clients must write provenance fields;
+Consul itself does not enforce a JSON schema.
 
-Die Angaben sind Selbstauskünfte des schreibenden Clients, kein kryptografischer
-Urhebernachweis. Der Client ist außerdem vom X.509-Aussteller (`issuer`) zu
-unterscheiden. Schreibrechte und die Zuordnung der ACL-Tokens bleiben maßgeblich.
+These fields are supplied by the writing client and are not cryptographic proof
+of authorship. The client is also distinct from the X.509 certificate issuer
+(`issuer`). Write permissions and ACL token assignment remain authoritative.
 
-### Privater Schlüssel
+### Private key
 
 ```json
 { "version": 1, "iv": "<base64>", "tag": "<base64>", "data": "<base64>" }
 ```
 
-`version` ist hier eine **Zahl**, anders als `schema` im Zertifikatsobjekt.
-Verschlüsselt wird der private PEM-Schlüssel mit AES-256-GCM, einem frischen
-12-Byte-IV und dem 32-Byte-Bereichsschlüssel. Der Authentifizierungstag hat
-16 Bytes. AAD ist exakt `cci:v1:<area>:<version_id>`, auch bei abweichendem
-`CONSUL_PREFIX`. Private Schlüssel gehören nie in das öffentliche Versionsobjekt.
+Here, `version` is a **number**, unlike `schema` in the certificate object.
+The private PEM key is encrypted using AES-256-GCM, a fresh 12-byte IV, and the
+32-byte area key. The authentication tag contains 16 bytes. AAD is exactly
+`cci:v1:<area>:<version_id>`, even when `CONSUL_PREFIX` is customized. Private
+keys must never appear in the public version object.
 
-### Transaktion und Audit
+### Transaction and audit
 
-Zuerst den Lookup konsistent lesen. Beim ersten Import UUID erzeugen; bei
-Erneuerung die vorhandene `entry_id` wiederverwenden. In einer Transaktion:
+First, read the lookup consistently. Generate a UUID for the first import;
+reuse the existing `entry_id` for renewals. Within one transaction:
 
-1. Lookup mit `cas` und seinem bisherigen `ModifyIndex` schreiben; bei einem
-   neuen Lookup `Index: 0` verwenden. `active_version` auf die neue ID setzen.
-2. Version mit `cas`, `Index: 0` anlegen; bestehende Versionen nie überschreiben.
-3. Optional den Schlüsselumschlag ebenfalls mit `cas`, `Index: 0` anlegen.
-4. Audit-Ereignis mit neuer UUID anlegen.
+1. Write the lookup using `cas` with its previous `ModifyIndex`; use `Index: 0`
+   for a new lookup. Set `active_version` to the new version ID.
+2. Create the version using `cas`, `Index: 0`; never overwrite existing versions.
+3. Optionally create the private-key envelope using `cas`, `Index: 0` as well.
+4. Create an audit event with a new UUID.
 
-Bei HTTP 409 wird die gesamte Transaktion verworfen. Erneut lesen und fachlich
-entscheiden; niemals mit einem bedingungslosen Schreibzugriff überschreiben.
-Gleiches Zertifikat unter gleichem Lookup ist ein Duplikat; für eine Erneuerung
-wird ein neues Zertifikat benötigt. Werte dürfen höchstens 512 KiB groß sein;
-eine Transaktion umfasst höchstens 64 Operationen.
+HTTP 409 rejects the entire transaction. Read again and decide how to handle
+the conflict; never replace CAS with an unconditional write. The same certificate
+under the same lookup is a duplicate; a renewal requires a new certificate.
+Values may contain at most 512 KiB, and a transaction may contain at most
+64 operations.
 
-Audit-Felder: `action` (`import`, `activate`, `delete`), `area`, `id` (Versions-ID),
-`actor` (handelnder Benutzer), `at` (ISO 8601), `details` (JSON-Objekt).
-Bei Import enthält `details` die vorherige `previous_version` oder `null`,
-`tags` als Array, `has_key` als Boolean und `certificates` als Array von
-Snapshots (`common_name`, `subject`, `issuer`, `serial`, `fingerprint`, `source`,
-`source_id`, `lookup`, `kind`). Das ausführbare Beispiel zeigt diese Struktur.
+Audit fields: `action` (`import`, `activate`, `delete`), `area`, `id` (version ID),
+`actor` (acting user), `at` (ISO 8601), and `details` (JSON object).
+For imports, `details` contains the previous `previous_version` or `null`,
+`tags` as an array, `has_key` as a Boolean, and `certificates` as an array of
+snapshots (`common_name`, `subject`, `issuer`, `serial`, `fingerprint`, `source`,
+`source_id`, `lookup`, `kind`). The executable example demonstrates this structure.
 
-## Ruby-Beispiele
+## Ruby examples
 
-[examples/add_certificate.rb](../examples/add_certificate.rb) funktioniert ohne
-Rails und ohne zusätzliche Gems. Es verwendet die Standardbibliothek und
-[lib/consul_connection.rb](../lib/consul_connection.rb). Beide Dateien können mit
-derselben relativen Verzeichnisstruktur in einen externen Client übernommen
-werden. Zugangsdaten und Bereichsschlüssel über die Laufzeitumgebung bereitstellen.
+[examples/add_certificate.rb](../examples/add_certificate.rb) works without Rails
+or additional gems. It uses the standard library and
+[lib/consul_connection.rb](../lib/consul_connection.rb). Both files can be copied
+into an external client while preserving their relative directory structure.
+Provide credentials and area keys through the runtime environment.
 
 ```bash
 export CONSUL_URL=https://consul.example.test:8501
 export CONSUL_PREFIX=cci/v1
 export CCI_CLIENT_ID=acme-renewer
 export CCI_ACTOR=svc-acme
-# CONSUL_TOKEN und optional ZONE_A_KEY / KEY_PASSWORD aus Secret-Verwaltung setzen.
+# Set CONSUL_TOKEN and optionally ZONE_A_KEY / KEY_PASSWORD through secret management.
 ruby examples/add_certificate.rb zone_a portal.production certificate.pem
-# Mit privatem Schlüssel:
+# With a private key:
 ruby examples/add_certificate.rb zone_a portal.production renewed.pem private-key.pem
 ```
 
-Mit Kette und Tags aus eigenem Ruby-Code:
+To include a chain and tags from your own Ruby code:
 
 ```ruby
 require_relative "examples/add_certificate"
@@ -140,13 +141,13 @@ version_id = CertificateExample.add(
   area: "zone_a", lookup: "portal.production",
   cert: OpenSSL::X509::Certificate.new(File.binread("certificate.pem")),
   chain: [OpenSSL::X509::Certificate.new(File.binread("issuer.pem"))],
-  tags: ["Produktion", "ACME"], client: "acme-renewer", actor: "svc-acme"
+  tags: ["Production", "ACME"], client: "acme-renewer", actor: "svc-acme"
 )
 puts version_id
 ```
 
-Innerhalb der Rails-Anwendung kann ein eigener Importer stattdessen
-`ConsulStore.save(area:, cert:, key:, chain:, tags:, lookup:, actor:, client:)`
-aufrufen. `client:` ist ausdrücklich erforderlich und hat keinen UI-Standardwert.
-`CciClient#fetch(..., field: "metadata")` liefert die Herkunft auch an Puppet bzw.
-andere lesende Ruby-Clients, sofern sie in der Version vorhanden ist.
+Within the Rails application, a custom importer can instead call
+`ConsulStore.save(area:, cert:, key:, chain:, tags:, lookup:, actor:, client:)`.
+The `client:` argument is explicitly required and has no default identifying
+the caller as CCI-UI. `CciClient#fetch(..., field: "metadata")` also returns
+provenance to Puppet and other Ruby readers when present in the stored version.

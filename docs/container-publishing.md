@@ -1,64 +1,63 @@
-# Container mit GitHub Actions veröffentlichen
+# Publishing containers with GitHub Actions
 
-Der Workflow [docker-publish.yml](../.github/workflows/docker-publish.yml) baut
-das gemeinsame Image für **Web und Indexer** aus dem Root-Dockerfile. PostgreSQL
-und Consul verwenden ihre offiziellen Images und benötigen keinen eigenen Build.
+The [docker-publish.yml](../.github/workflows/docker-publish.yml) workflow builds
+the shared image for **web and indexer** from the root Dockerfile. PostgreSQL
+and Consul use their official images and do not require a custom build.
 
-## GitHub und Docker Hub einrichten
+## Set up GitHub and Docker Hub
 
-Im gewünschten Docker-Hub-Namespace ein Repository anlegen und in GitHub unter
-Settings → Secrets and variables → Actions konfigurieren:
+Create a repository in the desired Docker Hub namespace, then configure the
+following in GitHub under Settings → Secrets and variables → Actions:
 
-| Typ | Name | Beispiel / Inhalt |
+| Type | Name | Example / contents |
 | --- | --- | --- |
-| Repository variable | `DOCKERHUB_USERNAME` | Docker-Hub-Benutzer des Tokens |
-| Repository variable | `DOCKERHUB_IMAGE` | `meine-organisation/cci-ui`, ohne Tag und ohne URL-Schema |
-| Repository secret | `DOCKERHUB_TOKEN` | Docker-Hub-Zugriffstoken mit Schreibrecht für dieses Repository |
+| Repository variable | `DOCKERHUB_USERNAME` | Docker Hub username associated with the token |
+| Repository variable | `DOCKERHUB_IMAGE` | `my-organization/cci-ui`, without a tag or URL scheme |
+| Repository secret | `DOCKERHUB_TOKEN` | Docker Hub access token with write permission for this repository |
 
-Das Ziel ist bewusst konfigurierbar; der GitHub-Repositoryname muss nicht dem
-Docker-Hub-Namespace entsprechen. Es werden keine Produktionsdaten, Consul-Tokens
-oder Bereichsschlüssel zum Bauen benötigt. Die Zugangsdaten sind noch durch den
-Repositorybetreiber zu hinterlegen. Das Hinzufügen des Workflows allein führt
-lokal keinen Upload aus.
+The target is configurable; the GitHub repository name does not have to match
+the Docker Hub namespace. Builds require no production data, Consul tokens,
+or area encryption keys. The repository operator must supply the registry
+credentials. Adding the workflow alone does not upload anything locally.
 
-## Auslöser, Änderungen und Tags
+## Triggers, changes, and tags
 
-- Push auf einen beliebigen Branch: Build, Tests und Push. Reine Änderungen
-  an `docs/**`, Markdown-Dateien oder `.gitignore` werden übersprungen.
-- Pull Request: Build und Tests, ohne Registry-Anmeldung und ohne Veröffentlichung.
-- Push eines Tags `v*`: Build, Tests und Push auch ohne Codeänderung.
-- `workflow_dispatch`: vollständiger Build und Push für den gewählten Ref;
-  damit lassen sich auch aktualisierte Basisimages bewusst neu bauen.
+- Push to any branch: build, test, and publish. Changes limited to `docs/**`,
+  Markdown files, or `.gitignore` are skipped.
+- Pull request: build and test, without registry login or publishing.
+- Push a `v*` tag: build, test, and publish even without code changes.
+- `workflow_dispatch`: complete build and publish for the selected ref;
+  this also allows deliberate rebuilds with updated base images.
 
-Da nur ein eigenes Image existiert, löst jede nicht ausgeschlossene Änderung
-dessen Build aus. Das schließt Dockerfile, Gems, App, Indexer, Migrationen,
-Konfiguration, Tests, Compose und Workflow ein. BuildKit nutzt einen GitHub-Actions-
-Cache für unveränderte Layer. Bei späteren zusätzlichen Dockerfiles muss die
-Jobstruktur um deren Build und Änderungserkennung erweitert werden.
+Since the project has only one custom image, any change outside the excluded
+paths triggers its build. This includes the Dockerfile, gems, application,
+indexer, migrations, configuration, tests, Compose files, and workflow. BuildKit
+uses a GitHub Actions cache for unchanged layers. If additional Dockerfiles
+are introduced, extend the jobs to build them and detect their relevant changes.
 
-Veröffentlichte Tags: Branchname (durch die Metadata-Action normalisiert),
-Git-Tag bei Release-Tags und `sha-<vollständiger Commit-SHA>`. Nur der Default-Branch
-erhält außerdem `latest`; andere Branches und Release-Tags aktualisieren diesen
-Tag nicht. Für reproduzierbare Deployments einen Image-Digest verwenden.
-Das Image wird für `linux/amd64` auf dem GitHub-Ubuntu-Runner gebaut.
+Published tags include the branch name (normalized by the Metadata action),
+the Git tag for release tags, and `sha-<full-commit-sha>`. Only the default branch
+also receives `latest`; other branches and release tags do not update it.
+Use an image digest for reproducible deployments. The image is built for
+`linux/amd64` on the GitHub Ubuntu runner.
 
-Vor dem Push wird das gebaute Image mit dem isolierten
-[compose.ci.yml](../compose.ci.yml) gegen PostgreSQL und Consul getestet
-(`db:prepare test`). Fehler verhindern die Veröffentlichung; die Testdienste
-werden auch bei Fehlern entfernt. Der abschließende Push verwendet den Buildx-
-Cache des zuvor getesteten Builds.
+Before publishing, the built image is tested against PostgreSQL and Consul
+using the isolated [compose.ci.yml](../compose.ci.yml) configuration
+(`db:prepare test`). Failures prevent publishing; test services are removed
+even on failure. The final push uses the Buildx cache from the tested build.
 
-Die Actions entsprechen dem offiziellen Docker-Ablauf
-[Test before push](https://docs.docker.com/build/ci/github-actions/test-before-push/).
-Das Verhalten der Pfad- und Tagfilter beschreibt die
-[GitHub-Workflow-Syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
+The actions follow Docker's official
+[Test before push](https://docs.docker.com/build/ci/github-actions/test-before-push/)
+workflow. Path and tag filter behavior is described in the
+[GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
 
-## Veröffentlichtes Image einsetzen
+## Deploy a published image
 
-In der Produktions-Umgebungsdatei neben den bestehenden Einstellungen setzen:
+Add the following alongside the existing settings in the production environment
+file:
 
 ```dotenv
-CCI_IMAGE=meine-organisation/cci-ui:sha-<commit-sha>
+CCI_IMAGE=my-organization/cci-ui:sha-<commit-sha>
 ```
 
 ```console
@@ -66,12 +65,12 @@ docker compose --env-file .env.production -f compose.production.yml pull web ind
 docker compose --env-file .env.production -f compose.production.yml up -d --no-build
 ```
 
-Beide Dienste verwenden `CCI_IMAGE`; ohne die Variable bleibt der lokale Build
-unter `cci-ui:local` möglich. Bei privaten Docker-Hub-Repositories vorher auf dem
-Deploymenthost anmelden. Der Webstart führt Datenbankmigrationen aus; der Indexer
-wiederholt fehlgeschlagene Läufe während des Starts automatisch.
+Both services use `CCI_IMAGE`; without this variable, local builds using
+`cci-ui:local` remain available. For private Docker Hub repositories, log in
+on the deployment host first. Web startup runs database migrations; the indexer
+automatically retries failed indexing passes during startup.
 
-Lokalen CI-Lauf ohne Docker-Hub-Zugang ausführen:
+To run CI locally without Docker Hub credentials:
 
 ```console
 docker build -t cci-ui:ci .
