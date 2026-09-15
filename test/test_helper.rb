@@ -7,6 +7,9 @@ require_relative "../config/environment"
 require "rails/test_help"
 ActiveRecord::Migration.maintain_test_schema!
 require "tmpdir"
+require "fileutils"
+TEST_LEGACY_ROOT = Dir.mktmpdir("cci-test-legacy-")
+ENV["LEGACY_PATH"] = TEST_LEGACY_ROOT
 
 module CertificateFixtures
   def issue(name: "portal.example.test", issuer: nil, issuer_key: nil, serial: 1, ca: false, expired: false)
@@ -51,6 +54,7 @@ class ActiveSupport::TestCase
 end
 
 Minitest.after_run do
+  FileUtils.remove_entry(TEST_LEGACY_ROOT)
   connection = ConsulStore.client
   connection.request("delete", connection.path(ConsulStore.namespace + "/") + "?recurse")
 end

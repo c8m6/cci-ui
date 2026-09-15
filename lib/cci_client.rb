@@ -22,12 +22,14 @@ class CciClient
       id = version || entry.fetch("active_version")
       data = JSON.parse((@connection.get("#{base}/versions/#{id}") || raise(Error, "Version not found"))[:value])
       raise Error, "Version not found for this entry" unless data["entry_id"] == entry["entry_id"] && data["schema"] == "1"
-      data.merge("version_id" => id)
+      status = entry.fetch("status", "active")
+      raise Error, "Invalid rollout status" unless %w[active norollout delete].include?(status)
+      data.merge("version_id" => id, "status" => status)
     end
     cert = OpenSSL::X509::Certificate.new(material.fetch("pem"))
     raise Error, "Certificate fingerprint mismatch" unless Digest::SHA256.hexdigest(cert.to_der) == material.fetch("fingerprint")
     case field
-    when "metadata" then material.slice("version_id", "fingerprint", "public_key_fingerprint", "has_key", "client", "created_by", "created_at")
+    when "metadata" then material.slice("status", "version_id", "fingerprint", "public_key_fingerprint", "has_key", "client", "created_by", "created_at")
     when "certificate" then cert.to_pem
     when "chain" then [cert.to_pem, *JSON.parse(material.fetch("chain")).map { |pem| OpenSSL::X509::Certificate.new(pem).to_pem }].join
     when "private_key"

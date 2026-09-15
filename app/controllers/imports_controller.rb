@@ -4,7 +4,7 @@ class ImportsController < ApplicationController
   end
   def create
     if params[:token].present?
-      successes, @errors = CertificateImport.commit(token: params[:token], owner: session[:import_owner], identity: current_identity)
+      successes, @errors = CertificateImport.commit(token: params[:token], owner: session[:import_owner], identity: current_identity, confirm_overwrite: params[:confirm_overwrite] == "1")
       return redirect_to root_path, notice: "#{successes.size} Zertifikate gespeichert.", status: :see_other if @errors.empty?
       flash.now[:alert] = "#{successes.size} Zertifikate gespeichert. Einige Einträge konnten nicht gespeichert werden."
       render :new, status: :unprocessable_entity
@@ -16,5 +16,9 @@ class ImportsController < ApplicationController
         owner: session[:import_owner])
       render :preview
     end
+  rescue CertificateImport::ConfirmationRequired => error
+    @token, @preview = params[:token], error.preview
+    flash.now[:alert] = error.message
+    render :preview, status: :unprocessable_entity
   end
 end

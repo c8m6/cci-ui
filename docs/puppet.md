@@ -20,6 +20,42 @@ and public-key fingerprint. Native file management needs no separate API
 comparison. The agent requires neither Consul credentials nor the area secret;
 these are held by the compilers.
 
+## Prepared status contract
+
+CCI-UI can set `active`, `norollout`, or `delete` for each certificate, including
+legacy certificates. This release prepares UI and Consul storage only; the
+supplied `cci::certificate` manifests do **not** implement status processing.
+They continue to manage configured files even when a stored status is
+`norollout` or `delete`. Deploy status-aware Puppet code before relying on these
+values to suspend rollout or remove files.
+
+The intended behavior is:
+
+| Status | Future Puppet behavior |
+| --- | --- |
+| `active` | Deploy and maintain the configured certificate normally. |
+| `norollout` | Do not deploy or recreate missing certificate/key files; leave existing files unchanged. |
+| `delete` | Remove managed certificate/key files even after removal from Hiera. |
+
+For Consul material, `$metadata['status']` from `cci::lookup(..., 'metadata')`
+exposes the lookup's status, defaulting to `active` for older entries. The status
+also applies to explicitly pinned versions. Existing certificate and key reads
+continue to return material without acting on that status.
+
+Legacy status is stored separately at
+`<prefix>/areas/<area>/filesystem-statuses/<sha256-of-certificate-DER>`.
+Identical legacy certificates within one area share it. Missing records mean
+`active`. Once the last disk copy disappears, the indexer removes its legacy
+status record after a complete successful scan. Future Puppet cleanup must
+account for this lifecycle; it cannot rely on that record persisting after disk
+removal. See the [complete Consul schema](consul-schema.md).
+
+Cleanup independent of Hiera requires a future Puppet implementation to keep
+an inventory of previously managed paths on each node and to discover deletion
+requests outside the current Hiera configuration. Consul status metadata does
+not contain target paths, and the current module does not retain this inventory.
+Do not delete status records as a substitute for setting `delete`.
+
 ## Installing the module
 
 ```console

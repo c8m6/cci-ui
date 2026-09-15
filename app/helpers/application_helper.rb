@@ -1,6 +1,6 @@
 module ApplicationHelper
   def area_label(area) = AreaConfiguration.label(area)
-  def filter_params = params.permit(:q, :area, :source, :status, :key, :sort, :history).to_h
+  def filter_params = params.permit(:q, :area, :source, :status, :rollout_status, :key, :sort, :history).to_h
   def date_label(time) = time&.strftime("%d.%m.%Y") || "–"
   def icon(name)
     paths = {

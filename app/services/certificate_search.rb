@@ -5,6 +5,7 @@ class CertificateSearch
     scope = scope.where(area: params[:area]) if AreaConfiguration.ids.include?(params[:area])
     scope = scope.where(source: params[:source]) if %w[filesystem consul].include?(params[:source])
     scope = scope.where(has_key: params[:key] == "1") if %w[0 1].include?(params[:key])
+    scope = scope.where(rollout_status: params[:rollout_status]) if ConsulStore::ROLLOUT_STATUSES.include?(params[:rollout_status])
     now = Time.current
     scope = case params[:status]
     when "expired" then scope.where("not_after <= ?", now)

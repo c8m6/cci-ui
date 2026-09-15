@@ -1,5 +1,6 @@
 class AuditEvent < ApplicationRecord
   ACTIONS = {
+    "status_change" => "Puppet-Status geändert",
     "import" => "Import / neue Version", "activate" => "Version aktiviert",
     "delete" => "Version gelöscht", "export_public" => "Zertifikate exportiert",
     "export_private" => "Zertifikate mit privaten Schlüsseln exportiert"

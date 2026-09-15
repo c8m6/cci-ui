@@ -1,6 +1,5 @@
 class AddImportDraftsAndConsulAudit < ActiveRecord::Migration[8.1]
   def change
-    rename_column :audit_events, :redis_event_id, :store_event_id
     create_table :import_drafts do |t|
       t.string :token, null: false
       t.string :owner, null: false

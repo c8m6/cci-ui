@@ -1,4 +1,24 @@
 <% content_for :title, "Import prüfen" %>
-<div class="page-heading"><div><span class="eyebrow">IMPORTVORSCHAU</span><h1>Bereit zum Speichern</h1><p class="muted"><%= @preview.fetch("entries").size %> Zertifikate für <%= @preview.fetch("areas").map(&:capitalize).join(" und ") %>. Die Vorschau ist 15 Minuten gültig.</p></div></div>
-<section class="panel detail-panel"><% @preview.fetch("entries").each do |entry| %><div class="preview-entry"><h2><%= entry.fetch("name") %> <span class="area-pill"><%= area_label(entry.fetch("area")) %></span></h2><p class="mono small break-word"><%= entry.fetch("fingerprint") %></p><p><span class="badge neutral"><%= entry["key"] ? "Passender privater Schlüssel" : "Öffentliches Zertifikat" %></span> <%= entry.fetch("chain").size %> Kettenzertifikate</p><p class="muted small">Lookup: <%= entry.fetch("lookup") %></p></div><% end %>
-<%= form_with url: imports_path, data: { turbo: false } do |form| %><%= form.hidden_field :token, value: @token %><%= form.submit "In Consul speichern", class: "button primary" %> <%= link_to "Abbrechen", new_import_path, class: "button quiet" %><% end %></section>
+<div class="page-heading"><div><span class="eyebrow">IMPORTVORSCHAU</span><h1>Bereit zum Speichern</h1><p class="muted"><%= @preview.fetch("entries").size %> Zertifikate für <%= @preview.fetch("areas").map { |area| area_label(area) }.join(" und ") %>. Die Vorschau ist 15 Minuten gültig.</p></div></div>
+<section class="panel detail-panel">
+  <% @preview.fetch("entries").each do |entry| %>
+    <div class="preview-entry">
+      <h2><%= entry.fetch("name") %> <span class="area-pill"><%= area_label(entry.fetch("area")) %></span></h2>
+      <p class="mono small break-word"><%= entry.fetch("fingerprint") %></p>
+      <p><span class="badge neutral"><%= entry["key"] ? "Passender privater Schlüssel" : "Öffentliches Zertifikat" %></span> <%= entry.fetch("chain").size %> Kettenzertifikate</p>
+      <p class="muted small">Lookup: <%= entry.fetch("lookup") %> · Puppet-Status: <%= entry.fetch("rollout_status") %></p>
+      <% if entry.fetch("lookup_index") > 0 %>
+        <p class="flash flash-error">Dieser Lookup ist bereits vorhanden. Seine aktuelle Version wird durch den Import ersetzt. Die bisherige Version bleibt als alte Version erhalten.</p>
+        <p class="mono small break-word">Bisherige Version: <%= entry.fetch("previous_version") %></p>
+      <% end %>
+    </div>
+  <% end %>
+  <%= form_with url: imports_path, data: { turbo: false } do |form| %>
+    <%= form.hidden_field :token, value: @token %>
+    <% if @preview.fetch("entries").any? { |entry| entry.fetch("lookup_index") > 0 } %>
+      <p><label class="check-label"><%= form.check_box :confirm_overwrite, { required: true }, "1", "0" %> Ja, ich bin sicher und möchte die oben gekennzeichneten bestehenden Lookups überschreiben.</label></p>
+    <% end %>
+    <%= form.submit "In Consul speichern", class: "button primary" %>
+    <%= link_to "Abbrechen", new_import_path, class: "button quiet" %>
+  <% end %>
+</section>
