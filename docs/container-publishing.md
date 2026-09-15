@@ -18,28 +18,27 @@ following in GitHub under Settings → Secrets and variables → Actions:
 The target is configurable; the GitHub repository name does not have to match
 the Docker Hub namespace. Builds require no production data, Consul tokens,
 or area encryption keys. The repository operator must supply the registry
-credentials. Adding the workflow alone does not upload anything locally.
+credentials for tag publishing only. Branch builds, pull requests and manual
+runs do not require Docker Hub credentials. Adding the workflow alone does not
+upload anything locally.
 
 ## Triggers, changes, and tags
 
-- Push to any branch: build, test, and publish. Changes limited to `docs/**`,
-  Markdown files, or `.gitignore` are skipped.
+- Push to any branch: build and test, without registry login or publishing.
 - Pull request: build and test, without registry login or publishing.
-- Push a `v*` tag: build, test, and publish even without code changes.
-- `workflow_dispatch`: complete build and publish for the selected ref;
-  this also allows deliberate rebuilds with updated base images.
+- Push any Git tag: build, test, and publish with that exact Git tag as the
+  container tag, for example `v1.2.3` → `my-organization/cci-ui:v1.2.3`.
+- `workflow_dispatch`: build and test the selected ref, including when selecting
+  a tag; manual runs do not publish.
 
-Since the project has only one custom image, any change outside the excluded
-paths triggers its build. This includes the Dockerfile, gems, application,
-indexer, migrations, configuration, tests, Compose files, and workflow. BuildKit
-uses a GitHub Actions cache for unchanged layers. If additional Dockerfiles
-are introduced, extend the jobs to build them and detect their relevant changes.
+There are no path exclusions: documentation-only changes also build and test.
+BuildKit uses a GitHub Actions cache for unchanged layers.
 
-Published tags include the branch name (normalized by the Metadata action),
-the Git tag for release tags, and `sha-<full-commit-sha>`. Only the default branch
-also receives `latest`; other branches and release tags do not update it.
-Use an image digest for reproducible deployments. The image is built for
-`linux/amd64` on the GitHub Ubuntu runner.
+Each tag push publishes only `DOCKERHUB_IMAGE:<Git tag>`. No additional branch,
+SHA or `latest` aliases are generated. The Git tag must also be a valid Docker
+tag; incompatible names (for example, names containing `/`) fail publishing
+instead of being renamed. Use an image digest for reproducible deployments.
+The image is built for `linux/amd64` on the GitHub Ubuntu runner.
 
 Before publishing, the built image is tested against PostgreSQL and Consul
 using the isolated [compose.ci.yml](../compose.ci.yml) configuration
@@ -48,16 +47,16 @@ even on failure. The final push uses the Buildx cache from the tested build.
 
 The actions follow Docker's official
 [Test before push](https://docs.docker.com/build/ci/github-actions/test-before-push/)
-workflow. Path and tag filter behavior is described in the
+workflow. Event and tag filter behavior is described in the
 [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
 
 ## Deploy a published image
 
-Add the following alongside the existing settings in the production environment
-file:
+Set the image alongside the existing production environment variables, either
+through the deployment environment or an optional environment file:
 
 ```dotenv
-CCI_IMAGE=my-organization/cci-ui:sha-<commit-sha>
+CCI_IMAGE=my-organization/cci-ui:v1.2.3
 ```
 
 ```console
