@@ -4,7 +4,9 @@ class HieraSnippet
     # Match the old application's OpenSSL-style DN formatting and URI escapes.
     safe = /[A-Za-z0-9;,\/:?@&=+$\-_.!~*'()# ]/
     name.to_a.map do |key, value, _type|
-      encoded = value.encode("UTF-8").bytes.map do |byte|
+      # OpenSSL returns ASN.1 value bytes as ASCII-8BIT, including UTF-8 text.
+      # Preserve those bytes in the legacy escapes instead of transcoding them.
+      encoded = value.bytes.map do |byte|
         character = byte.chr
         character.match?(safe) ? character : format("\\x%02X", byte)
       end.join
