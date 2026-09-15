@@ -1,8 +1,9 @@
 # CCI-UI: technical architecture
 
-As of 11 September 2026. This document describes the implementation following
-`aenderungen.txt` and the subsequent audit and configurable-area requirements.
-It supersedes the earlier project proposal based on Redis.
+As of 15 September 2026. This document describes the implementation following
+`aenderungen.txt` and the subsequent audit, configurable-area, overwrite
+confirmation and status requirements.
+Consul is the authoritative store for imported certificates.
 
 ## Components and data flow
 
@@ -26,7 +27,8 @@ and container formats, and writes Consul transactions. The indexer runs as a
 separate Ruby process using the same container image. PostgreSQL provides the
 shared search index and relational management database. Consul is the source of
 truth for new certificates and keys. The file system remains the source of truth
-for legacy data; no migration takes place.
+for legacy material; no migration takes place. Consul holds status metadata for
+both sources, with legacy status keyed by area and certificate fingerprint.
 
 Puppet uses the Consul HTTP API directly. Rails, Keycloak and PostgreSQL are not
 in the runtime path of a Puppet compile. Consul must remain available for these
@@ -36,15 +38,21 @@ requests. Existing NFS access is unchanged.
 
 | Table | Contents and responsibility |
 | --- | --- |
-| `certificates` | Area, source, source reference, originating `client`, `created_by` actor, lookup, fingerprint, subject, issuer, SANs, tags, validity, key availability, active version and search text |
+| `certificates` | Area, source, source reference, originating `client`, `created_by` actor, lookup, fingerprint, subject, issuer, SANs, tags, validity, key availability, active version, `rollout_status` and search text |
 | `audit_events` | Actor, action, area, event time in `occurred_at`, references and persistent certificate metadata/export options in `details`; `store_event_id` prevents duplicate ingestion of Consul events |
-| `import_drafts` | Session owner, random preview token, expiry after 15 minutes, parsed import data with private keys already encrypted |
+| `import_drafts` | Session owner, random preview token, expiry after 15 minutes, parsed import data with private keys already encrypted, destination lookup indexes and previous version IDs |
 
 Certificate metadata contains neither private keys nor import passwords. Import
 previews contain public certificates and separately encrypted keys. A preview
 is consumed once under a database lock; the indexer removes expired previews.
 Each preview is bound to its login session. Permissions for all selected areas
-are checked again before saving.
+are checked again before saving. Before preview and commit, a fresh disk scan
+rejects any upload containing certificate DER already in the legacy inventory,
+independent of lookup and destination area. The whole batch is rejected before
+writes; stale search metadata is not used to decide duplication. An incomplete
+or unavailable inventory blocks the upload. Existing destination lookups require explicit
+overwrite confirmation. A changed lookup index, including a new lookup created
+after preview, rejects that entry and requires a fresh preview.
 
 `pg_trgm` indexes search text. Multiple search terms are combined with AND.
 Subject, issuer, CN, SANs, tags and Puppet lookup are searchable; fingerprints
@@ -58,9 +66,10 @@ Default prefix: `cci/v1`. `<area>` is a stable ID from `config/areas.yml`.
 
 | KV path below the prefix | Value |
 | --- | --- |
-| `areas/<area>/lookups/<lookup>` | JSON containing `entry_id` and `active_version` |
+| `areas/<area>/lookups/<lookup>` | JSON containing `entry_id`, `active_version` and `status` |
 | `areas/<area>/versions/<version_id>` | JSON containing `schema`, `entry_id`, `lookup`, `pem`, `chain`, `tags`, `fingerprint`, `public_key_fingerprint`, `has_key`, `created_at`, `client`, `created_by` |
 | `areas/<area>/private-keys/<version_id>` | JSON containing encryption version, IV, authentication tag and ciphertext |
+| `areas/<area>/filesystem-statuses/<fingerprint>` | JSON containing `schema`, `fingerprint`, `status`, `subject`, `issuer`, `updated_at`, `updated_by`; legacy status only |
 | `events/<uuid>` | JSON containing `action`, `area`, `id`, `actor`, `at`, `details` (certificate metadata and change context) |
 
 `entry_id` is a UUID. The version ID is SHA-256 of
@@ -78,7 +87,17 @@ An explicit lookup is a stable name such as `portal.production`. Without a
 custom name, the certificate fingerprint becomes the lookup. Renewing a stable
 lookup creates and activates an additional version. Stored versions are never
 overwritten. Inactive versions can be activated or deleted. The active version
-cannot be deleted; archiving an entire entry is not yet implemented.
+cannot be deleted. The independent Puppet status is `active`, `norollout`, or
+`delete`; setting `delete` retains material and the lookup. The status is shown
+in the “Puppet-Status” column and has a separate filter from “Gültigkeit”. Writers
+can change it in certificate details for either source. Status updates use CAS
+and write audit metadata atomically. Renewals and version activation preserve
+lookup status; missing historical status values default to `active`.
+
+Status processing in Puppet is deferred. The current manifests continue their
+existing file management; the Ruby metadata reader exposes the new value.
+See [the complete contract](consul-schema.md#lookup-and-puppet-status) for the
+planned rollout semantics and the legacy certificate identity rules.
 
 The version, active reference, optional key and audit event are written in one
 Consul transaction. CAS on the lookup and `Index=0` when creating a version
@@ -120,7 +139,7 @@ when areas or versions are swapped. Key material and source passwords are
 filtered from request logs. Exports use `Cache-Control: no-store`; private PEM
 exports are password-protected.
 
-| Role within an area | Search / details | Import / versions | Certificate export | Private-key export |
+| Role within an area | Search / details | Import / versions / status | Certificate export | Private-key export |
 | --- | --- | --- | --- | --- |
 | Reader | Yes | No | No | No |
 | Writer | Yes | Yes | Yes | No |
@@ -154,8 +173,9 @@ those roles do not automatically grant audit access. Authorization occurs before
 querying and restricts search, filters, counts and pagination to permitted areas.
 
 All successful certificate writes through the application are recorded:
-import/new version, activation and deletion of an inactive version. The audit
-event is written atomically with the change in Consul and ingested idempotently
+import/new version, activation, deletion of an inactive version, and status
+changes for Consul and legacy certificates (including old and new status).
+The audit event is written atomically with the change in Consul and ingested idempotently
 into PostgreSQL. `occurred_at` comes from the original event; `created_at` records
 ingestion time. CN, subject, issuer, serial number, SHA-256 fingerprint, source,
 version ID and lookup remain available after deletion. Import and activation
@@ -186,8 +206,8 @@ archive against database or Consul administrators.
 ## Indexing and consistency
 
 A PostgreSQL advisory lock serializes scheduled indexing and refreshes after
-upload or activation. The indexer reads legacy files and public Consul versions,
-ingests audit events idempotently, and removes search records no longer present
+upload, activation or status changes. The indexer reads legacy files and public
+Consul versions, ingests audit events idempotently, and removes search records no longer present
 in the successfully scanned source. Cleanup uses the IDs seen during that scan,
 not wall-clock comparisons, so a clock adjustment cannot remove freshly indexed
 records. A Consul error prevents Consul index cleanup; ACL-filtered responses
@@ -206,12 +226,20 @@ separate search records using the file path and block index. A certificate may
 therefore appear more than once. The sample collection contains 1,673 certificate
 blocks; `legacy_area` determines their assignment. Reassigning the file collection
 removes stale search records from its previous area after a successful scan.
+The indexer also deletes Consul status keys in the current legacy area when the
+last copy of a fingerprint disappears from a complete scan. It retains keys
+while another copy exists, uses `delete-cas` against the pre-scan Consul index,
+and never deletes audit history or imported certificate material. Missing or
+unreadable directories and malformed certificates abort cleanup. The indexer
+therefore needs write permission on the legacy area's `filesystem-statuses/`
+path. See [the schema lifecycle rules](consul-schema.md#legacy-certificate-status).
 
 ## Operations and limitations
 
 Certificate metadata can be rebuilt after PostgreSQL loss, but audit history
-and pending import previews require a backup. Consul snapshots and area secrets
-are both needed to recover new private keys. Do not bake secrets into images.
+and pending import previews require a backup. Consul backups must include
+legacy status records as well as lookups, versions, encrypted keys and events.
+Consul snapshots and area secrets are both needed to recover new private keys. Do not bake secrets into images.
 Rotation with multiple simultaneously active encryption keys is not implemented;
 existing secrets must not simply be replaced.
 

@@ -20,6 +20,8 @@ module CertificateExample
     lookup_path = "#{base}/lookups/#{lookup}"
     previous = connection.get(lookup_path)
     entry = previous && JSON.parse(previous.fetch(:value))
+    status = entry ? entry.fetch("status", "active") : "active"
+    raise ArgumentError, "Invalid rollout status" unless %w[active norollout delete].include?(status)
     entry_id = entry ? entry.fetch("entry_id") : SecureRandom.uuid
     fingerprint = Digest::SHA256.hexdigest(cert.to_der)
     id = Digest::SHA256.hexdigest("#{entry_id}:#{fingerprint}")
@@ -44,7 +46,7 @@ module CertificateExample
         tags: tags, has_key: !key.nil? }
     }
     operations = [
-      ConsulConnection.set(lookup_path, { entry_id: entry_id, active_version: id }, index: previous ? previous.fetch(:index) : 0),
+      ConsulConnection.set(lookup_path, (entry || {}).merge("entry_id" => entry_id, "active_version" => id, "status" => status), index: previous ? previous.fetch(:index) : 0),
       ConsulConnection.set("#{base}/versions/#{id}", version, index: 0),
       ConsulConnection.set("#{prefix}/events/#{SecureRandom.uuid}", event, index: 0)
     ]

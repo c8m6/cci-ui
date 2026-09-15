@@ -14,6 +14,8 @@ class CertificatesController < ApplicationController
   end
   def show
     @certificate = Certificate.visible_to(current_identity).find(params[:id])
+    @lookup_snapshot = ConsulStore.status_snapshot(@certificate)
+    @rollout_status = @lookup_snapshot ? ConsulStore.rollout_status(JSON.parse(@lookup_snapshot.fetch(:value))) : "active"
     @material = CertificateMaterial.with_chain(@certificate, CertificateMaterial.load(@certificate), current_identity)
     fingerprints = [@material[:certificate], *@material[:chain]].map { |cert| Certificates::Codec.fingerprint(cert) }
     @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(active: :desc, id: :asc).to_a.group_by(&:fingerprint).transform_values(&:first)
@@ -33,10 +35,21 @@ class CertificatesController < ApplicationController
   def update
     record = Certificate.visible_to(current_identity).find(params[:id])
     require_writer!(record.area)
-    raise Certificates::Error, "Der Dateibestand ist nur lesbar." unless record.source == "consul"
-    ConsulStore.activate(record.area, record.source_id, actor: current_identity.name)
+    if params.key?(:rollout_status)
+      options = { status: params[:rollout_status], actor: current_identity.name, expected_lookup_index: params[:lookup_index] }
+      if record.source == "consul"
+        ConsulStore.set_status(record.area, record.source_id, **options)
+      else
+        ConsulStore.set_filesystem_status(record, **options)
+      end
+      notice = "Puppet-Status gespeichert."
+    else
+      raise Certificates::Error, "Der Dateibestand ist nur lesbar." unless record.source == "consul"
+      ConsulStore.activate(record.area, record.source_id, actor: current_identity.name)
+      notice = "Version für Puppet aktiviert."
+    end
     CatalogIndexer.refresh_consul
-    redirect_to certificate_path(record), notice: "Version für Puppet aktiviert.", status: :see_other
+    redirect_to certificate_path(record), notice: notice, status: :see_other
   end
   def destroy
     record = Certificate.visible_to(current_identity).find(params[:id])

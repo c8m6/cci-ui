@@ -1,4 +1,13 @@
 class CertificateImport
+  class ConfirmationRequired < Certificates::Error
+    attr_reader :preview
+
+    def initialize(preview)
+      @preview = preview
+      super("Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden Lookups überschreiben möchten.")
+    end
+  end
+
   def self.preview(files:, pem:, password:, areas:, tags:, lookup:, owner:)
     raise Certificates::Error, "Bitte mindestens einen gültigen Bereich auswählen." if areas.empty? || (areas - AreaConfiguration.ids).any?
     inputs = files.map { |file| file.read(Certificates::Codec::MAX_BYTES + 1) }
@@ -12,14 +21,20 @@ class CertificateImport
     raise Certificates::Error, "Höchstens 100 Zertifikate pro Import." if certs.size > 100
     raise Certificates::Error, "Mindestens ein Schlüssel passt zu keinem Zertifikat." if keys.any? { |key| certs.none? { |cert| cert.check_private_key(key) } }
     raise Certificates::Error, "Ein eigener Lookup ist nur beim Import eines einzelnen Zertifikats möglich." if lookup.present? && certs.size > 1
+    LegacyStore.reject_duplicates!(certs.map { |cert| Certificates::Codec.fingerprint(cert) })
     token = SecureRandom.hex(24)
     entries = areas.flat_map do |area|
       certs.map do |cert|
         key = keys.find { |candidate| cert.check_private_key(candidate) }
         fingerprint = Certificates::Codec.fingerprint(cert)
+        name = lookup.presence || fingerprint
+        snapshot = ConsulStore.lookup_snapshot(area, name)
+        previous = snapshot && JSON.parse(snapshot.fetch(:value))
         { area: area, pem: cert.to_pem, fingerprint: fingerprint, name: Certificates::Codec.metadata(cert)[:common_name],
           key: key && Certificates::Vault.encrypt(key.private_to_pem, area: area, id: "preview:#{token}:#{fingerprint}"),
-          chain: Certificates::Codec.chain(cert, certs).map(&:to_pem), lookup: lookup.presence || fingerprint,
+          chain: Certificates::Codec.chain(cert, certs).map(&:to_pem), lookup: name,
+          lookup_index: snapshot&.fetch(:index) || 0, previous_version: previous && previous.fetch("active_version"),
+          rollout_status: previous ? ConsulStore.rollout_status(previous) : "active",
           tags: tags.split(",").map(&:strip).reject(&:empty?).first(30) }
       end
     end
@@ -28,13 +43,20 @@ class CertificateImport
     [token, payload.deep_stringify_keys]
   end
 
-  def self.commit(token:, owner:, identity:)
+  def self.commit(token:, owner:, identity:, confirm_overwrite: false)
     raise Certificates::Error, "Ungültige Importvorschau." unless token.match?(/\A[0-9a-f]{48}\z/)
     payload = ImportDraft.transaction do
       draft = ImportDraft.lock.find_by(token: token, owner: owner)
       raise Certificates::Error, "Vorschau abgelaufen oder nicht für diese Sitzung vorhanden." unless draft && draft.expires_at > Time.current
       data = JSON.parse(draft.payload)
       raise Certificates::Error, "Keine Schreibberechtigung für alle gewählten Bereiche." unless data.fetch("areas").all? { |area| identity.writer?(area) }
+      unless data.fetch("entries").all? { |entry| entry["lookup_index"].is_a?(Integer) && entry["lookup_index"] >= 0 }
+        raise Certificates::Error, "Diese Importvorschau ist veraltet. Bitte den Import erneut prüfen."
+      end
+      if data.fetch("entries").any? { |entry| entry.fetch("lookup_index") > 0 } && !confirm_overwrite
+        raise ConfirmationRequired.new(data)
+      end
+      LegacyStore.reject_duplicates!(data.fetch("entries").map { |entry| entry.fetch("fingerprint") }.uniq)
       draft.destroy!
       data
     end
@@ -46,7 +68,8 @@ class CertificateImport
         key = entry["key"] && OpenSSL::PKey.read(Certificates::Vault.decrypt(entry["key"], area: area, id: "preview:#{token}:#{entry.fetch('fingerprint')}"))
         id = ConsulStore.save(area: area, cert: cert, key: key,
           chain: entry.fetch("chain").map { |pem| OpenSSL::X509::Certificate.new(pem) },
-          tags: entry.fetch("tags"), lookup: entry.fetch("lookup"), actor: identity.name, client: "cci-ui")
+          tags: entry.fetch("tags"), lookup: entry.fetch("lookup"), actor: identity.name, client: "cci-ui",
+          expected_lookup_index: entry.fetch("lookup_index"))
         successes << id
       rescue Certificates::Error, ConsulConnection::Error => error
         errors << "#{AreaConfiguration.label(area)} / #{entry.fetch('name')}: #{error.message}"

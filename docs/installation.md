@@ -249,3 +249,52 @@ rotated independently; doing so invalidates existing login sessions.
 | SSO fails | Issuer, callback URI, client secret and claim mapping |
 | JKS import fails | Use matching store and key passwords |
 | Old PFX is rejected | Use AES/PBES2 or 3DES; RC2 is unsupported |
+
+## Upgrading for certificate status
+
+Deploy the updated image for both web and indexer. Run `ruby bin/rails db:prepare`
+(or allow `bin/start` to run it) to add the indexed, constrained
+`certificates.rollout_status` column. Existing records default to `active`;
+the indexer then rebuilds the values from Consul. Consul needs no table migration.
+The historical audit migration IDs are retained and fresh databases create
+`store_event_id` directly; fully migrated installations keep their existing
+column and audit history.
+
+Give the UI read/write access to each configured area's
+`<prefix>/areas/<area>/filesystem-statuses/` path, in addition to the existing
+lookup/version and event permissions. This applies even though the legacy mount
+remains read-only. The indexer also needs read/write access to
+`filesystem-statuses/` in the configured legacy area to remove status keys after
+the last disk copy disappears (and read access in other configured areas).
+For example, add this to the UI and legacy-area indexer token policies:
+
+```hcl
+key_prefix "cci/v1/areas/zone_a/filesystem-statuses/" {
+  policy = "write"
+}
+```
+
+Retain this metadata in Consul snapshots. A full indexing pass after deployment
+can be triggered with `ruby bin/rails runner 'CatalogIndexer.run'`. Users should
+start new import previews after deployment; earlier drafts lack the destination
+indexes now required by the overwrite protection.
+
+Setting a status only updates metadata in this release. The Puppet module does
+not yet enforce `norollout` or `delete`; see [Puppet integration](puppet.md#prepared-status-contract)
+before relying on these values operationally.
+
+## Legacy inventory consistency
+
+The indexer removes orphaned legacy status keys after a complete successful scan,
+normally within the 60-second indexing interval. Audit history remains available.
+An unavailable or unreadable inventory aborts cleanup. An accessible empty
+inventory removes all legacy status keys in its configured area, so verify the
+NFS/disk mount before running the indexer against a changed mount configuration.
+
+UI imports scan the disk inventory before preview and again before saving.
+Identical certificate DER already on disk rejects the entire upload, regardless
+of lookup or destination area. A new certificate with different DER is allowed.
+The check requires a readable `LEGACY_PATH`; deployments without legacy files
+should provide an existing empty directory, not a nonexistent path. Errors in
+inventory reads or certificate parsing block uploads until corrected. No new
+database migration or Consul schema version is needed for these checks.

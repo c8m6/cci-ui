@@ -1,6 +1,7 @@
 class Certificate < ApplicationRecord
   validates :area, inclusion: { in: ->(_) { AreaConfiguration.ids } }
   validates :source, inclusion: { in: %w[filesystem consul] }
+  validates :rollout_status, inclusion: { in: ConsulStore::ROLLOUT_STATUSES }
   scope :visible_to, ->(identity) { where(area: identity.areas, source: %w[filesystem consul]) }
 
   def status

@@ -6,7 +6,7 @@ The original request list was supplied as `aenderungen.txt`.
 | --- | --- | --- |
 | 1 | CCI-UI | Updated name, wordmark, page titles, favicon and documentation |
 | 2 | Material-inspired dark theme | Toggle, persisted selection and system preference; slate background `hsl(232,15%,14%)`, dark surfaces `hsl(232,15%,18%)`, black navigation; light variant with Indigo / Deep Purple |
-| 3 | Consul instead of Redis | Consul HTTP adapter, atomic KV transactions and Compose service; no Redis runtime dependency |
+| 3 | Consul storage | Consul HTTP adapter, atomic KV transactions and Compose service |
 | 4 | Puppet compares actual and desired state | `cci` module, native file resources with SHA-256, deterministic PEM contents and a version pinned per compile |
 | 5 | Lookup in search results | Dedicated column; also included in search |
 | 6 | Additional role for private keys | `<area_id>_key_exporter` in addition to Writer, enforced server-side |
@@ -18,9 +18,8 @@ The original request list was supplied as `aenderungen.txt`.
 | 12 | Hiera code in certificate details | Files: `issuer` and `subject`, including tags; Consul: `cci::certificates` with area and lookup |
 | 13 | Link chain certificates | Links to matching accessible entries in the same area; missing entries are explained |
 
-Item 12 still mentioned Redis. Following the confirmed switch in item 3, the
-lookup variant applies to Consul. The requested `issue` field is implemented as
-`issuer`, matching the actual legacy field.
+The requested `issue` field in item 12 is implemented as `issuer`, matching
+the actual legacy field.
 
 Background colors were checked against the
 [Material slate palette](https://github.com/squidfunk/mkdocs-material/blob/master/src/templates/assets/stylesheets/palette/_scheme.scss).
@@ -37,7 +36,37 @@ The remaining design is independent.
   documentation examples.
 - English documentation in `docs/`; the application UI remains German.
 
+- Explicit overwrite confirmation for existing area/lookup pairs, enforced by
+  the server and bound to the previewed Consul modification index.
+- `active`, `norollout`, and `delete` status for both Consul and legacy
+  certificates, with Writer-only editing, independent list filtering and audit
+  events. Legacy files remain unchanged; their status metadata is kept in Consul.
+  Puppet execution of the status contract is deferred.
+- Removed the obsolete storage proposal and normalized audit migrations to the
+  current Consul terminology. See [the complete schema](consul-schema.md).
+
+- Automatic cleanup of legacy Consul status keys after the last disk copy is
+  removed, with complete-scan checks and Consul CAS protection.
+- UI upload rejection for certificates already in the actual disk inventory,
+  checked by DER fingerprint before preview and commit across destination areas.
+  Incomplete inventory scans block uploads and prevent destructive cleanup.
+
 ## Verification history
+
+The legacy cleanup and duplicate-upload update passes 58 automated tests with
+514 assertions and no failures or errors against isolated PostgreSQL and Consul.
+It covers last-copy removal, file moves, PEM bundle changes, stale or lost search
+indexes, missing and unreadable directories, malformed PEM, concurrent status
+changes, cleanup across multiple Consul transactions, cross-area upload rejection,
+DER uploads, batch rejection and changes between preview and commit.
+
+The status and overwrite-confirmation update passes 44 automated tests with
+446 assertions and no failures or errors against isolated PostgreSQL and Consul.
+Coverage includes server-enforced confirmation, concurrent lookup changes,
+legacy draft rejection, status persistence across renewal and index rebuilds,
+legacy file immutability, status filtering, permissions, audit metadata, and
+compatibility with older lookups without status. Puppet status execution is
+outside this release's scope.
 
 The initial implementation of the 13 requests was checked as follows:
 

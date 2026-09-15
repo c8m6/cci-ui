@@ -3,8 +3,8 @@
 **Controlled classified item** — certificate management with configurable permission
 areas, built with Ruby on Rails, Hotwire, PostgreSQL and HashiCorp Consul.
 
-Search legacy files and new certificates together, manage certificate versions,
-and export PEM, DER, PKCS#12/PFX or JKS. The application interface is in German.
+Search legacy files and new certificates together, manage certificate versions
+and Puppet status, and export PEM, DER, PKCS#12/PFX or JKS. The application interface is in German.
 
 ## Quick start
 
@@ -29,7 +29,8 @@ no code changes. See [Configuring areas](docs/installation.md#configuring-areas)
 
 These screenshots show the actual application using **synthetic demonstration
 data only**: example domains, generated certificates and demo identities.
-They contain no real certificate, organization or user information.
+They contain no real certificate, organization or user information. The screenshots
+predate the separate “Puppet-Status” column and status editor.
 
 ### Certificate overview
 
@@ -64,6 +65,26 @@ persistent certificate metadata, including exported chain certificates.
 PEM, DER, PKCS#12/PFX and JKS are supported, including bulk and chain exports
 where applicable. JKS currently requires matching store and key passwords.
 PKCS#12 supports AES/PBES2 and 3DES; legacy RC2 is not supported.
+
+## Overwrite confirmation and Puppet status
+
+Imports into an existing area/lookup require explicit confirmation in the preview.
+The server checks that the lookup has not changed since preview; older versions
+remain available after renewal. Uploads containing a certificate already on disk
+are rejected by DER fingerprint, regardless of lookup or target area. The disk
+inventory is checked both before preview and before saving.
+
+Writers can set `active`, `norollout`, or `delete` in certificate details for
+both Consul and legacy certificates. The overview displays “Puppet-Status” and
+provides a matching filter, independent of “Gültigkeit”. Status changes are
+audited. Consul stores lookup status and separate legacy metadata; local files
+remain unchanged. Renewals preserve lookup status. Once the last legacy disk
+copy is removed, the indexer removes its Consul status record and catalog entry
+after a successful scan. Audit history remains available.
+
+**Puppet execution is deferred:** this release prepares UI and Consul only.
+The supplied Puppet manifests do not yet enforce the three statuses. See the
+[status contract and rollout requirements](docs/puppet.md#prepared-status-contract).
 
 ## Documentation
 
