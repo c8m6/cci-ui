@@ -109,8 +109,13 @@ $pem = cci::lookup('zone_a', 'portal.production', 'certificate')
 ```
 
 Existing NFS data stays with the legacy Puppet module. Its Hiera settings
-continue to use `issuer` and `subject`, including historical tags. The application
-displays these values for files without inventing new Consul lookups for legacy
+continue to use `issuer` and `subject`, including historical tags. Hiera name
+formatting preserves the original ASN.1 value bytes and escapes non-ASCII bytes
+as `\xHH` (for example, UTF-8 `ü` becomes `\xC3\xBC`). This also handles
+OpenSSL name values returned as `ASCII-8BIT` without lossy character replacement.
+Display names are decoded separately according to their ASN.1 string type for
+the UI and search index; this does not change the literal Hiera lookup values.
+The application displays these values for files without inventing new Consul lookups for legacy
 data. Exact integration depends on the existing Puppet lookup code, which has
 not yet been supplied.
 

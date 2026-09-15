@@ -32,10 +32,24 @@ module Certificates
       Digest::SHA256.hexdigest(cert.to_der)
     end
 
+    def self.common_name(name)
+      entry = name.to_a.find { |item| item[0] == "CN" }
+      return "Ohne Common Name" unless entry
+      _, value, type = entry
+      encoding = case type
+      when OpenSSL::ASN1::BMPSTRING then Encoding::UTF_16BE
+      when OpenSSL::ASN1::UNIVERSALSTRING then Encoding::UTF_32BE
+      when OpenSSL::ASN1::T61STRING then Encoding::ISO_8859_1
+      else Encoding::UTF_8
+      end
+      # Decode display text using the ASN.1 type; OpenSSL labels value bytes binary.
+      value.dup.force_encoding(encoding).encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+    end
+
     def self.metadata(cert)
       sans = cert.extensions.select { |e| e.oid == "subjectAltName" }.flat_map { |e| e.value.split(/,\s*/) }
       {
-        common_name: cert.subject.to_a.find { |entry| entry[0] == "CN" }&.at(1) || "Ohne Common Name",
+        common_name: common_name(cert.subject),
         subject: cert.subject.to_s(OpenSSL::X509::Name::RFC2253),
         issuer: cert.issuer.to_s(OpenSSL::X509::Name::RFC2253),
         serial: cert.serial.to_i.to_s(16), fingerprint: fingerprint(cert),
