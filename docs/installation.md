@@ -5,7 +5,7 @@ For direct imports and client identity, see [Consul schema and Ruby examples](co
 
 ## Local development on a VM
 
-Requirements: Docker Engine with the Compose plugin, an available local port
+Requirements: Docker Engine with Compose 2.24 or newer (optional `env_file` support), an available local port
 3000, approximately 2 GiB of available RAM for initial evaluation, and internet
 access when building images. The local secret setup helper requires Ruby;
 alternatively, create the environment variables using `.env.example` as a guide.
@@ -18,10 +18,15 @@ docker compose up --build -d
 docker compose ps
 ```
 
-`bin/setup-local` creates random, separate secrets for the configured areas in
+`bin/setup-local` optionally creates the area/path JSON variables and random,
+separate secrets for the configured areas in
 `.env` with permissions `0600`. It does not overwrite an existing file. The file
 is excluded from Git and the Docker build context. Preserve its secrets across
-container restarts so existing private keys remain readable.
+container restarts so existing private keys remain readable. The application
+also starts with variables supplied directly by the shell or your orchestrator;
+no `.env` or application configuration file is required. For a new installation,
+`ruby bin/setup-local --stdout` emits shell-safe `export` commands without writing
+a file. Do not regenerate keys when migrating an existing installation.
 
 Open `http://localhost:3000`. For a remote VM, expose the local port through an
 SSH tunnel. The development service binds only to `127.0.0.1`; the databases
@@ -29,7 +34,8 @@ do not publish host ports.
 
 Compose starts Rails, a Ruby indexer, PostgreSQL and a persistent single-server
 Consul instance. Application startup prepares the database and runs migrations.
-`data/` is mounted read-only at `/legacy`; `legacy_area` determines its assignment.
+`data/` is mounted read-only at `/legacy`. The development Compose defaults set
+`CCI_AREAS` to the two example zones and `CCI_LEGACY_PATHS` to `{"zone_a":"/legacy"}`.
 The indexer runs every 60 seconds, so a newly connected collection may initially
 appear empty. Neither `quelle/` nor `data/` is copied into the application image.
 
@@ -60,50 +66,78 @@ Containers use the built application code, not a mounted working directory.
 
 ## Configuring areas
 
-`config/areas.yml` centrally defines areas. The supplied example configuration
-uses Zone A and Zone B and assigns legacy files to Zone A:
+All deployment-specific application settings come from environment variables.
+No area YAML file or configuration mount is used. Set the same values in web
+and indexer; the Compose files forward the JSON maps to both services.
+
+```bash
+export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
+export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base64 key>"}'
+```
+
+These examples use JSON objects inside shell strings. `CCI_AREAS` is required
+by the application and maps stable IDs to display names. IDs start with a
+lowercase letter, contain only lowercase letters, digits and underscores, and
+have at most 48 characters. Roles and local test identities are generated from
+these IDs. `CCI_LEGACY_PATHS` maps any subset of the IDs to absolute paths inside
+the containers; the application default is `{}`, meaning no local inventory.
+With a custom area list in development Compose, also set `CCI_LEGACY_PATHS`
+explicitly because the development template defaults to the example Zone A.
+
+For a shared host parent such as `/mnt/certificates`, set the production Compose
+variable `LEGACY_PATH=/mnt/certificates`. Its read-only `/legacy` mount makes
+`/mnt/certificates/zone_a` available as `/legacy/zone_a`, and likewise for Zone B.
+`LEGACY_PATH` is only the Compose host-mount setting; the application selects
+its roots from `CCI_LEGACY_PATHS`.
+
+For host directories under different parents, add explicit read-only bind
+mounts to both services through your container orchestrator or a Compose
+override, for example:
 
 ```yaml
-areas:
-  zone_a: Zone A
-  zone_b: Zone B
-legacy_area: zone_a
+services:
+  web:
+    volumes:
+      - /mnt/zone-a-certificates:/legacy/zone_a:ro
+      - /srv/zone-b-certificates:/legacy/zone_b:ro
+  indexer:
+    volumes:
+      - /mnt/zone-a-certificates:/legacy/zone_a:ro
+      - /srv/zone-b-certificates:/legacy/zone_b:ro
 ```
 
-`areas` contains one or more entries. Each value is a freely chosen display name;
-each key is a technical ID. IDs must start with a lowercase letter and contain
-only lowercase letters, digits and underscores, with a maximum length of 48.
-Roles are generated as `<id>_reader`, `<id>_writer`, `<id>_key_exporter` and
-`<id>_auditor`. Keycloak must supply these roles or an appropriate `OIDC_ROLE_MAP`.
-Local test identities are generated for every area and for all areas together.
+Mount declarations are container infrastructure; application settings are still
+supplied through environment variables. Both processes must see identical paths
+and contents. An area omitted from `CCI_LEGACY_PATHS` remains available for Consul
+certificates. Map one path to multiple areas only when intentionally granting
+those areas access to the same inventory; status and audit ownership stay separate.
 
-Provide a separate `<UPPERCASE_AREA_ID>_KEY` in the protected `.env` or
-`.env.production` file for each area: 32 random bytes, Base64-encoded. For example,
-`zone_b` requires `ZONE_B_KEY`. For an existing `.env`, add secrets for newly
-configured areas yourself; the setup helper leaves that file unchanged.
-Containers read these files through `env_file`, so new key variables require
-no Compose code changes. `CCI_ENV_FILE` selects an alternative secret file
-(default: `.env` locally, `.env.production` in production). When using a custom
-file for Compose substitutions as well, pass it through `--env-file`.
+`CCI_AREA_KEYS` maps area IDs to 32-byte keys encoded as Base64. The map lets
+Compose forward arbitrary area keys from the shell without editing its service
+definitions. Existing `<UPPERCASE_AREA_ID>_KEY` variables remain supported when
+injected into the process; map entries take precedence. Never change key bytes
+while migrating configuration, or existing private-key envelopes will no longer
+decrypt. Public-only operations do not require area keys.
 
-To use another area configuration, set `CCI_AREAS_CONFIG` to its host path.
-Compose mounts it read-only into web and indexer containers. Without Docker,
-`CCI_AREAS_FILE` selects the full configuration path. When generating local
-secrets for a custom configuration, pass `CCI_AREAS_FILE` to `bin/setup-local`
-as well.
+The Compose `env_file` is optional: `.env` for development and `.env.production`
+for production. `CCI_ENV_FILE` selects another optional file. When using a file
+for Compose substitutions, also pass it with `--env-file`. When supplying all
+variables through the shell or orchestrator, omit the file entirely.
 
-Recreate web and indexer after configuration changes:
+The process caches area/path configuration at startup. Recreate web and indexer
+after changing the environment. For production with exported variables:
 
 ```console
-docker compose up -d --force-recreate web indexer
+docker compose -f compose.production.yml up -d --force-recreate web indexer
 ```
 
-Display names may change. Preserve existing IDs and secrets: they determine
-Consul paths, encryption, roles and audit ownership. `legacy_area` assigns the
-entire file collection and must refer to an entry in `areas`. Changing it is
-an explicit permission reassignment and takes effect during the next index scan.
-Removing an area blocks access without deleting stored certificates or audit
-logs. Invalid configurations prevent application startup.
+See the [environment reference](environment.md) for all supported variables,
+a `docker run` example without configuration files, and migration instructions.
+No SQL or Consul schema migration is required for this configuration change.
+Preserve area IDs: they determine Consul paths, encryption, roles and audit ownership.
+Removed local mappings block material reads and lose their catalog rows at the
+next scan, while unscanned Consul status records and audit history remain intact.
 
 ## Tests
 
@@ -161,9 +195,9 @@ For a single Consul server on the same VM, configure its data directory,
 snapshot procedure, ACLs and TLS beforehand. Ensure it is reachable from the
 application containers.
 
-Create a protected `.env.production` file, which is also excluded from Git and
-images. The following settings are required; replace example area key names
-with those from your actual configuration and add a key for every area:
+Supply these variables through your deployment environment or, optionally,
+a protected `.env.production` file excluded from Git and images. Preserve existing
+area IDs and key bytes when migrating:
 
 ```dotenv
 POSTGRES_PASSWORD=<strong database password>
@@ -173,8 +207,9 @@ ALLOWED_HOSTS=cci.example.internal
 CONSUL_URL=https://consul.example.internal:8501
 CONSUL_TOKEN=<application token>
 CONSUL_PREFIX=cci/v1
-ZONE_A_KEY=<32 random bytes, Base64-encoded>
-ZONE_B_KEY=<another 32 random bytes, Base64-encoded>
+CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
+CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+CCI_AREA_KEYS='{"zone_a":"<32 bytes, Base64>","zone_b":"<another 32 bytes, Base64>"}'
 OIDC_ISSUER=https://keycloak.example.internal/realms/internal
 OIDC_CLIENT_ID=cci-ui
 OIDC_CLIENT_SECRET=<Keycloak client secret>
@@ -214,7 +249,8 @@ its own corresponding policy. Do not place management tokens on compilers.
 Start services:
 
 ```console
-docker compose --env-file .env.production -f compose.production.yml up --build -d
+docker compose -f compose.production.yml up --build -d
+# If using an optional env file, add: --env-file .env.production
 ```
 
 The reverse proxy forwards HTTPS to `127.0.0.1:3000`, preserves the original Host,
@@ -241,8 +277,8 @@ rotated independently; doing so invalidates existing login sessions.
 
 | Symptom | Check |
 | --- | --- |
-| Search remains empty | Indexer logs, `LEGACY_PATH`, file permissions, roles and Consul connectivity |
-| Startup rejects area configuration | YAML structure, valid IDs/display names and an existing `legacy_area` |
+| Search remains empty | Indexer logs, `CCI_LEGACY_PATHS` and container mounts, file permissions, roles and Consul connectivity |
+| Startup rejects area configuration | `CCI_AREAS` JSON, valid IDs/display names, and absolute `CCI_LEGACY_PATHS` |
 | Upload with a private key fails | Correct Base64 encoding and exactly 32 decoded bytes in the area's secret |
 | Reader sees no export action | Expected; Writer is required, plus Key Exporter for private keys |
 | Consul returns HTTP 403 | Token and ACL prefix; do not copy secret values into tickets |
@@ -264,8 +300,8 @@ Give the UI read/write access to each configured area's
 `<prefix>/areas/<area>/filesystem-statuses/` path, in addition to the existing
 lookup/version and event permissions. This applies even though the legacy mount
 remains read-only. The indexer also needs read/write access to
-`filesystem-statuses/` in the configured legacy area to remove status keys after
-the last disk copy disappears (and read access in other configured areas).
+`filesystem-statuses/` in every area with a configured local inventory to remove
+status keys after its last disk copy disappears (and read access in other areas).
 For example, add this to the UI and legacy-area indexer token policies:
 
 ```hcl
@@ -286,15 +322,19 @@ before relying on these values operationally.
 ## Legacy inventory consistency
 
 The indexer removes orphaned legacy status keys after a complete successful scan,
-normally within the 60-second indexing interval. Audit history remains available.
-An unavailable or unreadable inventory aborts cleanup. An accessible empty
-inventory removes all legacy status keys in its configured area, so verify the
-NFS/disk mount before running the indexer against a changed mount configuration.
+normally within the 60-second indexing interval. It scans and cleans each area
+independently. Audit history remains available. An unavailable or unreadable
+inventory aborts cleanup for that area; other areas and Consul indexing continue.
+An accessible empty inventory removes all legacy status keys in its area, so
+verify the NFS/disk mount before running the indexer against a changed mount configuration.
 
-UI imports scan the disk inventory before preview and again before saving.
+UI imports scan all configured disk inventories before preview and again before
+saving.
 Identical certificate DER already on disk rejects the entire upload, regardless
 of lookup or destination area. A new certificate with different DER is allowed.
-The check requires a readable `LEGACY_PATH`; deployments without legacy files
-should provide an existing empty directory, not a nonexistent path. Errors in
-inventory reads or certificate parsing block uploads until corrected. No new
-database migration or Consul schema version is needed for these checks.
+Every configured root must be readable. An unavailable root in any area blocks
+uploads because the global duplicate check cannot be completed. Deployments
+without legacy files can set `CCI_LEGACY_PATHS='{}'`. Every listed path must
+refer to a readable directory inside both containers. Errors in inventory reads or certificate parsing block uploads
+until corrected. No new database migration or Consul schema version is needed
+for these checks.

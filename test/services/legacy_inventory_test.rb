@@ -2,9 +2,9 @@ require "test_helper"
 
 class LegacyInventoryTest < ActiveSupport::TestCase
   setup do
-    @previous_legacy = ENV["LEGACY_PATH"]
+    @previous_legacy = AreaConfiguration.configuration
     @directory = Dir.mktmpdir("cci-inventory-")
-    ENV["LEGACY_PATH"] = @directory
+    configure_legacy_paths("zone_a" => @directory)
     @cert, = issue
     @path = File.join(@directory, "certificate.pem")
     File.write(@path, @cert.to_pem)
@@ -15,7 +15,7 @@ class LegacyInventoryTest < ActiveSupport::TestCase
   end
 
   teardown do
-    ENV["LEGACY_PATH"] = @previous_legacy
+    AreaConfiguration.instance_variable_set(:@configuration, @previous_legacy)
     FileUtils.remove_entry(@directory)
   end
 
@@ -60,11 +60,11 @@ class LegacyInventoryTest < ActiveSupport::TestCase
 
   test "missing directory or malformed PEM never causes cleanup" do
     File.delete(@path)
-    ENV["LEGACY_PATH"] = File.join(@directory, "missing")
+    configure_legacy_paths("zone_a" => File.join(@directory, "missing"))
     assert_raises(Certificates::Error) { CatalogIndexer.new.filesystem }
     assert ConsulStore.status_snapshot(@record)
     assert Certificate.exists?(@record.id)
-    ENV["LEGACY_PATH"] = @directory
+    configure_legacy_paths("zone_a" => @directory)
     File.write(@path, "-----BEGIN CERTIFICATE-----\nbroken\n")
     assert_raises(Certificates::Error) { CatalogIndexer.new.filesystem }
     assert ConsulStore.status_snapshot(@record)

@@ -1,4 +1,6 @@
-ENV["CCI_AREAS_FILE"] = File.expand_path("fixtures/areas.yml", __dir__)
+ENV["CCI_AREAS"] = '{"zone_a":"Zone A","zone_b":"Zone B"}'
+ENV["CCI_LEGACY_PATHS"] = '{}'
+ENV["CCI_AREA_KEYS"] = '{}'
 require 'openssl'
 require 'json'
 require 'base64'

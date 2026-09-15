@@ -117,9 +117,9 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
   end
 
   test "filesystem writer can set status without importing or writing files" do
-    previous = ENV["LEGACY_PATH"]
+    previous = AreaConfiguration.configuration
     Dir.mktmpdir do |dir|
-      ENV["LEGACY_PATH"] = dir
+      configure_legacy_paths("zone_a" => dir)
       path = File.join(dir, "legacy.pem")
       content = issue(serial: 8).first.to_pem
       File.write(path, content)
@@ -139,6 +139,6 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       assert_equal content, File.read(path)
     end
   ensure
-    ENV["LEGACY_PATH"] = previous
+    AreaConfiguration.instance_variable_set(:@configuration, previous)
   end
 end

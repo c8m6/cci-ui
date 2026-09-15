@@ -1,8 +1,16 @@
 class CatalogIndexer
   def self.run
     synchronize do
-      new.filesystem
-      new.consul
+      indexer = new
+      failures = []
+      %i[filesystem consul].each do |source|
+        begin
+          indexer.public_send(source)
+        rescue Certificates::Error, ConsulConnection::Error => error
+          failures << error
+        end
+      end
+      raise failures.first if failures.any?
     end
   end
 
@@ -30,20 +38,32 @@ class CatalogIndexer
   end
 
   def filesystem
-    area = LegacyStore.area
-    raise Certificates::Error, "Ungültiger Bereich für Dateibestand." unless AreaConfiguration.ids.include?(area)
+    failures = []
+    LegacyStore.areas.each do |area|
+      begin
+        filesystem_area(area)
+      rescue Certificates::Error, ConsulConnection::Error => error
+        Rails.logger.warn("Dateibestand #{area}: Indexierung fehlgeschlagen (#{error.class})")
+        failures << error
+      end
+    end
+    Certificate.where(source: "filesystem").where.not(area: LegacyStore.areas).delete_all
+    raise failures.first if failures.any?
+  end
+
+  def filesystem_area(area)
     connection = ConsulStore.client
     status_entries = ConsulStore.filesystem_status_entries(connection, area)
     statuses = status_entries.to_h { |item| [item.fetch(:data).fetch("fingerprint"), ConsulStore.rollout_status(item.fetch(:data))] }
-    inventory = LegacyStore.inventory
+    inventory = LegacyStore.inventory(area: area)
     seen = []
     fingerprints = Set.new
-    root = LegacyStore.root
+    root = LegacyStore.root(area: area)
     inventory.each do |entry|
       relative = entry.fetch(:relative)
       tag_path = relative.sub(/\.pem\z/i, ".tag")
-      tags = root.join(tag_path).exist? ? [LegacyStore.read(LegacyStore.safe_path(tag_path)).force_encoding("UTF-8").scrub.strip].reject(&:empty?) : []
-      has_key = root.join(relative.sub(/\.pem\z/i, ".key")).exist? || LegacyStore.read(LegacyStore.safe_path(relative)).include?("PRIVATE KEY-----")
+      tags = root.join(tag_path).exist? ? [LegacyStore.read(LegacyStore.safe_path(tag_path, area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?) : []
+      has_key = root.join(relative.sub(/\.pem\z/i, ".key")).exist? || LegacyStore.read(LegacyStore.safe_path(relative, area: area)).include?("PRIVATE KEY-----")
       entry.fetch(:certificates).each_with_index do |cert, index|
         fingerprint = Certificates::Codec.fingerprint(cert)
         fingerprints << fingerprint
@@ -52,7 +72,7 @@ class CatalogIndexer
       end
     end
     ConsulStore.prune_filesystem_statuses(connection, status_entries, fingerprints)
-    Certificate.where(source: "filesystem").where.not(id: seen).delete_all
+    Certificate.where(source: "filesystem", area: area).where.not(id: seen).delete_all
   end
 
   def consul

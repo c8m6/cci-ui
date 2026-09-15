@@ -2,12 +2,13 @@ require "openssl"
 require "base64"
 require "json"
 require_relative "../area_configuration"
+require_relative "../area_secrets"
 
 module Certificates
   class Vault
     def self.key(area)
       raise Error, "Unbekannter Bereich." unless AreaConfiguration.ids.include?(area)
-      encoded = ENV.fetch(AreaConfiguration.key_variable(area), "")
+      encoded = AreaSecrets.fetch(area)
       key = Base64.strict_decode64(encoded)
       raise ArgumentError unless key.bytesize == 32
       key

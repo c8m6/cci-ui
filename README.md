@@ -16,14 +16,25 @@ docker compose up --build -d
 Open [http://localhost:3000](http://localhost:3000) and select a local test identity.
 Keycloak is optional in explicit local mode.
 
-The example configuration uses **Zone A** and **Zone B**. Local certificates
-under `data/` are mounted read-only and assigned to Zone A through `legacy_area`
-in [config/areas.yml](config/areas.yml). New uploads are stored only in Consul.
-The indexer refreshes search metadata every 60 seconds.
+The development Compose defaults use **Zone A** and **Zone B**, with local
+`data/` mounted read-only as Zone A's `/legacy` inventory. Production settings
+come entirely from environment variables:
 
-Area IDs and display names are configurable. Roles, local test identities and
-selection fields are generated from the configuration; adding an area requires
-no code changes. See [Configuring areas](docs/installation.md#configuring-areas).
+```bash
+export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
+export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base64 key>"}'
+```
+
+No area YAML or configuration mount is required. `.env` files are optional;
+`ruby bin/setup-local --stdout` emits exports without writing a file for a new
+installation. Preserve existing keys when migrating. See the
+[environment reference](docs/environment.md) and
+[production mount examples](docs/installation.md#configuring-areas).
+
+Area IDs, display names, roles and local test identities are generated from
+`CCI_AREAS`. New uploads are stored only in Consul. The indexer refreshes metadata
+every 60 seconds.
 
 ## Screenshots
 
@@ -72,7 +83,7 @@ Imports into an existing area/lookup require explicit confirmation in the previe
 The server checks that the lookup has not changed since preview; older versions
 remain available after renewal. Uploads containing a certificate already on disk
 are rejected by DER fingerprint, regardless of lookup or target area. The disk
-inventory is checked both before preview and before saving.
+inventories in all configured areas are checked both before preview and before saving.
 
 Writers can set `active`, `norollout`, or `delete` in certificate details for
 both Consul and legacy certificates. The overview displays “Puppet-Status” and
@@ -89,6 +100,7 @@ The supplied Puppet manifests do not yet enforce the three statuses. See the
 ## Documentation
 
 - [Installation and operations](docs/installation.md)
+- [Environment variables and file-free deployment](docs/environment.md)
 - [Technical architecture and data storage](docs/technik.md)
 - [Consul schema, client provenance and Ruby import examples](docs/consul-schema.md)
 - [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)

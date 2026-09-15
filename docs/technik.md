@@ -47,7 +47,7 @@ previews contain public certificates and separately encrypted keys. A preview
 is consumed once under a database lock; the indexer removes expired previews.
 Each preview is bound to its login session. Permissions for all selected areas
 are checked again before saving. Before preview and commit, a fresh disk scan
-rejects any upload containing certificate DER already in the legacy inventory,
+rejects any upload containing certificate DER already in any configured legacy inventory,
 independent of lookup and destination area. The whole batch is rejected before
 writes; stale search metadata is not used to decide duplication. An incomplete
 or unavailable inventory blocks the upload. Existing destination lookups require explicit
@@ -62,7 +62,7 @@ ranking and typo correction are not currently implemented.
 
 ## Consul data contract v1
 
-Default prefix: `cci/v1`. `<area>` is a stable ID from `config/areas.yml`.
+Default prefix: `cci/v1`. `<area>` is a stable ID from `CCI_AREAS`.
 
 | KV path below the prefix | Value |
 | --- | --- |
@@ -114,13 +114,19 @@ entries.
 
 ## Area configuration
 
-`AreaConfiguration` loads a validated YAML file at process startup
-(`config/areas.yml`, or the path in `CCI_AREAS_FILE`). `areas` maps stable IDs to
-display names; `legacy_area` assigns the unchanged legacy file collection.
-The application has no fixed number of areas. IDs start with a lowercase letter
-and contain up to 47 additional lowercase letters, digits or underscores.
-Empty or invalid configurations prevent startup. Configuration is cached per
-process; changes require restarting both web and indexer processes.
+`AreaConfiguration` parses `CCI_AREAS` and `CCI_LEGACY_PATHS` JSON objects from
+the environment at process startup. There is no application configuration file
+or filesystem lookup. `CCI_AREAS` is required and maps stable IDs to display
+names. `CCI_LEGACY_PATHS` defaults to `{}` and maps any subset of those IDs to
+absolute local directories, read separately by web and indexer. Invalid JSON,
+unknown area references and relative paths reject startup. The configuration is
+cached per process, so environment changes require recreating both services.
+
+`CCI_AREA_KEYS` supplies encryption keys as a JSON object. Per-area `<ID>_KEY`
+variables remain a fallback; explicit map entries take precedence. Shared
+`AreaSecrets` parsing is used by Rails, the standalone writer and Puppet. The
+Compose templates forward the maps, so adding an area needs no configuration
+mount or service-definition change. See [environment configuration](environment.md).
 
 Roles are generated from each ID and the suffixes `reader`, `writer`,
 `key_exporter` and `auditor`. UI labels and local test identities use the
@@ -220,19 +226,25 @@ between Consul and PostgreSQL. The index is never used as the material source
 for certificate or key exports. Source reference, area and fingerprint are
 checked again when loading.
 
-Legacy files are accessed through a configured read-only mount. Symlinks outside
+Legacy files are accessed through the read-only root configured for their area. Symlinks outside
 that directory are rejected. Multiple certificates in one PEM file receive
 separate search records using the file path and block index. A certificate may
 therefore appear more than once. The sample collection contains 1,673 certificate
-blocks; `legacy_area` determines their assignment. Reassigning the file collection
-removes stale search records from its previous area after a successful scan.
-The indexer also deletes Consul status keys in the current legacy area when the
-last copy of a fingerprint disappears from a complete scan. It retains keys
+blocks in the default local setup. `CCI_LEGACY_PATHS` determines directory-to-area
+assignment. The catalog key includes area, source and relative file/block ID, so
+matching filenames in different roots are distinct records. Material reads,
+private-key exports and Hiera tag reads explicitly select the record's area.
+Removing a mapping blocks material reads and removes its stale catalog rows on
+the next scan, without deleting unscanned Consul status or audit data.
+For each configured root, the indexer deletes Consul status keys in its area
+when the last copy of a fingerprint disappears from a complete scan. It retains keys
 while another copy exists, uses `delete-cas` against the pre-scan Consul index,
 and never deletes audit history or imported certificate material. Missing or
-unreadable directories and malformed certificates abort cleanup. The indexer
-therefore needs write permission on the legacy area's `filesystem-statuses/`
-path. See [the schema lifecycle rules](consul-schema.md#legacy-certificate-status).
+unreadable directories and malformed certificates abort that area's cleanup.
+The other areas and Consul indexing continue; the indexing pass still reports
+its failures. The indexer therefore needs write permission on each configured
+legacy area's `filesystem-statuses/` path. See the
+[schema lifecycle rules](consul-schema.md#legacy-certificate-status).
 
 ## Operations and limitations
 

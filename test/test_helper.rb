@@ -1,17 +1,25 @@
 ENV["RAILS_ENV"] = "test"
 ENV["AUTH_MODE"] = "local"
-ENV["CCI_AREAS_FILE"] = File.expand_path("fixtures/areas.yml", __dir__)
 require "securerandom"
+require "tmpdir"
+require "fileutils"
+require "json"
+TEST_LEGACY_ROOT = Dir.mktmpdir("cci-test-legacy-")
+ENV["CCI_AREAS"] = JSON.generate("zone_a" => "Zone A", "zone_b" => "Zone B")
+ENV["CCI_LEGACY_PATHS"] = JSON.generate("zone_a" => TEST_LEGACY_ROOT)
+ENV["CCI_AREA_KEYS"] = "{}"
 ENV["CONSUL_PREFIX"] = "cci-test/#{SecureRandom.hex(8)}"
 require_relative "../config/environment"
 require "rails/test_help"
 ActiveRecord::Migration.maintain_test_schema!
-require "tmpdir"
-require "fileutils"
-TEST_LEGACY_ROOT = Dir.mktmpdir("cci-test-legacy-")
-ENV["LEGACY_PATH"] = TEST_LEGACY_ROOT
 
 module CertificateFixtures
+  def configure_legacy_paths(paths)
+    AreaConfiguration.instance_variable_set(:@configuration,
+      AreaConfiguration.load_env("CCI_AREAS" => JSON.generate(AreaConfiguration.configuration.fetch("areas")),
+        "CCI_LEGACY_PATHS" => JSON.generate(paths)))
+  end
+
   def issue(name: "portal.example.test", issuer: nil, issuer_key: nil, serial: 1, ca: false, expired: false)
     key = OpenSSL::PKey::RSA.new(2048)
     cert = OpenSSL::X509::Certificate.new

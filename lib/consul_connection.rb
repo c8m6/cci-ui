@@ -20,7 +20,7 @@ class ConsulConnection
     http.open_timeout = 3
     http.read_timeout = 10
     http.write_timeout = 10
-    http.ca_file = ENV["CONSUL_CA_FILE"] if ENV["CONSUL_CA_FILE"]
+    http.ca_file = ENV["CONSUL_CA_FILE"] unless ENV["CONSUL_CA_FILE"].to_s.empty?
     request = Net::HTTP.const_get(method.capitalize).new(uri)
     request["X-Consul-Token"] = @token unless @token.empty?
     request["Content-Type"] = "application/json"

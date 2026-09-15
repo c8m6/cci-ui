@@ -2,9 +2,9 @@ require "test_helper"
 
 class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
   test "legacy details render UTF8 issuer and subject in usable Hiera YAML" do
-    previous = ENV["LEGACY_PATH"]
+    previous = AreaConfiguration.configuration
     Dir.mktmpdir("cci-unicode-details-") do |directory|
-      ENV["LEGACY_PATH"] = directory
+      configure_legacy_paths("zone_a" => directory)
       # Keep DNS SANs ASCII while using real UTF8String attributes in both DNs.
       issuer, issuer_key = issue(name: "issuer.example.test", ca: true)
       issuer.subject = OpenSSL::X509::Name.new([["CN", "Müller CA"], ["O", "Test"]])
@@ -29,6 +29,6 @@ class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
       assert_not_includes snippet, "\uFFFD"
     end
   ensure
-    ENV["LEGACY_PATH"] = previous
+    AreaConfiguration.instance_variable_set(:@configuration, previous)
   end
 end

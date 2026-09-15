@@ -72,9 +72,9 @@ class RolloutStatusTest < ActiveSupport::TestCase
 
   test "filesystem status survives rebuild and file moves without changing file contents" do
     cert, key = issue
-    previous = ENV["LEGACY_PATH"]
+    previous = AreaConfiguration.configuration
     Dir.mktmpdir do |dir|
-      ENV["LEGACY_PATH"] = dir
+      configure_legacy_paths("zone_a" => dir)
       path = File.join(dir, "old.pem")
       content = cert.to_pem + key.private_to_pem
       File.write(path, content)
@@ -103,6 +103,6 @@ class RolloutStatusTest < ActiveSupport::TestCase
       assert_equal "active", rebuilt.reload.rollout_status
     end
   ensure
-    ENV["LEGACY_PATH"] = previous
+    AreaConfiguration.instance_variable_set(:@configuration, previous)
   end
 end
