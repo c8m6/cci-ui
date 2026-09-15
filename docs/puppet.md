@@ -44,7 +44,9 @@ continue to return material without acting on that status.
 
 Legacy status is stored separately at
 `<prefix>/areas/<area>/filesystem-statuses/<sha256-of-certificate-DER>`.
-Identical legacy certificates within one area share it. Missing records mean
+Identical legacy certificates within one area share it. Local inventories can
+be configured in multiple areas through `CCI_LEGACY_PATHS`; each area retains its
+own status keys even if paths or certificate fingerprints are shared. Missing records mean
 `active`. Once the last disk copy disappears, the indexer removes its legacy
 status record after a complete successful scan. Future Puppet cleanup must
 account for this lifecycle; it cannot rely on that record persisting after disk
@@ -65,7 +67,7 @@ ruby bin/package-puppet
 The complete module is available under `integrations/puppet/cci`. Deploy this
 directory into your module path using your normal Puppet code distribution.
 The adapter requires Ruby standard libraries and OpenSSL, not Rails gems.
-The two copied Ruby files are generated from `lib/`; edit the originals there
+The copied Ruby files are generated from `lib/`; edit the originals there
 and run `bin/package-puppet` again.
 
 Set the following in the compiler process environment:
@@ -74,7 +76,7 @@ Set the following in the compiler process environment:
 CCI_CONSUL_URL=https://consul.example.internal:8501
 CCI_CONSUL_PREFIX=cci/v1
 CCI_ZONE_A_CONSUL_TOKEN=<ACL token for the example area zone_a>
-ZONE_A_KEY=<Base64 secret; required only for private-key distribution>
+CCI_AREA_KEYS={"zone_a":"<Base64 secret; required only for private-key distribution>"}
 CONSUL_CA_FILE=/etc/ssl/certs/consul-ca.pem
 ```
 
@@ -140,5 +142,6 @@ removed afterward. Do not use a production Consul instance for this test.
 fixed area list. It accepts the same ID format: up to 48 lowercase letters,
 digits or underscores, starting with a letter. Each ID uses
 `CCI_<UPPERCASE_AREA_ID>_CONSUL_TOKEN` and, for private-key distribution,
-`<UPPERCASE_AREA_ID>_KEY`. Consul ACLs enforce compiler access. Examples use
+`CCI_AREA_KEYS` (or the per-area `<UPPERCASE_AREA_ID>_KEY` fallback). Consul
+ACLs enforce compiler access. Examples use
 `zone_a`; existing deployments retain their configured IDs.

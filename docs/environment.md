@@ -1,0 +1,170 @@
+# Environment configuration
+
+All deployment-specific application settings are read from process environment
+variables. Web and indexer use the same configuration. No external application
+configuration file or configuration mount is required. The Rails configuration
+shipped in the image remains part of the application code and reads these values.
+Certificate inventories and optional CA certificates are still files.
+
+## Areas, inventories and encryption keys
+
+```bash
+export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
+export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base64 key>"}'
+```
+
+| Variable | Meaning and application default |
+| --- | --- |
+| `CCI_AREAS` | Required, nonempty JSON object mapping stable area IDs to display names. IDs match `[a-z][a-z0-9_]{0,47}`; names contain 1–100 characters and cannot be whitespace-only. |
+| `CCI_LEGACY_PATHS` | JSON object mapping any subset of the configured areas to absolute directories inside the container. Default: `{}` (no disk inventory). Multiple areas may have independent roots. |
+| `CCI_AREA_KEYS` | JSON object mapping area IDs to Base64-encoded, exactly 32-byte encryption keys. Omitted or empty means no map entries. Required for private-key operations unless the fallback below supplies the key. |
+| `<UPPERCASE_AREA_ID>_KEY` | Existing per-area fallback, for example `ZONE_A_KEY`. Used only when the area has no entry in `CCI_AREA_KEYS`. Must be injected into the application process. |
+
+Malformed area/path JSON, unknown path area IDs and relative paths prevent
+startup. Configuration is cached per process; recreate both services after
+changes. Area keys are checked when used. A malformed key map raises an error;
+it does not silently fall back to individual keys. Public-certificate operations
+do not need encryption keys.
+
+The Compose templates explicitly forward `CCI_AREA_KEYS`, so arbitrary new areas
+need no additional environment declarations. Individual key variables exported
+on the host are not automatically forwarded by Compose: pass them through its
+optional `env_file`, add explicit environment entries, or use the JSON map.
+Standalone Ruby writers and the packaged Puppet client accept the same map and
+fallback variables.
+
+The development Compose template supplies example defaults for `CCI_AREAS`
+(`zone_a`, `zone_b`) and `CCI_LEGACY_PATHS` (`{"zone_a":"/legacy"}`). When
+overriding areas, also override paths, for example with `{}`. Production Compose
+requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
+
+## Connections, authentication and runtime
+
+| Variable | Meaning and application default |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection URL. Set explicitly for deployment. The development fallback is `postgresql://certui:certui@127.0.0.1:55432/certui_development`; development Compose supplies its internal `db` connection. |
+| `CONSUL_URL` | Consul HTTP(S) endpoint. Application default: `http://127.0.0.1:8500`; development Compose uses `http://consul:8500`. |
+| `CONSUL_TOKEN` | Consul ACL token. Default: empty for local evaluation. Production Compose requires it. |
+| `CONSUL_PREFIX` | Consul KV namespace. Default: `cci/v1`. Preserve it when migrating. |
+| `CONSUL_CA_FILE` | Optional CA certificate path inside the container for HTTPS Consul. Empty or omitted uses system trust. Mount the certificate into both services if needed. |
+| `AUTH_MODE` | `oidc` (application default) or `local`. Development Compose defaults to `local`; production Compose sets `oidc`. Production rejects local authentication. |
+| `OIDC_ISSUER` | Keycloak realm URL, required in OIDC mode; production requires HTTPS. |
+| `OIDC_CLIENT_ID` | OIDC client identifier, required in OIDC mode. |
+| `OIDC_CLIENT_SECRET` | OIDC client secret, required in OIDC mode. |
+| `OIDC_REDIRECT_URI` | Callback URL, required in OIDC mode. Development Compose defaults to `http://localhost:3000/auth/keycloak/callback`; update it for a different port or hostname. |
+| `OIDC_ROLE_MAP` | JSON object mapping incoming roles/groups to one application role or an array of roles. Default: `{}`. See [Keycloak configuration](installation.md#keycloak). |
+| `SECRET_KEY_BASE` | Rails session secret, required in production. Development has a local fallback. Changing it invalidates sessions. |
+| `ALLOWED_HOSTS` | Comma-separated allowed request hostnames. Required in production; development adds `localhost,127.0.0.1` by default. |
+| `RAILS_ENV` | Rails environment. The Compose templates set `development` or `production`. Set explicitly with `docker run`. |
+| `PORT` | Puma listening port. Default: `3000`. Compose publishes the same port on `127.0.0.1`. |
+| `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
+| `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
+
+Secret values are supplied directly through the environment; there are no
+built-in `*_FILE` settings. Keep existing area key bytes during migration.
+
+## Optional Compose settings
+
+These variables configure container infrastructure rather than application logic.
+The templates require Compose 2.24 or newer for optional environment files.
+
+| Variable | Meaning |
+| --- | --- |
+| `CCI_ENV_FILE` | Optional service environment file. Defaults to `.env` in development and `.env.production` in production. Missing files are accepted. For Compose substitutions from a custom file, also supply `--env-file <path>`. |
+| `CCI_IMAGE` | Production image reference; default `cci-ui:local`. |
+| `POSTGRES_PASSWORD` | Password for the bundled PostgreSQL service. Required in production; development default `certui`. The production `DATABASE_URL` must contain the corresponding URL-encoded password. |
+| `LEGACY_PATH` | Production Compose host directory mounted read-only at `/legacy`. Required by that template, even if `CCI_LEGACY_PATHS` is `{}`. Use a readable empty directory in that case, or omit inventory mounts in your own container service definition. This variable no longer selects application inventory roots. |
+
+Development Compose mounts `./data` at `/legacy`. Multiple inventories below
+that parent can be selected entirely through `CCI_LEGACY_PATHS`. Inventories on
+other host paths need the corresponding container mounts; see
+[mount examples](installation.md#configuring-areas).
+
+`.env` and `.env.production` are optional conveniences. To ignore any existing
+files while using exported variables:
+
+```bash
+export CCI_ENV_FILE=/path/that/does/not/exist
+docker compose --env-file /dev/null -f compose.production.yml up -d
+```
+
+For a **new local installation**, the setup helper can generate environment
+exports without creating a file:
+
+```bash
+eval "$(ruby bin/setup-local --stdout)"
+docker compose -f compose.yml up --build -d --wait
+```
+
+Store those generated keys for future starts. Running the helper again generates
+different keys; it is not a migration or restart command. Without `--stdout`,
+the helper creates an optional `.env` with mode `0600`, leaving existing files
+untouched.
+
+## Running without deployment configuration files
+
+The following Bash example uses an existing PostgreSQL service, Consul and
+Keycloak. Export the required values from the tables above through your deployment
+environment first, including `DATABASE_URL`, `SECRET_KEY_BASE`, `ALLOWED_HOSTS`,
+Consul credentials, OIDC settings and area keys. No Compose or env file is used:
+
+```bash
+export RAILS_ENV=production
+export AUTH_MODE=oidc
+export PORT=3000
+export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
+export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+
+app_env=(
+  -e RAILS_ENV -e AUTH_MODE -e PORT -e RAILS_MAX_THREADS
+  -e CCI_AREAS -e CCI_LEGACY_PATHS -e CCI_AREA_KEYS
+  -e DATABASE_URL -e SECRET_KEY_BASE -e ALLOWED_HOSTS
+  -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE
+  -e OIDC_ISSUER -e OIDC_CLIENT_ID -e OIDC_CLIENT_SECRET
+  -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e INDEX_INTERVAL
+)
+inventory=(--mount type=bind,src=/mnt/certificates,dst=/legacy,readonly)
+
+docker run -d --name cci-web --restart unless-stopped \
+  "${app_env[@]}" "${inventory[@]}" \
+  -p 127.0.0.1:3000:3000 "${CCI_IMAGE:?Set the application image}"
+# Start after web has prepared the database and responds through the proxy.
+docker run -d --name cci-indexer --restart unless-stopped \
+  "${app_env[@]}" "${inventory[@]}" \
+  "$CCI_IMAGE" ruby bin/indexer
+```
+
+The web image prepares the database at startup. Supply reachable service URLs
+and container networking for your infrastructure and put an HTTPS reverse proxy
+in front of the published port. With no disk inventory, set
+`CCI_LEGACY_PATHS='{}'` and omit the `inventory` arguments. Add a read-only CA
+mount to both commands when using `CONSUL_CA_FILE`.
+
+## Migrating existing installations
+
+1. Copy the former YAML `areas` mapping into `CCI_AREAS` as JSON, preserving IDs.
+2. Copy the former `legacy_paths` mapping into `CCI_LEGACY_PATHS`. For an older
+   single `legacy_area`, map that ID to the former application `LEGACY_PATH`
+   (the path inside the container). Set `{}` if there is no local inventory.
+3. Retain the exact existing per-area secrets. Either keep injecting their
+   individual variables or place the same values in `CCI_AREA_KEYS`.
+4. Remove the area YAML bind mount and `CCI_AREAS_FILE` / `CCI_AREAS_CONFIG`.
+   These settings and files are no longer read; there is no YAML fallback.
+5. Recreate web and indexer with identical environment and inventory mounts.
+
+No SQL or Consul schema migration is needed for this configuration change.
+Preserve area IDs, Consul prefix and key bytes so existing lookups, encrypted
+material, roles and audit ownership remain accessible. The complete storage
+contract is in the [Consul schema](consul-schema.md).
+
+## Test and standalone writer variables
+
+`TEST_DATABASE_URL` selects the isolated Rails test database. `TEST_IMAGE`
+selects the image used by `compose.ci.yml`. Tests supply synthetic areas and
+an isolated Consul namespace.
+
+The standalone example writer also uses `CCI_CLIENT_ID` and `CCI_ACTOR` for
+write provenance, and optional `KEY_PASSWORD` for the input private-key file.
+These are separate from the OIDC client settings. See
+[Ruby import examples](consul-schema.md).

@@ -2,16 +2,16 @@ require "test_helper"
 
 class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
   setup do
-    @previous_legacy = ENV["LEGACY_PATH"]
+    @previous_legacy = AreaConfiguration.configuration
     @directory = Dir.mktmpdir("cci-upload-inventory-")
-    ENV["LEGACY_PATH"] = @directory
+    configure_legacy_paths("zone_a" => @directory)
     @cert, @key = issue
     @path = File.join(@directory, "legacy.pem")
     post local_login_path, params: { identity: "zone_b_writer" }
   end
 
   teardown do
-    ENV["LEGACY_PATH"] = @previous_legacy
+    AreaConfiguration.instance_variable_set(:@configuration, @previous_legacy)
     FileUtils.remove_entry(@directory)
   end
 
@@ -90,13 +90,13 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
     upload
     assert_response :success
     token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
-    ENV["LEGACY_PATH"] = File.join(@directory, "missing")
+    configure_legacy_paths("zone_a" => File.join(@directory, "missing"))
     post imports_path, params: { token: token }
     assert_response :see_other
     assert_empty Certificate.where(source: "consul")
     upload
     assert_response :see_other
-    ENV["LEGACY_PATH"] = @directory
+    configure_legacy_paths("zone_a" => @directory)
     File.write(@path, "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----\n")
     upload
     assert_response :see_other

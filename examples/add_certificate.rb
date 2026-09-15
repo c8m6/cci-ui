@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # Standalone Ruby client; needs only the standard library and ConsulConnection.
 require_relative "../lib/consul_connection"
+require_relative "../lib/area_secrets"
 require "securerandom"
 require "digest"
 require "time"
@@ -51,7 +52,7 @@ module CertificateExample
       ConsulConnection.set("#{prefix}/events/#{SecureRandom.uuid}", event, index: 0)
     ]
     if key
-      secret = Base64.strict_decode64(encryption_key || ENV.fetch("#{area.upcase}_KEY"))
+      secret = Base64.strict_decode64(encryption_key || AreaSecrets.fetch(area))
       raise ArgumentError, "Area key must contain 32 bytes" unless secret.bytesize == 32
       cipher = OpenSSL::Cipher.new("aes-256-gcm").encrypt
       cipher.key = secret

@@ -2,5 +2,5 @@
 require "fileutils"
 root = File.expand_path("..", __dir__)
 target = File.join(root, "integrations/puppet/cci/lib")
-%w[cci_client.rb consul_connection.rb].each { |file| FileUtils.cp(File.join(root, "lib", file), target) }
+%w[cci_client.rb consul_connection.rb area_secrets.rb].each { |file| FileUtils.cp(File.join(root, "lib", file), target) }
 puts "Puppet-Modul unter integrations/puppet/cci vorbereitet."

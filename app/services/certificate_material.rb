@@ -11,12 +11,11 @@ class CertificateMaterial
         key = OpenSSL::PKey.read(Certificates::Vault.decrypt(envelope, area: record.area, id: record.source_id))
       end
     elsif record.source == "filesystem"
-      raise Certificates::Error, "Bereich der Dateiquelle hat sich geändert. Index aktualisieren." unless record.area == LegacyStore.area
       relative, index = record.source_id.rpartition("#").values_at(0, 2)
-      certificates = LegacyStore.certificates(relative)
+      certificates = LegacyStore.certificates(relative, area: record.area)
       cert = certificates.fetch(Integer(index))
       chain = Certificates::Codec.chain(cert, certificates)
-      key = private_key ? LegacyStore.key(relative, cert, password: password) : nil
+      key = private_key ? LegacyStore.key(relative, cert, password: password, area: record.area) : nil
     else
       raise Certificates::Error, "Diese Datenquelle wird nicht unterstützt."
     end

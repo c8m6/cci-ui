@@ -26,8 +26,10 @@ services:
   web:
     build: .
     ports:
-      - "127.0.0.1:3000:3000"
-    env_file: ${CCI_ENV_FILE:-.env}
+      - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - path: ${CCI_ENV_FILE:-.env}
+        required: false
     environment: &app_environment
       RAILS_ENV: development
       AUTH_MODE: ${AUTH_MODE:-local}
@@ -35,7 +37,16 @@ services:
       TEST_DATABASE_URL: postgresql://certui:${POSTGRES_PASSWORD:-certui}@db/certui_test
       CONSUL_URL: http://consul:8500
       CONSUL_TOKEN: ${CONSUL_TOKEN:-}
-      LEGACY_PATH: /legacy
+      CONSUL_PREFIX: ${CONSUL_PREFIX:-cci/v1}
+      INDEX_INTERVAL: ${INDEX_INTERVAL:-60}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CCI_AREAS: '${CCI_AREAS:-{"zone_a":"Zone A","zone_b":"Zone B"}}'
+      CCI_LEGACY_PATHS: '${CCI_LEGACY_PATHS:-{"zone_a":"/legacy"}}'
+      CCI_AREA_KEYS: ${CCI_AREA_KEYS:-}
+      CONSUL_CA_FILE: ${CONSUL_CA_FILE:-}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+      PORT: ${PORT:-3000}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       OIDC_ROLE_MAP: ${OIDC_ROLE_MAP:-{}}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
@@ -43,7 +54,6 @@ services:
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:3000/auth/keycloak/callback}
     volumes:
       - ./data:/legacy:ro
-      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
     depends_on:
       db:
         condition: service_healthy
@@ -52,11 +62,12 @@ services:
   indexer:
     build: .
     command: ["ruby", "bin/indexer"]
-    env_file: ${CCI_ENV_FILE:-.env}
+    env_file:
+      - path: ${CCI_ENV_FILE:-.env}
+        required: false
     environment: *app_environment
     volumes:
       - ./data:/legacy:ro
-      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
     depends_on:
       web:
         condition: service_started

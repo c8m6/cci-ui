@@ -1,6 +1,0 @@
-# Stable IDs are used in Consul paths, roles and encryption.
-# Display names can be changed and additional zones can be configured.
-areas:
-  zone_a: Zone A
-  zone_b: Zone B
-legacy_area: zone_a

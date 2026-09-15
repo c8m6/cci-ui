@@ -66,8 +66,8 @@ class CertificatesTest < ActiveSupport::TestCase
   test "writer without key role exports only certificates from mixed PEM" do
     cert, key = issue
     Dir.mktmpdir do |dir|
-      previous = ENV["LEGACY_PATH"]
-      ENV["LEGACY_PATH"] = dir
+      previous = AreaConfiguration.configuration
+      configure_legacy_paths("zone_a" => dir)
       File.write(File.join(dir, "mixed.pem"), cert.to_pem + key.private_to_pem)
       CatalogIndexer.new.filesystem
       record = Certificate.find_by!(source: "filesystem")
@@ -79,7 +79,7 @@ class CertificatesTest < ActiveSupport::TestCase
       File.write(File.join(dir, "mixed.pem"), issue(serial: 9).first.to_pem)
       assert_raises(Certificates::Error) { CertificateMaterial.load(record) }
     ensure
-      ENV["LEGACY_PATH"] = previous
+      AreaConfiguration.instance_variable_set(:@configuration, previous)
     end
   end
 
@@ -97,13 +97,13 @@ class CertificatesTest < ActiveSupport::TestCase
 
   test "legacy paths cannot escape configured directory through symlinks" do
     Dir.mktmpdir do |dir|
-      previous = ENV["LEGACY_PATH"]
-      ENV["LEGACY_PATH"] = dir
+      previous = AreaConfiguration.configuration
+      configure_legacy_paths("zone_a" => dir)
       File.symlink("/etc/passwd", File.join(dir, "escape.pem"))
       assert_raises(Certificates::Error) { LegacyStore.safe_path("escape.pem") }
       assert_raises(Certificates::Error) { LegacyStore.safe_path("../../etc/passwd") }
     ensure
-      ENV["LEGACY_PATH"] = previous
+      AreaConfiguration.instance_variable_set(:@configuration, previous)
     end
   end
 

@@ -18,8 +18,10 @@ services:
     build: .
     image: ${CCI_IMAGE:-cci-ui:local}
     ports:
-      - "127.0.0.1:3000:3000"
-    env_file: ${CCI_ENV_FILE:-.env.production}
+      - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - path: ${CCI_ENV_FILE:-.env.production}
+        required: false
     environment: &production_environment
       RAILS_ENV: production
       AUTH_MODE: oidc
@@ -34,11 +36,15 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET setzen}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?OIDC_REDIRECT_URI setzen}
       OIDC_ROLE_MAP: ${OIDC_ROLE_MAP:-{}}
-      LEGACY_PATH: /legacy
+      CCI_AREAS: ${CCI_AREAS:?CCI_AREAS als JSON-Objekt setzen}
+      CCI_LEGACY_PATHS: '${CCI_LEGACY_PATHS:-{}}'
+      CCI_AREA_KEYS: ${CCI_AREA_KEYS:-}
+      CONSUL_CA_FILE: ${CONSUL_CA_FILE:-}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+      PORT: ${PORT:-3000}
       INDEX_INTERVAL: ${INDEX_INTERVAL:-60}
     volumes:
       - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
-      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
     depends_on:
       db:
         condition: service_healthy
@@ -46,11 +52,12 @@ services:
   indexer:
     image: ${CCI_IMAGE:-cci-ui:local}
     command: ["ruby", "bin/indexer"]
-    env_file: ${CCI_ENV_FILE:-.env.production}
+    env_file:
+      - path: ${CCI_ENV_FILE:-.env.production}
+        required: false
     environment: *production_environment
     volumes:
       - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
-      - ${CCI_AREAS_CONFIG:-./config/areas.yml}:/app/config/areas.yml:ro
     depends_on:
       - web
     restart: unless-stopped

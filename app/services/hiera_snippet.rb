@@ -16,8 +16,8 @@ class HieraSnippet
   def self.for(record, certificate)
     if record.source == "filesystem"
       relative = record.source_id.rpartition("#").first
-      tag_path = relative.sub(/\.pem\z/, ".tag")
-      tag = LegacyStore.root.join(tag_path).exist? ? LegacyStore.read(LegacyStore.safe_path(tag_path)).force_encoding("UTF-8").scrub : ""
+      tag_path = relative.sub(/\.pem\z/i, ".tag")
+      tag = LegacyStore.root(area: record.area).join(tag_path).exist? ? LegacyStore.read(LegacyStore.safe_path(tag_path, area: record.area)).force_encoding("UTF-8").scrub : ""
       { "issuer" => legacy_dn(certificate.issuer), "subject" => legacy_dn(certificate.subject) + tag }.to_yaml
     else
       { "cci::certificates" => { record.lookup => { "area" => record.area, "lookup" => record.lookup,

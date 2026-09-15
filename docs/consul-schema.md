@@ -8,7 +8,8 @@ visible on the next successful indexing pass (normally within approximately
 
 ## Setup
 
-1. Configure areas with stable IDs in `config/areas.yml`, for example `zone_a`.
+1. Configure area IDs and labels in the `CCI_AREAS` JSON environment variable,
+   for example `CCI_AREAS='{"zone_a":"Zone A"}'`.
    Every external client must use the same IDs.
 2. Provide Consul and set `CONSUL_URL`, `CONSUL_TOKEN`, and optionally
    `CONSUL_PREFIX` (default: `cci/v1`). For TLS, `CONSUL_CA_FILE` can point to
@@ -17,9 +18,10 @@ visible on the next successful indexing pass (normally within approximately
    required `areas/<area>/lookups/`, `versions/`, optionally `private-keys/`,
    and `events/` paths under the prefix. The UI also needs read/write access to
    `areas/<area>/filesystem-statuses/`; the indexer needs read/write access for
-   automatic cleanup in the configured legacy area. Reading lookups is required for CAS.
+   automatic cleanup in each area with a configured local inventory. Reading lookups is required for CAS.
 4. For private keys, configure a shared encryption secret per area:
-   `<UPPERCASE_AREA_ID>_KEY`, containing 32 random bytes encoded as Base64.
+   `CCI_AREA_KEYS='{"zone_a":"<Base64 key>"}'`, with 32 random bytes per area.
+   `<UPPERCASE_AREA_ID>_KEY` remains an alternative process variable.
    Writing and decrypting clients must use the same area key.
 5. Update PostgreSQL with `ruby bin/rails db:prepare` and start the web and
    indexer services with the new image. `bin/start` runs `db:prepare` automatically.
@@ -80,6 +82,13 @@ stored version and is a separate operation.
 
 ### Legacy certificate status
 
+Local directories are assigned by the `CCI_LEGACY_PATHS` JSON environment
+variable, for example `'{"zone_a":"/legacy/zone_a"}'`. Areas and labels come
+from `CCI_AREAS`; no configuration file is read. Each area's inventory has independent certificate records,
+status keys, and cleanup. Identical relative filenames in different roots do
+not collide: the catalog identity includes the area. No KV or SQL schema
+migration is needed to enable multiple roots.
+
 A legacy certificate uses `<base>/filesystem-statuses/<fingerprint>`, where
 `fingerprint` is the lowercase SHA-256 digest of certificate DER. Its certificate
 and private-key files remain read-only. A missing status record means `active`.
@@ -110,23 +119,29 @@ status. Moving a file or changing its PEM block position preserves the status;
 a renewed certificate with a different fingerprint starts with `active`.
 Different areas and existing copies imported into Consul are independent.
 New UI uploads of certificates already in the legacy inventory are rejected.
-Reassigning `legacy_area` does not migrate status metadata to another area.
+Reassigning a directory to another area does not migrate status metadata.
+An intentionally shared root can be mapped to multiple areas; its status is
+still independent per area. Removing a mapping removes its stale catalog rows
+on the next index pass but retains Consul status and audit records. Without a
+configured root, the indexer cannot establish that those certificates were
+deleted from disk.
 
 After a complete successful disk scan, the indexer removes
-`filesystem-statuses/<fingerprint>` from the configured legacy area if no copy
-of that certificate remains on disk. This includes removed PEM bundle blocks
-and certificates replaced by different DER material. Duplicate copies keep the
+`filesystem-statuses/<fingerprint>` from that area if no copy of that
+certificate remains in its configured directory. This includes removed PEM
+bundle blocks and certificates replaced by different DER material. Duplicate copies keep the
 shared status alive. Moving a certificate without an intervening scan finding
 it absent also preserves its status. Reintroducing it after cleanup defaults
 to `active`. Cleanup discovers status keys directly in Consul, so it also works
-after the PostgreSQL index is lost. Other areas' status keys, imported versions,
-private keys and audit events are untouched.
+after the PostgreSQL index is lost. A scan of one area does not delete other
+areas' status keys. Imported versions, private keys and audit events are untouched.
 
 Cleanup uses `delete-cas` with each key's `ModifyIndex` captured before scanning,
 in batches of at most 64 operations. A concurrent status edit rejects that batch
 and is retried on a later indexing pass. A missing or unreadable inventory,
 inaccessible directory, unsafe symlink, or malformed certificate aborts the scan
-without pruning status or catalog entries. An accessible empty inventory counts
+without pruning status or catalog entries in that area. Scans of the other
+configured areas and Consul indexing continue. An accessible empty inventory counts
 as removal of all its certificates. Ensure that the intended disk/NFS mount is
 present; an empty replacement directory cannot be distinguished from an
 intentionally emptied inventory. Successful cleanup also removes stale catalog
@@ -235,8 +250,8 @@ Audit records contain no private keys or PEM contents.
 
 ### UI duplicate prevention against legacy files
 
-Before creating an import preview, the application scans the current legacy PEM
-inventory and compares SHA-256 fingerprints of certificate DER with every parsed
+Before creating an import preview, the application scans every configured legacy
+PEM inventory and compares SHA-256 fingerprints of certificate DER with every parsed
 upload certificate. The check applies to pasted PEM and all supported upload
 formats, including certificates in bundles. An existing disk certificate rejects
 the entire upload, regardless of the requested lookup or destination area.
@@ -248,7 +263,9 @@ at commit, before consuming the draft or writing any certificate to Consul. This
 catches disk additions since preview and rejects the entire batch before any
 writes. The search index is not used as proof: unindexed files block uploads,
 while stale catalog rows for deleted files do not. If the inventory cannot be
-fully read, the application rejects the upload until verification is possible.
+fully read in any configured area, the application rejects the upload until
+verification is possible. Areas without a legacy mapping are skipped, and
+`CCI_LEGACY_PATHS='{}'` disables the disk duplicate check.
 Disk changes and Consul writes cannot share an atomic transaction; external disk
 changes after the final scan remain a concurrency boundary. External Consul
 writing clients without disk access are not covered by this UI check.
@@ -275,7 +292,8 @@ renewal authorization and must still use CAS and preserve status.
 
 [examples/add_certificate.rb](../examples/add_certificate.rb) works without Rails
 or additional gems. It uses the standard library and
-[lib/consul_connection.rb](../lib/consul_connection.rb). Both files can be copied
+[lib/consul_connection.rb](../lib/consul_connection.rb) and
+[lib/area_secrets.rb](../lib/area_secrets.rb). These files can be copied
 into an external client while preserving their relative directory structure.
 Provide credentials and area keys through the runtime environment.
 
@@ -284,7 +302,7 @@ export CONSUL_URL=https://consul.example.test:8501
 export CONSUL_PREFIX=cci/v1
 export CCI_CLIENT_ID=acme-renewer
 export CCI_ACTOR=svc-acme
-# Set CONSUL_TOKEN and optionally ZONE_A_KEY / KEY_PASSWORD through secret management.
+# Set CONSUL_TOKEN and optionally CCI_AREA_KEYS / KEY_PASSWORD through secret management.
 ruby examples/add_certificate.rb zone_a portal.production certificate.pem
 # With a private key:
 ruby examples/add_certificate.rb zone_a portal.production renewed.pem private-key.pem

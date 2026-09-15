@@ -28,7 +28,8 @@ services:
       DATABASE_URL: postgresql://certui:certui-test@db/certui_test
       TEST_DATABASE_URL: postgresql://certui:certui-test@db/certui_test
       CONSUL_URL: http://consul:8500
-      LEGACY_PATH: /nonexistent
+      CCI_AREAS: '{"zone_a":"Zone A","zone_b":"Zone B"}'
+      CCI_LEGACY_PATHS: '{}'
     depends_on:
       db:
         condition: service_healthy
