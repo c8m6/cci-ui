@@ -43,6 +43,11 @@ class AreaSecretsTest < ActiveSupport::TestCase
     assert_equal({ "custom" => label }, JSON.parse(settings.fetch("CCI_AREAS")))
     assert_equal({}, JSON.parse(settings.fetch("CCI_LEGACY_PATHS")))
     assert_equal 32, Base64.strict_decode64(JSON.parse(settings.fetch("CCI_AREA_KEYS")).fetch("custom")).bytesize
-    assert_equal before, File.exist?(Rails.root.join(".env")) ? File.binread(Rails.root.join(".env")) : nil
+    after = File.exist?(Rails.root.join(".env")) ? File.binread(Rails.root.join(".env")) : nil
+    if before.nil?
+      assert_nil after
+    else
+      assert_equal before, after
+    end
   end
 end
