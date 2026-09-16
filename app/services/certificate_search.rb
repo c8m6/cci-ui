@@ -1,11 +1,15 @@
 class CertificateSearch
   SORTS = { "ablauf" => { not_after: :asc }, "name" => { common_name: :asc }, "neueste" => { not_before: :desc } }.freeze
   def self.call(scope, params)
-    scope = scope.where(active: true) unless params[:history] == "1"
+    include_archived = params[:q].to_s.strip.present? || params[:archived] == "1"
+    scope = scope.where(archived: false) unless include_archived
+    unless params[:history] == "1"
+      scope = include_archived ? scope.where("active = TRUE OR archived = TRUE") : scope.where(active: true)
+    end
     scope = scope.where(area: params[:area]) if AreaConfiguration.ids.include?(params[:area])
     scope = scope.where(source: params[:source]) if %w[filesystem consul].include?(params[:source])
     scope = scope.where(has_key: params[:key] == "1") if %w[0 1].include?(params[:key])
-    scope = scope.where(rollout_status: params[:rollout_status]) if ConsulStore::ROLLOUT_STATUSES.include?(params[:rollout_status])
+    scope = scope.where(source: "consul", rollout_status: params[:rollout_status]) if ConsulStore::ROLLOUT_STATUSES.include?(params[:rollout_status])
     now = Time.current
     scope = case params[:status]
     when "expired" then scope.where("not_after <= ?", now)

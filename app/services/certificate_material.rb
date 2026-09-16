@@ -19,7 +19,7 @@ class CertificateMaterial
     else
       raise Certificates::Error, "Diese Datenquelle wird nicht unterstützt."
     end
-    raise Certificates::Error, "Quelldatei hat sich geändert. Bitte nach der Indexierung erneut versuchen." unless Certificates::Codec.fingerprint(cert) == record.fingerprint
+    raise Certificates::Error, "Die Quelle enthält inzwischen ein anderes Zertifikat. Der gespeicherte Eintrag bleibt erhalten; diese Version kann aus der aktuellen Quelle nicht exportiert werden." unless Certificates::Codec.fingerprint(cert) == record.fingerprint
     raise Certificates::Error, "Schlüssel passt nicht zum Zertifikat." if key && !cert.check_private_key(key)
     { certificate: cert, key: key, chain: Certificates::Codec.chain(cert, chain) }
   rescue IndexError, ArgumentError, OpenSSL::OpenSSLError

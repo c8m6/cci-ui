@@ -8,6 +8,8 @@ TEST_LEGACY_ROOT = Dir.mktmpdir("cci-test-legacy-")
 ENV["CCI_AREAS"] = JSON.generate("zone_a" => "Zone A", "zone_b" => "Zone B")
 ENV["CCI_LEGACY_PATHS"] = JSON.generate("zone_a" => TEST_LEGACY_ROOT)
 ENV["CCI_AREA_KEYS"] = "{}"
+ENV["PUPPETDB_ENABLED"] = "false"
+ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = "sha256"
 ENV["CONSUL_PREFIX"] = "cci-test/#{SecureRandom.hex(8)}"
 require_relative "../config/environment"
 require "rails/test_help"

@@ -4,11 +4,7 @@ require_relative "../../examples/add_certificate"
 class RolloutStatusTest < ActiveSupport::TestCase
   def set_status(record, status, index: ConsulStore.status_snapshot(record)&.fetch(:index) || 0)
     options = { status: status, actor: "status-writer", expected_lookup_index: index }
-    if record.source == "consul"
-      ConsulStore.set_status(record.area, record.source_id, **options)
-    else
-      ConsulStore.set_filesystem_status(record, **options)
-    end
+    ConsulStore.set_status(record.area, record.source_id, **options)
     CatalogIndexer.refresh_consul
   end
 
@@ -70,7 +66,7 @@ class RolloutStatusTest < ActiveSupport::TestCase
     assert_equal "norollout", record.reload.rollout_status
   end
 
-  test "filesystem status survives rebuild and file moves without changing file contents" do
+  test "historical filesystem status is ignored after reindex and file moves" do
     cert, key = issue
     previous = AreaConfiguration.configuration
     Dir.mktmpdir do |dir|
@@ -80,27 +76,24 @@ class RolloutStatusTest < ActiveSupport::TestCase
       File.write(path, content)
       CatalogIndexer.new.filesystem
       record = Certificate.find_by!(source: "filesystem")
-      assert_equal "active", record.rollout_status
-      set_status(record, "norollout")
-      assert_equal content, File.read(path)
-      snapshot = ConsulStore.status_snapshot(record)
-      assert_equal "norollout", JSON.parse(snapshot[:value])["status"]
-      set_status(record, "delete")
-      assert_raises(Certificates::Error) { set_status(record, "active", index: snapshot[:index]) }
+      status_path = "#{ConsulStore.prefix(record.area)}/filesystem-statuses/#{record.fingerprint}"
+      historical = { schema: "1", fingerprint: record.fingerprint, status: "delete", archived: true }
+      ConsulStore.client.transaction([ConsulConnection.set(status_path, historical, index: 0)])
+      CatalogIndexer.run
+      assert_equal "active", record.reload.rollout_status
+      assert_not record.archived
+      assert_nil ConsulStore.status_snapshot(record)
       assert_equal content, File.read(path)
       File.rename(path, File.join(dir, "new.pem"))
-      Certificate.where(source: "filesystem").delete_all
-      CatalogIndexer.new.filesystem
-      rebuilt = Certificate.find_by!(source: "filesystem")
-      assert_equal "delete", rebuilt.rollout_status
-      assert_equal "new.pem#0", rebuilt.source_id
-      event = AuditEvent.where(action: "status_change").order(:id).last
-      assert_equal "filesystem", event.details["certificates"].first["source"]
-      # Identical DER in another area or in Consul is a separately managed entry.
+      CatalogIndexer.run
+      assert_equal 2, Certificate.where(source: "filesystem", archived: false, rollout_status: "active").count
+      assert_equal historical.stringify_keys, JSON.parse(ConsulStore.client.get(status_path)[:value])
+      assert_not_respond_to ConsulStore, :set_filesystem_status
+      assert_empty AuditEvent.where(action: %w[archive status_change])
       other = store(cert, area: "zone_b")
-      assert_equal "active", other.rollout_status
-      set_status(rebuilt, "active")
-      assert_equal "active", rebuilt.reload.rollout_status
+      set_status(other, "norollout")
+      assert_equal "active", record.reload.rollout_status
+      assert_equal "norollout", other.reload.rollout_status
     end
   ensure
     AreaConfiguration.instance_variable_set(:@configuration, previous)

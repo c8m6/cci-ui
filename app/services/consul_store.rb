@@ -16,49 +16,42 @@ class ConsulStore
     client.get("#{prefix(area)}/lookups/#{lookup}")
   end
   def self.status_snapshot(record)
-    return lookup_snapshot(record.area, record.lookup) if record.source == "consul"
-    client.get("#{prefix(record.area)}/filesystem-statuses/#{record.fingerprint}")
+    lookup_snapshot(record.area, record.lookup) if record.source == "consul"
   end
 
-  def self.filesystem_status_entries(connection, area)
-    connection.all("#{prefix(area)}/filesystem-statuses/").map do |item|
-      data = JSON.parse(item.fetch(:value))
-      fingerprint = item.fetch(:key).split("/").last
-      unless data["schema"] == "1" && fingerprint.match?(/\A[0-9a-f]{64}\z/) && data["fingerprint"] == fingerprint
-        raise Certificates::Error, "Ungültiger Statuseintrag für den Dateibestand."
-      end
-      rollout_status(data)
-      item.merge(data: data)
+  def self.catalog_status(entry)
+    archived = entry.fetch("archived", false)
+    unless archived == true || archived == false
+      raise Certificates::Error, "Ungültiger Archivstatus im Zertifikatsspeicher."
     end
-  end
-
-  def self.filesystem_statuses(connection, area)
-    filesystem_status_entries(connection, area).to_h do |item|
-      [item.fetch(:data).fetch("fingerprint"), rollout_status(item.fetch(:data))]
+    status = rollout_status(entry)
+    if archived && status != "delete"
+      raise Certificates::Error, "Archivierte Zertifikate müssen den Puppet-Status delete behalten."
     end
+    { rollout_status: status, archived: archived }
   end
 
-  def self.prune_filesystem_statuses(connection, entries, fingerprints)
-    obsolete = entries.reject { |item| fingerprints.include?(item.fetch(:data).fetch("fingerprint")) }
-    obsolete.each_slice(64) do |batch|
-      connection.transaction(batch.map { |item| { "Verb" => "delete-cas", "Key" => item.fetch(:key), "Index" => item.fetch(:index) } })
-    end
-  end
-
-  def self.set_filesystem_status(record, status:, actor:, expected_lookup_index:)
-    raise Certificates::Error, "Ungültiger Puppet-Status." unless ROLLOUT_STATUSES.include?(status)
+  def self.archive(record, actor:, expected_lookup_index:)
+    raise Certificates::Error, "Nur Consul-Zertifikate können archiviert werden. Der Dateibestand ist nur lesbar." unless record.source == "consul"
     connection = client
-    path = "#{prefix(record.area)}/filesystem-statuses/#{record.fingerprint}"
+    path = "#{prefix(record.area)}/lookups/#{record.lookup}"
     current = connection.get(path)
-    raise Certificates::Error, "Der Status wurde geändert. Bitte Seite neu laden." unless (current&.fetch(:index) || 0).to_s == expected_lookup_index.to_s
-    previous = current ? rollout_status(JSON.parse(current.fetch(:value))) : "active"
-    return if previous == status
+    unless (current&.fetch(:index) || 0).to_s == expected_lookup_index.to_s
+      raise Certificates::Error, "Der Status wurde geändert. Bitte Archivierung erneut prüfen und bestätigen."
+    end
+    entry = current ? JSON.parse(current.fetch(:value)) : {}
+    if entry["entry_id"] != record.entry_id
+      raise Certificates::Error, "Lookup gehört nicht mehr zu diesem Zertifikat."
+    end
+    previous = catalog_status(entry)
+    return if previous.fetch(:archived)
     at = Time.current.iso8601(6)
-    data = { schema: "1", fingerprint: record.fingerprint, status: status,
-      subject: record.subject, issuer: record.issuer, updated_at: at, updated_by: actor }
-    snapshot = record.attributes.slice("common_name", "subject", "issuer", "serial", "fingerprint", "source", "source_id").merge("kind" => "selected")
-    audit = { action: "status_change", area: record.area, id: record.source_id, actor: actor, at: at,
-      details: { certificates: [snapshot], previous_status: previous, status: status } }
+    data = entry.merge("status" => "delete", "archived" => true, "archived_at" => at, "archived_by" => actor)
+    snapshot = record.attributes.slice("common_name", "subject", "issuer", "serial", "fingerprint", "source", "source_id", "lookup").merge("kind" => "selected")
+    audit = { action: "archive", area: record.area, id: record.source_id, actor: actor, at: at,
+      details: { certificates: [snapshot], previous_status: previous.fetch(:rollout_status), status: "delete",
+        previous_archived: false, archived: true, scope: "lookup",
+        comment: "Archivierung bestätigt: aus der Übersicht ausgeblendet, weiterhin suchbar; Puppet-Löschauftrag gesetzt. Zertifikatsdaten und Schlüssel bleiben gespeichert." } }
     connection.transaction([
       ConsulConnection.set(path, data, index: current&.fetch(:index) || 0),
       ConsulConnection.set("#{namespace}/events/#{SecureRandom.uuid}", audit, index: 0)
@@ -98,7 +91,7 @@ class ConsulStore
       raise Certificates::Error, "Der Lookup wurde seit der Vorschau geändert. Bitte Import erneut prüfen und bestätigen."
     end
     entry = old ? JSON.parse(old[:value]) : {}
-    status = rollout_status(entry)
+    status = catalog_status(entry).fetch(:rollout_status)
     entry_id = entry.fetch("entry_id") { SecureRandom.uuid }
     fingerprint = Certificates::Codec.fingerprint(cert)
     id = Digest::SHA256.hexdigest("#{entry_id}:#{fingerprint}")
@@ -126,6 +119,7 @@ class ConsulStore
     current = connection.get(lookup_key) || raise(Certificates::Error, "Lookup ist nicht mehr vorhanden.")
     entry = JSON.parse(current[:value])
     raise Certificates::Error, "Lookup gehört nicht mehr zu diesem Zertifikat." unless entry.fetch("entry_id") == data.fetch("entry_id")
+    raise Certificates::Error, "Archivierte Zertifikate können nicht aktiviert werden." if catalog_status(entry).fetch(:archived)
     version = connection.get("#{base}/versions/#{id}") || raise(Certificates::Error, "Version wurde entfernt.")
     connection.transaction([
       { "Verb" => "check-index", "Key" => "#{base}/versions/#{id}", "Index" => version[:index] },
@@ -142,6 +136,7 @@ class ConsulStore
     raise Certificates::Error, "Der Lookup wurde geändert. Bitte Seite neu laden." unless current[:index].to_s == expected_lookup_index.to_s
     entry = JSON.parse(current[:value])
     raise Certificates::Error, "Lookup gehört nicht mehr zu diesem Zertifikat." unless entry.fetch("entry_id") == data.fetch("entry_id")
+    raise Certificates::Error, "Archivierte Zertifikate können nicht reaktiviert werden." if catalog_status(entry).fetch(:archived) && status != "delete"
     previous = rollout_status(entry)
     return if previous == status
     connection.transaction([
@@ -153,18 +148,4 @@ class ConsulStore
     raise Certificates::Error, error.message
   end
 
-  def self.delete(area, id, actor:)
-    data = get(area, id)
-    base = prefix(area)
-    lookup_key = "#{base}/lookups/#{data.fetch('lookup')}"
-    connection = client
-    current = connection.get(lookup_key) || raise(Certificates::Error, "Lookup ist nicht mehr vorhanden.")
-    raise Certificates::Error, "Aktive Versionen können nicht gelöscht werden. Zuerst eine andere Version aktivieren." if JSON.parse(current[:value])["active_version"] == id
-    connection.transaction([
-      { "Verb" => "check-index", "Key" => lookup_key, "Index" => current[:index] },
-      { "Verb" => "delete", "Key" => "#{base}/versions/#{id}" },
-      { "Verb" => "delete", "Key" => "#{base}/private-keys/#{id}" },
-      event("delete", area, id, actor, data)
-    ])
-  end
 end

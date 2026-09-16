@@ -1,0 +1,20 @@
+<section class="panel detail-panel" id="puppetdb-hosts">
+  <h2>Hosts laut PuppetDB</h2>
+  <% if puppetdb_fingerprint_missing?(certificate) %>
+    <p class="flash flash-error">Der Fingerprint für den gewählten PuppetDB-Abgleich fehlt noch im Katalog. Er wird beim nächsten erfolgreichen Einlesen der Zertifikatsquelle ergänzt. Vorhandene Hostangaben stammen aus einer früheren Abfrage.</p>
+  <% end %>
+  <% if certificate.puppetdb_refresh_failed? %>
+    <p class="flash flash-error">Die letzte PuppetDB-Abfrage ist fehlgeschlagen. Angezeigte Hostzuordnungen stammen aus der letzten erfolgreichen Abfrage und können veraltet sein.</p>
+  <% end %>
+  <% if certificate.puppetdb_checked_at %>
+    <p><strong><%= certificate.puppetdb_hosts.size %></strong> <%= certificate.puppetdb_hosts.one? ? "Host meldet" : "Hosts melden" %> dieses Zertifikat.</p>
+    <% if certificate.puppetdb_hosts.any? %>
+      <ul><% certificate.puppetdb_hosts.each do |host| %><li class="mono break-word"><%= host %></li><% end %></ul>
+    <% else %>
+      <p>In der letzten erfolgreichen Abfrage wurde dieses Zertifikat auf keinem Host gemeldet.</p>
+    <% end %>
+    <p class="muted small">Zuletzt abgefragt: <%= certificate.puppetdb_checked_at.strftime("%d.%m.%Y, %H:%M:%S %Z") %>. Die Angaben beruhen auf den zuletzt an PuppetDB übermittelten Facts und dem konfigurierten Abfrageumfang; sie sind keine Live-Prüfung der Hosts.</p>
+  <% else %>
+    <p>Für dieses Zertifikat liegt noch keine erfolgreiche PuppetDB-Abfrage vor.</p>
+  <% end %>
+</section>

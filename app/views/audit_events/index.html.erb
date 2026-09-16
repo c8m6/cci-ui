@@ -29,7 +29,8 @@
           <% if event.details["certificates"].blank? %><div class="muted small">Historischer Eintrag: nur Referenzen vorhanden; Zeit entspricht der damaligen Erfassung.</div><% event.references.each do |reference| %><div class="mono"><%= reference %></div><% end %><% end %>
         </td>
         <td>
-          <% if event.action == "status_change" %><div>Puppet-Status: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>
+          <% if event.action == "archive" %><div><%= event.details["comment"] %></div><div>Umfang: <%= event.details["scope"] == "lookup" ? "Alle Versionen des Lookups im Bereich" : "Alle Kopien des Fingerprints im Bereich" %></div><% end %>
+          <% if %w[status_change archive].include?(event.action) %><div>Puppet-Status: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>
           <% if event.details["format"] %><div>Format: <%= event.details["format"].upcase %></div><div>Datei: <%= event.details["filename"] %></div><div>Private Schlüssel: <%= event.details["include_key"] ? "Ja" : "Nein" %></div><div>Zertifikatskette: <%= event.details["include_chain"] ? "Ja" : "Nein" %></div><% end %>
           <% if event.details["previous_version"] %><details><summary>Vorherige aktive Version</summary><code><%= event.details["previous_version"] %></code></details><% end %>
           <% if event.details.key?("has_key") %><div>Schlüssel vorhanden: <%= event.details["has_key"] ? "Ja" : "Nein" %></div><div>Tags: <%= Array(event.details["tags"]).join(", ").presence || "–" %></div><% end %>

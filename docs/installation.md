@@ -111,7 +111,8 @@ Mount declarations are container infrastructure; application settings are still
 supplied through environment variables. Both processes must see identical paths
 and contents. An area omitted from `CCI_LEGACY_PATHS` remains available for Consul
 certificates. Map one path to multiple areas only when intentionally granting
-those areas access to the same inventory; status and audit ownership stay separate.
+those areas access to the same inventory; permissions and export audit ownership
+stay separate. Filesystem certificates have no editable Puppet status.
 
 `CCI_AREA_KEYS` maps area IDs to 32-byte keys encoded as Base64. The map lets
 Compose forward arbitrary area keys from the shell without editing its service
@@ -136,8 +137,8 @@ See the [environment reference](environment.md) for all supported variables,
 a `docker run` example without configuration files, and migration instructions.
 No SQL or Consul schema migration is required for this configuration change.
 Preserve area IDs: they determine Consul paths, encryption, roles and audit ownership.
-Removed local mappings block material reads and lose their catalog rows at the
-next scan, while unscanned Consul status records and audit history remain intact.
+Removed local mappings block material reads but retain their catalog rows.
+Certificate metadata and audit history are never removed by an indexing pass.
 
 ## Tests
 
@@ -264,8 +265,9 @@ actual Keycloak/Consul infrastructure because its configuration is unavailable.
 ## Backup and recovery
 
 Back up PostgreSQL, Consul snapshots, area secrets, configuration and the existing
-NFS collection together. Search metadata is reconstructible; audit history and
-pending previews are not fully recoverable without a database backup. Test
+NFS collection together. Search metadata is reconstructible only while the
+corresponding source material still exists. Retained entries for missing sources,
+export audit history and pending previews require a database backup. Test
 restoration on an isolated VM. Restore Consul using the same prefix and original
 area secrets.
 
@@ -285,6 +287,13 @@ rotated independently; doing so invalidates existing login sessions.
 | SSO fails | Issuer, callback URI, client secret and claim mapping |
 | JKS import fails | Use matching store and key passwords |
 | Old PFX is rejected | Use AES/PBES2 or 3DES; RC2 is unsupported |
+| Filesystem certificate has no status or archive controls | Expected: only Consul certificates have mutable state; the file remains in the UI catalog |
+| Archived certificate is missing from the overview | Use a text search or “Archivierte einschließen”; normal area and other filters still apply |
+| “Hosts” is missing | Set `PUPPETDB_ENABLED=true` in both services and recreate them |
+| Hosts show “–” | No successful observation yet; check indexer logs, URL, TLS, query and fact settings |
+| Hosts show `0` | The last successful complete response had no matching fingerprint within the query scope; check fact name and fingerprint algorithm |
+| “Abfrage fehlgeschlagen” appears | Check indexer logs and PuppetDB connectivity or fact format; previous host associations are retained |
+| “Fingerprint fehlt” appears | In SHA-1 mode, rescan the readable certificate source to compute the missing digest; retained entries with missing sources keep their previous observations |
 
 ## Upgrading for certificate status
 
@@ -296,21 +305,12 @@ The historical audit migration IDs are retained and fresh databases create
 `store_event_id` directly; fully migrated installations keep their existing
 column and audit history.
 
-Give the UI read/write access to each configured area's
-`<prefix>/areas/<area>/filesystem-statuses/` path, in addition to the existing
-lookup/version and event permissions. This applies even though the legacy mount
-remains read-only. The indexer also needs read/write access to
-`filesystem-statuses/` in every area with a configured local inventory to remove
-status keys after its last disk copy disappears (and read access in other areas).
-For example, add this to the UI and legacy-area indexer token policies:
+Puppet controls and archiving apply only to Consul certificates. Filesystem
+certificates stay indexed in the UI catalog without mutable state. Historical
+`filesystem-statuses/` keys are ignored; neither web nor indexer requires access
+to those paths. No data or audit history is removed from Consul.
 
-```hcl
-key_prefix "cci/v1/areas/zone_a/filesystem-statuses/" {
-  policy = "write"
-}
-```
-
-Retain this metadata in Consul snapshots. A full indexing pass after deployment
+A full indexing pass after deployment
 can be triggered with `ruby bin/rails runner 'CatalogIndexer.run'`. Users should
 start new import previews after deployment; earlier drafts lack the destination
 indexes now required by the overwrite protection.
@@ -321,12 +321,26 @@ before relying on these values operationally.
 
 ## Legacy inventory consistency
 
-The indexer removes orphaned legacy status keys after a complete successful scan,
-normally within the 60-second indexing interval. It scans and cleans each area
-independently. Audit history remains available. An unavailable or unreadable
-inventory aborts cleanup for that area; other areas and Consul indexing continue.
-An accessible empty inventory removes all legacy status keys in its area, so
-verify the NFS/disk mount before running the indexer against a changed mount configuration.
+The indexer never removes certificate catalog entries or Consul status metadata.
+An empty or unavailable mount cannot trigger deletion. Removing an inventory
+mapping also retains its catalog entries. Historical filesystem status keys
+remain untouched and are ignored. Missing source material
+prevents export, but its retained certificate details remain available.
+
+For Consul certificates, writers use “Archivieren” beside “Status speichern”
+and confirm the effects to hide certificates
+from the overview and set the Puppet `delete` request. A text search includes
+archived certificates; “Archivierte einschließen” lists them without a term.
+Archive metadata and the audit event are stored together in Consul.
+
+Deploy migration `20260916000100` with `ruby bin/rails db:prepare` before starting
+indexers. It adds the archive flag and preserves separate fingerprints at the
+same filesystem path/block position. Migration `20260916000400` resets obsolete
+filesystem status/archive projections and enforces read-only defaults. Formerly
+archived filesystem records are visible again; Consul archive state is unchanged.
+Back up PostgreSQL as well as Consul: catalog records for vanished source files
+cannot be recreated from the remaining source inventory alone. This change does
+not restore records or statuses already deleted by an earlier release.
 
 UI imports scan all configured disk inventories before preview and again before
 saving.
@@ -338,3 +352,19 @@ without legacy files can set `CCI_LEGACY_PATHS='{}'`. Every listed path must
 refer to a readable directory inside both containers. Errors in inventory reads or certificate parsing block uploads
 until corrected. No new database migration or Consul schema version is needed
 for these checks.
+
+## Optional PuppetDB connection
+
+PuppetDB integration is off by default. Deploy migrations `20260916000200` and
+`20260916000300` with
+`ruby bin/rails db:prepare` before starting the indexer, then configure the
+[optional PuppetDB settings](environment.md#optional-puppetdb-host-inventory)
+and mount TLS credentials into the indexer if required. The provided custom fact
+and host names in the examples are anonymized; substitute your deployment's
+actual fact name and endpoint. Enable the feature in both web and indexer.
+
+A successful scan populates “Hosts” in the overview and “Hosts laut PuppetDB” in
+details. Until then, counts show “–”. On query or parsing errors the indexer logs
+a sanitized message, preserves the last successful host list and marks it as
+potentially stale in the UI. No certificate is removed. See the
+[fact format and operational limits](puppetdb.md).

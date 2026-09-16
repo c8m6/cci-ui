@@ -6,8 +6,9 @@ Rails.application.routes.draw do
   delete "/abmelden", to: "sessions#destroy", as: :logout
   get "/auth/keycloak/callback", to: "sessions#callback"
   get "/auth/failure", to: "sessions#failure"
-  resources :certificates, path: "zertifikate", only: %i[index show destroy update] do
+  resources :certificates, path: "zertifikate", only: %i[index show update] do
     post :export, on: :collection
+    get :archive, on: :member
   end
   resources :imports, path: "import", only: %i[new create]
   resources :audit_events, path: "auditlogs", only: :index
