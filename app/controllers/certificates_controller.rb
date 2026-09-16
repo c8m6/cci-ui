@@ -1,9 +1,9 @@
 class CertificatesController < ApplicationController
   def index
     visible = Certificate.visible_to(current_identity)
-    @stats = { total: visible.where(active: true).count,
-      expiring: visible.where(active: true).where("not_after > ? AND not_after < ?", Time.current, 30.days.from_now).count,
-      expired: visible.where(active: true).where("not_after <= ?", Time.current).count }
+    @stats = { total: visible.where(active: true, archived: false).count,
+      expiring: visible.where(active: true, archived: false).where("not_after > ? AND not_after < ?", Time.current, 30.days.from_now).count,
+      expired: visible.where(active: true, archived: false).where("not_after <= ?", Time.current).count }
     results = CertificateSearch.call(visible, params)
     @total = results.count
     @page = [params[:page].to_i, 1].max
@@ -15,13 +15,26 @@ class CertificatesController < ApplicationController
   def show
     @certificate = Certificate.visible_to(current_identity).find(params[:id])
     @lookup_snapshot = ConsulStore.status_snapshot(@certificate)
-    @rollout_status = @lookup_snapshot ? ConsulStore.rollout_status(JSON.parse(@lookup_snapshot.fetch(:value))) : "active"
-    @material = CertificateMaterial.with_chain(@certificate, CertificateMaterial.load(@certificate), current_identity)
-    fingerprints = [@material[:certificate], *@material[:chain]].map { |cert| Certificates::Codec.fingerprint(cert) }
-    @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(active: :desc, id: :asc).to_a.group_by(&:fingerprint).transform_values(&:first)
-    @hiera = HieraSnippet.for(@certificate, @material[:certificate])
+    @rollout_status = @lookup_snapshot ? ConsulStore.rollout_status(JSON.parse(@lookup_snapshot.fetch(:value))) : @certificate.rollout_status
+    @archived = @certificate.archived || (@lookup_snapshot && ConsulStore.catalog_status(JSON.parse(@lookup_snapshot.fetch(:value))).fetch(:archived))
     @versions = @certificate.entry_id ? Certificate.visible_to(current_identity).where(area: @certificate.area, entry_id: @certificate.entry_id).order(not_before: :desc) : []
+    begin
+      @material = CertificateMaterial.with_chain(@certificate, CertificateMaterial.load(@certificate), current_identity)
+      fingerprints = [@material[:certificate], *@material[:chain]].map { |cert| Certificates::Codec.fingerprint(cert) }
+      @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(active: :desc, id: :asc).to_a.group_by(&:fingerprint).transform_values(&:first)
+      @hiera = HieraSnippet.for(@certificate, @material[:certificate])
+    rescue Certificates::Error, ConsulConnection::Error => error
+      @material = nil
+      @material_error = error.message
+    end
   end
+  def archive
+    @certificate = Certificate.visible_to(current_identity).find(params[:id])
+    require_writer!(@certificate.area)
+    require_consul!(@certificate)
+    @lookup_snapshot = ConsulStore.status_snapshot(@certificate)
+  end
+
   def export
     ids = Array(params[:ids]).map(&:to_s).uniq
     raise Certificates::Error, "Bitte zwischen 1 und 100 Zertifikate auswählen." unless (1..100).cover?(ids.size)
@@ -35,28 +48,35 @@ class CertificatesController < ApplicationController
   def update
     record = Certificate.visible_to(current_identity).find(params[:id])
     require_writer!(record.area)
-    if params.key?(:rollout_status)
-      options = { status: params[:rollout_status], actor: current_identity.name, expected_lookup_index: params[:lookup_index] }
-      if record.source == "consul"
-        ConsulStore.set_status(record.area, record.source_id, **options)
-      else
-        ConsulStore.set_filesystem_status(record, **options)
+    require_consul!(record)
+    if record.archived && params[:archive] != "1"
+      raise Certificates::Error, "Archivierte Zertifikate können nicht reaktiviert werden."
+    end
+    if params[:archive] == "1"
+      unless params[:confirm_archive] == "1"
+        @certificate = record
+        @lookup_snapshot = ConsulStore.status_snapshot(record)
+        flash.now[:alert] = "Bitte die Auswirkungen der Archivierung bestätigen."
+        return render :archive, status: :unprocessable_entity
       end
+      ConsulStore.archive(record, actor: current_identity.name, expected_lookup_index: params[:lookup_index])
+      notice = "Zertifikat archiviert. Der Puppet-Löschauftrag wurde gespeichert."
+    elsif params.key?(:rollout_status)
+      options = { status: params[:rollout_status], actor: current_identity.name, expected_lookup_index: params[:lookup_index] }
+      ConsulStore.set_status(record.area, record.source_id, **options)
       notice = "Puppet-Status gespeichert."
     else
-      raise Certificates::Error, "Der Dateibestand ist nur lesbar." unless record.source == "consul"
       ConsulStore.activate(record.area, record.source_id, actor: current_identity.name)
       notice = "Version für Puppet aktiviert."
     end
     CatalogIndexer.refresh_consul
     redirect_to certificate_path(record), notice: notice, status: :see_other
   end
-  def destroy
-    record = Certificate.visible_to(current_identity).find(params[:id])
-    require_writer!(record.area)
-    raise Certificates::Error, "Der Dateibestand ist nur lesbar." unless record.source == "consul"
-    ConsulStore.delete(record.area, record.source_id, actor: current_identity.name)
-    record.destroy!
-    redirect_to root_path, notice: "Inaktive Version gelöscht.", status: :see_other
+
+  private
+
+  def require_consul!(record)
+    raise Certificates::Error, "Puppet-Status und Archivierung sind nur für Consul-Zertifikate verfügbar. Der Dateibestand ist nur lesbar." unless record.source == "consul"
   end
+
 end

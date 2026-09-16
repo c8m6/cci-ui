@@ -1,7 +1,11 @@
 module ApplicationHelper
   def area_label(area) = AreaConfiguration.label(area)
-  def filter_params = params.permit(:q, :area, :source, :status, :rollout_status, :key, :sort, :history).to_h
+  def filter_params = params.permit(:q, :area, :source, :status, :rollout_status, :key, :sort, :history, :archived).to_h
   def date_label(time) = time&.strftime("%d.%m.%Y") || "–"
+  def puppetdb_enabled? = PuppetdbConfiguration.enabled?
+  def puppetdb_fingerprint_missing?(certificate)
+    certificate.public_send(PuppetdbConfiguration.new.fingerprint_column).nil?
+  end
   def icon(name)
     paths = {
       "shield" => '<path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/>',

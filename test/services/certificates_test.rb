@@ -47,7 +47,7 @@ class CertificatesTest < ActiveSupport::TestCase
     ConsulStore.activate("zone_a", original.source_id, actor: "test")
     CatalogIndexer.new.consul
     assert original.reload.active
-    assert_raises(Certificates::Error) { ConsulStore.delete("zone_a", original.source_id, actor: "test") }
+    assert_not_respond_to ConsulStore, :delete
   end
 
   test "search combines SAN tags and terms and respects area" do

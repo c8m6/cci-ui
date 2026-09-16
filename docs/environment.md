@@ -4,7 +4,7 @@ All deployment-specific application settings are read from process environment
 variables. Web and indexer use the same configuration. No external application
 configuration file or configuration mount is required. The Rails configuration
 shipped in the image remains part of the application code and reads these values.
-Certificate inventories and optional CA certificates are still files.
+Certificate inventories and optional TLS certificates and keys are still files.
 
 ## Areas, inventories and encryption keys
 
@@ -61,8 +61,67 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
 | `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
 
-Secret values are supplied directly through the environment; there are no
-built-in `*_FILE` settings. Keep existing area key bytes during migration.
+Consul tokens, OIDC secrets and encryption keys are supplied directly through
+the environment. Optional PuppetDB TLS credentials use the file paths below.
+Keep existing area key bytes during migration.
+
+## Optional PuppetDB host inventory
+
+The feature is disabled by default. Configure the same settings in web and
+indexer; web reads cached results only, while the scheduled indexer queries
+PuppetDB after indexing certificates. Setting `PUPPETDB_ENABLED=false` hides the
+host column and detail section and stops PuppetDB requests without erasing the
+cached associations. Recreate both services after configuration changes.
+
+| Variable | Meaning and application default |
+| --- | --- |
+| `PUPPETDB_ENABLED` | `true` / `1` enables synchronization and UI; `false` / `0` disables it. Default: `false`. |
+| `PUPPETDB_URL` | Required when enabled. HTTP(S) base URL, for example `https://puppetdb.example.test:8081`. The client appends `/pdb/query/v4`; optional reverse-proxy base paths are preserved. Embedded credentials, query strings and fragments are rejected. |
+| `PUPPETDB_FACT_NAME` | Fact containing certificate fingerprints. Default: `certificates`, an anonymized example name; set this to your actual custom fact name. |
+| `PUPPETDB_QUERY` | Optional PQL query returning a complete array of objects with `certname` and `facts`. Empty or omitted generates the inventory query below using `PUPPETDB_FACT_NAME`. Do not add pagination limits or offsets. |
+| `PUPPETDB_FINGERPRINT_FIELD` | Field within each certificate object containing its fingerprint. Default: `fingerprint`. Direct fingerprint strings are also supported. |
+| `PUPPETDB_FINGERPRINT_ALGORITHM` | `sha256` (default, 64 hex characters) or `sha1` (40 hex characters). Must match the custom fact. The catalog identity remains SHA-256. |
+| `PUPPETDB_CA_FILE` | Optional CA PEM path inside the indexer container. Empty uses system trust. Server certificate and hostname verification are always enabled for HTTPS. |
+| `PUPPETDB_CLIENT_CERT_FILE` | Optional client certificate PEM path for mutual TLS. Must be paired with `PUPPETDB_CLIENT_KEY_FILE`. |
+| `PUPPETDB_CLIENT_KEY_FILE` | Corresponding unencrypted private-key PEM path, readable by the container user. Mount credentials read-only. |
+| `PUPPETDB_TOKEN` | Optional token sent as `X-Authentication`, for example with Puppet Enterprise RBAC. Credentials require HTTPS. |
+| `PUPPETDB_TIMEOUT` | Positive integer per-read/write timeout in seconds. Default: `30`; connection establishment is capped at 5 seconds. This is not a deadline for the entire query. |
+| `PUPPETDB_MAX_RESPONSE_BYTES` | Positive maximum response size. Default: `52428800` (50 MiB). Oversized responses fail without replacing cached host associations. |
+
+Anonymized example (the custom fact name `certificates` is illustrative and does
+not specify a Puppet class):
+
+```bash
+export PUPPETDB_ENABLED=true
+export PUPPETDB_URL=https://puppetdb.example.test:8081
+export PUPPETDB_FACT_NAME=certificates
+export PUPPETDB_FINGERPRINT_ALGORITHM=sha256
+export PUPPETDB_QUERY='inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }'
+export PUPPETDB_CA_FILE=/run/puppetdb/ca.pem
+export PUPPETDB_CLIENT_CERT_FILE=/run/puppetdb/client.pem
+export PUPPETDB_CLIENT_KEY_FILE=/run/puppetdb/client.key
+```
+
+The generated default query is equivalent to this example. If you change the
+fact name and override the query, update both settings to agree. Other queries
+may restrict the host population, but must retain the `certname` and `facts`
+projection and return the configured fact for every row. The selected hosts
+define the scope of the displayed counts; hosts outside the query do not count.
+
+The Compose templates forward these variables to both services. Add a read-only
+mount for the TLS directory to the indexer, for example through an override:
+
+```yaml
+services:
+  indexer:
+    volumes:
+      - /srv/cci/puppetdb-tls:/run/puppetdb:ro
+```
+
+Use a client identity authorized to read the selected facts. The application
+only calls the query API, never PuppetDB's command API. No Puppet class is
+installed or renamed by this feature. See [PuppetDB host mapping](puppetdb.md)
+for the supported fact shapes, synchronization behavior and UI semantics.
 
 ## Optional Compose settings
 
@@ -123,6 +182,10 @@ app_env=(
   -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE
   -e OIDC_ISSUER -e OIDC_CLIENT_ID -e OIDC_CLIENT_SECRET
   -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e INDEX_INTERVAL
+  -e PUPPETDB_ENABLED -e PUPPETDB_URL -e PUPPETDB_QUERY
+  -e PUPPETDB_FACT_NAME -e PUPPETDB_FINGERPRINT_FIELD -e PUPPETDB_FINGERPRINT_ALGORITHM
+  -e PUPPETDB_CA_FILE -e PUPPETDB_CLIENT_CERT_FILE -e PUPPETDB_CLIENT_KEY_FILE
+  -e PUPPETDB_TOKEN -e PUPPETDB_TIMEOUT -e PUPPETDB_MAX_RESPONSE_BYTES
 )
 inventory=(--mount type=bind,src=/mnt/certificates,dst=/legacy,readonly)
 
@@ -140,6 +203,11 @@ and container networking for your infrastructure and put an HTTPS reverse proxy
 in front of the published port. With no disk inventory, set
 `CCI_LEGACY_PATHS='{}'` and omit the `inventory` arguments. Add a read-only CA
 mount to both commands when using `CONSUL_CA_FILE`.
+For PuppetDB client certificates or a private CA, also mount their directory
+read-only into the indexer command, for example
+`--mount type=bind,src=/srv/cci/puppetdb-tls,dst=/run/puppetdb,readonly`, and set
+the `PUPPETDB_*_FILE` paths to the corresponding container paths. Forwarding a
+file path in an environment variable does not mount the file itself.
 
 ## Migrating existing installations
 

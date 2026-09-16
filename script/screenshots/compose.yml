@@ -1,0 +1,55 @@
+name: cci-ui-screenshots
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: screenshots
+      POSTGRES_PASSWORD: screenshots
+      POSTGRES_DB: screenshots
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "screenshots"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  consul:
+    image: hashicorp/consul:1.22
+    command: ["agent", "-dev", "-client=0.0.0.0"]
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  web:
+    build: ../..
+    image: cci-ui-screenshots:local
+    command: ["sh", "-c", "ruby bin/rails db:prepare && ruby bin/rails runner script/screenshots/seed.rb && exec ruby bin/start"]
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      RAILS_ENV: development
+      AUTH_MODE: local
+      DATABASE_URL: postgresql://screenshots:screenshots@db/screenshots
+      CONSUL_URL: http://consul:8500
+      CONSUL_PREFIX: cci-screenshots/v1
+      CCI_AREAS: '{"zone_a":"Zone A","zone_b":"Zone B"}'
+      CCI_LEGACY_PATHS: '{"zone_a":"/tmp/cci-screenshot-legacy"}'
+      # Public demonstration keys; never use these outside this disposable stack.
+      CCI_AREA_KEYS: '{"zone_a":"YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=","zone_b":"YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI="}'
+      PUPPETDB_ENABLED: "true"
+      PUPPETDB_FINGERPRINT_ALGORITHM: sha256
+      PUPPETDB_FACT_NAME: certificates
+      PUPPETDB_FINGERPRINT_FIELD: fingerprint
+      # Hosts are supplied to the real inventory mapper by seed.rb; no live API.
+      PUPPETDB_URL: http://127.0.0.1:1
+    depends_on:
+      db:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:3000/anmelden')).code == '200' ? 0 : 1)"]
+      interval: 2s
+      timeout: 5s
+      retries: 60

@@ -116,7 +116,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "delete"
   end
 
-  test "filesystem writer can set status without importing or writing files" do
+  test "filesystem writer cannot change Puppet status or archive" do
     previous = AreaConfiguration.configuration
     Dir.mktmpdir do |dir|
       configure_legacy_paths("zone_a" => dir)
@@ -127,13 +127,17 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       record = Certificate.find_by!(source: "filesystem")
       get certificate_path(record)
       assert_response :success
-      assert_select 'input[name="lookup_index"][value="0"]'
+      assert_select 'input[name="lookup_index"]', count: 0
+      assert_select 'select[name="rollout_status"]', count: 0
+      assert_select 'a', text: "Archivieren", count: 0
       patch certificate_path(record), params: { rollout_status: "norollout", lookup_index: "0" }
-      assert_redirected_to certificate_path(record)
-      assert_equal "norollout", record.reload.rollout_status
+      assert_response :see_other
+      assert_equal "active", record.reload.rollout_status
       assert_equal content, File.read(path)
       get root_path, params: { rollout_status: "norollout", source: "filesystem" }
-      assert_select 'tbody tr', count: 1
+      assert_select 'tbody tr', count: 0
+      get root_path, params: { rollout_status: "active", source: "filesystem" }
+      assert_select 'tbody tr', count: 0
       patch certificate_path(record)
       assert_response :see_other
       assert_equal content, File.read(path)

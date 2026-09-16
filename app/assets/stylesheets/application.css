@@ -904,3 +904,5 @@
 
 .area-dot { background: var(--teal); }
 .area-pill { background: var(--subtle); color: var(--teal); border: 1px solid var(--line); }
+
+.status-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-top: 1rem; }

@@ -1,8 +1,11 @@
 # Consul schema and writing clients
 
-Consul is the source of truth for new certificates. PostgreSQL contains the
-rebuildable search index, including provenance and Puppet status. Consul also
-stores status metadata for certificates whose material remains in legacy files. Direct Consul imports become
+Consul is the source of truth for imported certificates and their lookup status
+and archive state. PostgreSQL contains the search index, including provenance
+and cached PuppetDB host associations. Filesystem certificates remain read-only
+catalog entries without mutable status or archive state. Rebuilding the index
+requires the original sources; back up PostgreSQL to retain entries whose
+material is no longer available. Direct Consul imports become
 visible on the next successful indexing pass (normally within approximately
 60 seconds). There is no separate HTTP upload API.
 
@@ -16,9 +19,8 @@ visible on the next successful indexing pass (normally within approximately
    a CA certificate file.
 3. Assign separate ACL tokens to writing clients. Grant write access to the
    required `areas/<area>/lookups/`, `versions/`, optionally `private-keys/`,
-   and `events/` paths under the prefix. The UI also needs read/write access to
-   `areas/<area>/filesystem-statuses/`; the indexer needs read/write access for
-   automatic cleanup in each area with a configured local inventory. Reading lookups is required for CAS.
+   and `events/` paths under the prefix. Reading lookups is required for CAS.
+   Neither service needs access to historical `filesystem-statuses/` keys.
 4. For private keys, configure a shared encryption secret per area:
    `CCI_AREA_KEYS='{"zone_a":"<Base64 key>"}'`, with 32 random bytes per area.
    `<UPPERCASE_AREA_ID>_KEY` remains an alternative process variable.
@@ -27,9 +29,10 @@ visible on the next successful indexing pass (normally within approximately
    indexer services with the new image. `bin/start` runs `db:prepare` automatically.
 
 Consul requires no table migration: clients create the following keys when
-writing. Existing Consul entries are not rewritten. The latest Rails migration
-adds `certificates.rollout_status`, default `active`, with a constraint for the
-three supported values and an area/status index. Run a complete index pass
+writing. Existing Consul entries are not rewritten. Rails migrations add the
+status/archive projections and optional PuppetDB inventory fields. Migration
+`20260916000400` clears obsolete filesystem status/archive projections locally
+and constrains filesystem rows to their read-only defaults. Run a complete index pass
 (`ruby bin/rails runner 'CatalogIndexer.run'`) after upgrading or wait for the
 indexer. Discard import previews opened before deployment and create new ones.
 
@@ -43,7 +46,7 @@ encode them as Base64 for transport. `<base>` means `<prefix>/areas/<area>`.
 | `<base>/lookups/<lookup>` | `{ "entry_id": "<uuid>", "active_version": "<version_id>", "status": "active" }` |
 | `<base>/versions/<version_id>` | Public certificate, chain, metadata, and provenance |
 | `<base>/private-keys/<version_id>` | Optional AES-256-GCM envelope containing the private key |
-| `<base>/filesystem-statuses/<fingerprint>` | Mutable status metadata for legacy certificates; no certificate or key material |
+| `<base>/filesystem-statuses/<fingerprint>` | Historical only; ignored and never written by the application |
 | `<prefix>/events/<uuid>` | Audit event for the change |
 
 A lookup contains 1–120 characters from `a-z`, `A-Z`, `0-9`, `.`, `_`, and `-`.
@@ -58,6 +61,8 @@ of the UTF-8 string `<entry_id>:<fingerprint>`.
 | `entry_id` | UUID string identifying this area/lookup pair |
 | `active_version` | String containing the selected version ID |
 | `status` | String: exactly `active`, `norollout`, or `delete`; case-sensitive |
+| `archived` | Optional Boolean; absent means `false`. `true` requires `status: delete`. |
+| `archived_at`, `archived_by` | ISO 8601 timestamp and actor recorded when archiving |
 
 `status` belongs to the lookup, not to an immutable version. All historical
 versions display the same current status. Imports and version activation must
@@ -77,76 +82,57 @@ This release implements storage, editing, filtering, audit, and reader metadata
 only. The supplied Puppet manifests **do not enforce these statuses yet**.
 Setting `delete` neither deletes Consul material nor removes local files.
 Keep the lookup and status record so a future consumer can still discover the
-removal request. The existing “Löschen” action physically deletes an inactive
-stored version and is a separate operation.
+removal request. Physical deletion through the UI has been removed; stored
+versions and keys remain available after archiving.
 
 ### Legacy certificate status
 
-Local directories are assigned by the `CCI_LEGACY_PATHS` JSON environment
-variable, for example `'{"zone_a":"/legacy/zone_a"}'`. Areas and labels come
-from `CCI_AREAS`; no configuration file is read. Each area's inventory has independent certificate records,
-status keys, and cleanup. Identical relative filenames in different roots do
-not collide: the catalog identity includes the area. No KV or SQL schema
-migration is needed to enable multiple roots.
+Filesystem certificates have no mutable Puppet status or archive state. They
+remain indexed in the PostgreSQL UI catalog, with their source marked as
+`filesystem`; their certificate and private-key files remain read-only and are
+not copied to Consul. Status controls, activation and archiving are available
+only for `consul` records. The overview shows “–” for a filesystem Puppet status;
+status filters select only Consul certificates.
 
-A legacy certificate uses `<base>/filesystem-statuses/<fingerprint>`, where
-`fingerprint` is the lowercase SHA-256 digest of certificate DER. Its certificate
-and private-key files remain read-only. A missing status record means `active`.
+Historical `<base>/filesystem-statuses/<fingerprint>` keys from earlier releases
+are ignored and retained without modification. They are not instructions for
+Puppet. Historical audit events remain readable. Migration `20260916000400`
+clears obsolete local filesystem archive/status projections so previously hidden
+filesystem entries become visible again. The local `active` status default is
+an internal placeholder, not a Puppet rollout directive for filesystem records.
 
-```json
-{
-  "schema": "1",
-  "fingerprint": "<64 lowercase hexadecimal characters>",
-  "status": "norollout",
-  "subject": "/CN=portal.example.test/O=Example",
-  "issuer": "/CN=Example CA",
-  "updated_at": "2026-09-15T10:00:00.000000Z",
-  "updated_by": "<user or service account>"
-}
-```
+`CCI_LEGACY_PATHS` maps configured area IDs to directories. Catalog identity
+includes area, source, relative file/block ID and SHA-256 fingerprint. Replacing
+a file retains its old entry; moves may leave multiple catalog records. Empty,
+missing or partially unavailable mounts and removed mappings never delete
+catalog entries. Removing a mapping blocks material access through it.
+A missing or unreadable inventory, unsafe symlink or malformed certificate
+reports an error for that area while other sources continue indexing.
 
-| Field | JSON type and contents |
-| --- | --- |
-| `schema` | String `"1"` |
-| `fingerprint` | String matching the fingerprint in the KV path |
-| `status` | One of the three status strings above |
-| `subject`, `issuer` | Strings copied from certificate metadata for identification |
-| `updated_at` | ISO 8601 timestamp with time zone of the last status change |
-| `updated_by` | String identifying the acting user or service account |
+### Archiving
 
-Identical DER certificates in multiple legacy files within one area share a
-status. Moving a file or changing its PEM block position preserves the status;
-a renewed certificate with a different fingerprint starts with `active`.
-Different areas and existing copies imported into Consul are independent.
-New UI uploads of certificates already in the legacy inventory are rejected.
-Reassigning a directory to another area does not migrate status metadata.
-An intentionally shared root can be mapped to multiple areas; its status is
-still independent per area. Removing a mapping removes its stale catalog rows
-on the next index pass but retains Consul status and audit records. Without a
-configured root, the indexer cannot establish that those certificates were
-deleted from disk.
+“Archivieren” is available only for Consul certificates, next to “Status speichern”.
+It requires area Writer permission and an explicit confirmation of
+the affected scope and Puppet deletion request. The server checks confirmation
+and the exact `ModifyIndex` seen on the confirmation page. In one Consul
+transaction it writes `archived: true`, `status: delete`, `archived_at`,
+`archived_by`, and an `archive` audit event. No certificate or key is deleted.
+The scope is all versions of a Consul lookup within its area. Filesystem
+certificates cannot be archived, including through direct HTTP or service calls.
 
-After a complete successful disk scan, the indexer removes
-`filesystem-statuses/<fingerprint>` from that area if no copy of that
-certificate remains in its configured directory. This includes removed PEM
-bundle blocks and certificates replaced by different DER material. Duplicate copies keep the
-shared status alive. Moving a certificate without an intervening scan finding
-it absent also preserves its status. Reintroducing it after cleanup defaults
-to `active`. Cleanup discovers status keys directly in Consul, so it also works
-after the PostgreSQL index is lost. A scan of one area does not delete other
-areas' status keys. Imported versions, private keys and audit events are untouched.
+The archive flag is separate from Puppet status: setting `delete` alone does
+not archive an entry. Existing entries default to unarchived. Archived entries
+are excluded from the overview and statistics, while nonblank text searches
+include them, even historical versions. “Archivierte einschließen” also includes
+them without a search term. All normal access and search filters still apply.
+The UI does not support reversing archiving; it rejects activation and changes
+to a Puppet status other than `delete` for archived entries. Imports under an
+archived lookup preserve archive metadata, as must external clients.
 
-Cleanup uses `delete-cas` with each key's `ModifyIndex` captured before scanning,
-in batches of at most 64 operations. A concurrent status edit rejects that batch
-and is retried on a later indexing pass. A missing or unreadable inventory,
-inaccessible directory, unsafe symlink, or malformed certificate aborts the scan
-without pruning status or catalog entries in that area. Scans of the other
-configured areas and Consul indexing continue. An accessible empty inventory counts
-as removal of all its certificates. Ensure that the intended disk/NFS mount is
-present; an empty replacement directory cannot be distinguished from an
-intentionally emptied inventory. Successful cleanup also removes stale catalog
-entries. Historical audit events remain available; automatic index maintenance
-does not create a user action event.
+Reindexing recovers archive metadata from Consul for source material that still
+exists. PostgreSQL backups are required to recover catalog metadata whose source
+has disappeared; retaining a catalog row does not preserve the original PEM or
+private key. Detail pages show retained metadata when material cannot be loaded.
 
 Status records contain no target file paths;
 future Puppet cleanup must retain a per-node inventory of managed certificate
@@ -155,12 +141,11 @@ issuer are descriptive metadata, not unique identifiers or deletion targets.
 
 ### Changing status atomically
 
-1. Read the lookup or legacy status key consistently and retain `ModifyIndex`
-   when presenting the edit form (`0` for a missing legacy status key).
+1. Read the Consul lookup consistently and retain `ModifyIndex` when presenting
+   the edit form. Reject filesystem certificate mutations.
 2. Validate the requested status and recheck Writer permission for the area.
-3. Read again and reject a different index. For Consul certificates, preserve
-   `entry_id`, `active_version`, and all other fields. For legacy certificates,
-   write the metadata object above.
+3. Read again and reject a different index. Preserve `entry_id`, `active_version`,
+   archive metadata and all other lookup fields.
 4. In one transaction, CAS the status-bearing key against that exact index
    and create a `status_change` event. On conflict, reload before retrying.
 
@@ -235,17 +220,23 @@ under the same lookup is a duplicate; a renewal requires a new certificate.
 Values may contain at most 512 KiB, and a transaction may contain at most
 64 operations.
 
-Audit fields: `action` (`import`, `activate`, `delete`, `status_change`), `area`,
-`id` (version ID, or legacy `source_id` for a legacy status event),
+Audit fields: `action` (`import`, `activate`, `archive`, `status_change`; historical `delete` events remain readable), `area`,
+`id` (version ID; older filesystem events use a legacy `source_id`),
 `actor` (acting user), `at` (ISO 8601), and `details` (JSON object).
 For imports, `details` contains the previous `previous_version` or `null`,
 `tags` as an array, `has_key` as a Boolean, and `certificates` as an array of
 snapshots (`common_name`, `subject`, `issuer`, `serial`, `fingerprint`, `source`,
 `source_id`, `lookup`, `kind`). The executable example demonstrates this structure.
 For `status_change`, `details.previous_status` and `details.status` are the old
-and new strings. `details.certificates` identifies the selected Consul version
-or legacy certificate (`source: "filesystem"`, `source_id: "relative/path.pem#0"`,
-no lookup). Legacy status events do not contain `tags` or `has_key`.
+and new strings. `details.certificates` identifies the active Consul version at
+the time of the lookup-wide status change.
+Historical filesystem events remain readable, but new status/archive events are
+created only for Consul certificates.
+For `archive`, `details` includes the selected certificate snapshot,
+`previous_status`, `status: delete`, `previous_archived: false`, `archived: true`,
+`scope` (`lookup`; historical filesystem events may use `fingerprint`), and a comment explaining the confirmed
+visibility and Puppet effects. The event records the actor and original time.
+An already archived scope produces no duplicate archive event.
 Audit records contain no private keys or PEM contents.
 
 ### UI duplicate prevention against legacy files

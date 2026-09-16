@@ -27,26 +27,30 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
       @previous_configuration.merge("legacy_paths" => paths))
   end
 
-  def set_status(area, status)
+  def seed_historical_status(area, status)
     record = @records.fetch(area)
-    ConsulStore.set_filesystem_status(record, status: status, actor: "test",
-      expected_lookup_index: ConsulStore.status_snapshot(record)&.fetch(:index) || 0)
+    ConsulStore.client.transaction([ConsulConnection.set("#{ConsulStore.prefix(area)}/filesystem-statuses/#{record.fingerprint}",
+      { schema: "1", fingerprint: record.fingerprint, status: status }, index: 0)])
     CatalogIndexer.refresh_consul
   end
 
-  test "same fingerprint and relative path have independent zone status and cleanup" do
+  def legacy_snapshot(area)
+    ConsulStore.client.get("#{ConsulStore.prefix(area)}/filesystem-statuses/#{@records.fetch(area).fingerprint}")
+  end
+
+  test "same fingerprint and relative path retain independent zone records and ignore historical statuses" do
     assert_equal %w[zone_a zone_b], @records.keys.sort
     assert_equal ["same.pem#0"], @records.values.map(&:source_id).uniq
-    set_status("zone_a", "norollout")
-    set_status("zone_b", "delete")
-    assert_equal "norollout", @records.fetch("zone_a").reload.rollout_status
-    assert_equal "delete", @records.fetch("zone_b").reload.rollout_status
+    seed_historical_status("zone_a", "norollout")
+    seed_historical_status("zone_b", "delete")
+    assert_equal "active", @records.fetch("zone_a").reload.rollout_status
+    assert_equal "active", @records.fetch("zone_b").reload.rollout_status
     File.delete(File.join(@paths.fetch("zone_a"), "same.pem"))
     CatalogIndexer.run
-    assert_nil ConsulStore.status_snapshot(@records.fetch("zone_a"))
-    assert ConsulStore.status_snapshot(@records.fetch("zone_b"))
-    assert_equal ["zone_b"], Certificate.where(source: "filesystem").pluck(:area)
-    assert_equal 2, AuditEvent.where(action: "status_change").count
+    assert legacy_snapshot("zone_a")
+    assert legacy_snapshot("zone_b")
+    assert_equal %w[zone_a zone_b], Certificate.where(source: "filesystem").order(:area).pluck(:area)
+    assert_equal 0, AuditEvent.where(action: "status_change").count
   end
 
   test "material private keys and tags resolve in the record zone" do
@@ -54,6 +58,8 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
     File.write(File.join(@paths.fetch("zone_b"), "same.pem"), different.to_pem)
     File.write(File.join(@paths.fetch("zone_b"), "same.key"), different_key.private_to_pem)
     CatalogIndexer.run
+    assert_raises(Certificates::Error) { CertificateMaterial.load(@records.fetch("zone_b")) }
+    @records["zone_b"] = Certificate.find_by!(source: "filesystem", area: "zone_b", fingerprint: Certificates::Codec.fingerprint(different))
     @records.each do |area, record|
       record.reload
       material = CertificateMaterial.load(record, private_key: true)
@@ -71,8 +77,8 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
   end
 
   test "an unavailable first zone preserves its records while other zones and Consul refresh" do
-    set_status("zone_a", "norollout")
-    set_status("zone_b", "delete")
+    seed_historical_status("zone_a", "norollout")
+    seed_historical_status("zone_b", "delete")
     File.rename(@paths.fetch("zone_a"), File.join(@directory, "offline"))
     File.delete(File.join(@paths.fetch("zone_b"), "same.pem"))
     new_cert, = issue(serial: 3)
@@ -80,9 +86,9 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
       chain: [], tags: [], actor: "test", client: "test-client")
     assert_raises(Certificates::Error) { CatalogIndexer.run }
     assert Certificate.exists?(@records.fetch("zone_a").id)
-    assert ConsulStore.status_snapshot(@records.fetch("zone_a"))
-    assert_not Certificate.exists?(@records.fetch("zone_b").id)
-    assert_nil ConsulStore.status_snapshot(@records.fetch("zone_b"))
+    assert legacy_snapshot("zone_a")
+    assert Certificate.exists?(@records.fetch("zone_b").id)
+    assert legacy_snapshot("zone_b")
     assert Certificate.exists?(source: "consul", source_id: id)
     assert_raises(Certificates::Error) { LegacyStore.reject_duplicates!([Certificates::Codec.fingerprint(new_cert)]) }
   end
@@ -92,24 +98,24 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
     CatalogIndexer.run
     assert_equal %w[zone_a zone_b], Certificate.where(source: "filesystem").order(:area).pluck(:area)
     assert_equal @cert.to_der, CertificateMaterial.load(@records.fetch("zone_b"))[:certificate].to_der
-    set_status("zone_a", "delete")
+    seed_historical_status("zone_a", "delete")
     assert_equal "active", @records.fetch("zone_b").reload.rollout_status
   end
 
-  test "removing a mapping blocks stale material and removes catalog rows without deleting status" do
-    set_status("zone_b", "norollout")
+  test "removing a mapping blocks stale material and retains catalog rows and status" do
+    seed_historical_status("zone_b", "norollout")
     configure_paths("zone_a" => @paths.fetch("zone_a"))
     assert_raises(Certificates::Error) { CertificateMaterial.load(@records.fetch("zone_b")) }
     CatalogIndexer.run
-    assert_equal ["zone_a"], Certificate.where(source: "filesystem").pluck(:area)
-    assert ConsulStore.status_snapshot(@records.fetch("zone_b"))
+    assert_equal %w[zone_a zone_b], Certificate.where(source: "filesystem").order(:area).pluck(:area)
+    assert legacy_snapshot("zone_b")
     assert File.exist?(File.join(@paths.fetch("zone_b"), "same.pem"))
   end
 
   test "empty mappings explicitly disable legacy inventories" do
     configure_paths({})
     CatalogIndexer.run
-    assert_empty Certificate.where(source: "filesystem")
+    assert_equal 2, Certificate.where(source: "filesystem").count
     assert_nil LegacyStore.reject_duplicates!([Certificates::Codec.fingerprint(@cert)])
   end
 end

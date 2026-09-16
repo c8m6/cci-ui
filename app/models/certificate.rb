@@ -4,6 +4,8 @@ class Certificate < ApplicationRecord
   validates :rollout_status, inclusion: { in: ConsulStore::ROLLOUT_STATUSES }
   scope :visible_to, ->(identity) { where(area: identity.areas, source: %w[filesystem consul]) }
 
+  def puppetdb_refresh_failed? = puppetdb_error_at.present?
+
   def status
     return "Noch nicht gültig" if not_before > Time.current
     return "Abgelaufen" if not_after <= Time.current

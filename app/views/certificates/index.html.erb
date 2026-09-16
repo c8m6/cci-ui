@@ -16,21 +16,27 @@
       <label>Quelle<%= form.select :source, [["Alle Quellen", ""], ["Dateibestand", "filesystem"], ["Consul", "consul"]], { selected: params[:source] }, data: { action: "change->search#submit" } %></label>
       <label>Schlüssel<%= form.select :key, [["Alle", ""], ["Vorhanden", "1"], ["Nicht vorhanden", "0"]], { selected: params[:key] }, data: { action: "change->search#submit" } %></label>
       <label>Sortierung<%= form.select :sort, [["Ablaufdatum", "ablauf"], ["Name", "name"], ["Neueste zuerst", "neueste"]], { selected: params[:sort] }, data: { action: "change->search#submit" } %></label>
+      <label class="check-label"><%= form.check_box :archived, { checked: params[:archived] == "1", data: { action: "change->search#submit" } }, "1", "0" %> Archivierte einschließen</label>
       <label class="check-label"><%= form.check_box :history, { checked: params[:history] == "1", data: { action: "change->search#submit" } }, "1", "0" %> Alte Versionen</label>
       <%= form.submit "Suchen", class: "button secondary" %>
     </div>
   <% end %>
   <%= turbo_frame_tag "results" do %>
-    <div class="results-heading"><h2><%= @total %> <%= @total == 1 ? "Zertifikat" : "Zertifikate" %></h2><span class="muted small">UND-Suche · alle Datenquellen</span></div>
+    <div class="results-heading"><h2><%= @total %> <%= @total == 1 ? "Zertifikat" : "Zertifikate" %></h2><span class="muted small">UND-Suche · alle Datenquellen · Suchbegriffe finden auch archivierte Zertifikate</span></div>
     <%= form_with url: export_certificates_path, data: { turbo: false }, class: "export-form" do |form| %>
-      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="Alle exportierbaren Zertifikate dieser Seite auswählen" data-action="selection#toggleAll"><% end %></th><th>Zertifikat / Aussteller</th><th>Bereich</th><th>Gültigkeit</th><th>Puppet-Status</th><th>Gültig bis</th><th>Quelle</th><th>Puppet-Lookup</th><th><span class="sr-only">Details</span></th></tr></thead>
+      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="Alle exportierbaren Zertifikate dieser Seite auswählen" data-action="selection#toggleAll"><% end %></th><th>Zertifikat / Aussteller</th><th>Bereich</th><th>Gültigkeit</th><th>Puppet-Status</th><% if puppetdb_enabled? %><th>Hosts</th><% end %><th>Gültig bis</th><th>Quelle</th><th>Puppet-Lookup</th><th><span class="sr-only">Details</span></th></tr></thead>
       <tbody>
       <% @certificates.each do |cert| %>
         <tr><td><% if current_identity.export?(cert.area) %><%= check_box_tag "ids[]", cert.id, false, aria: { label: "#{cert.common_name} auswählen" }, data: { selection_target: "checkbox", action: "selection#update" } %><% end %></td>
-        <td class="certificate-cell"><%= link_to certificate_path(cert), data: { turbo_frame: "_top" }, class: "certificate-name" do %><%= cert.common_name %><% end %><% if cert.has_key %><span title="Schlüsseldatei vorhanden"><%= icon("key") %></span><% end %><div class="truncate muted small" title="<%= cert.issuer %>"><%= cert.issuer %></div><% if cert.tags.any? %><div class="tags"><% cert.tags.each do |tag| %><span><%= tag %></span><% end %></div><% end %></td>
+        <td class="certificate-cell"><%= link_to certificate_path(cert), data: { turbo_frame: "_top" }, class: "certificate-name" do %><%= cert.common_name %><% end %><% if cert.archived %> <span class="badge neutral">Archiviert</span><% end %><% if cert.has_key %><span title="Schlüsseldatei vorhanden"><%= icon("key") %></span><% end %><div class="truncate muted small" title="<%= cert.issuer %>"><%= cert.issuer %></div><% if cert.tags.any? %><div class="tags"><% cert.tags.each do |tag| %><span><%= tag %></span><% end %></div><% end %></td>
         <td><span class="area-pill"><%= area_label(cert.area) %></span></td>
         <td><span class="badge <%= cert.status_class %>"><%= cert.status %></span><% unless cert.active %><div class="muted small">Alte Version</div><% end %></td>
-        <td><span class="badge neutral"><%= cert.rollout_status %></span></td>
+        <td><% if cert.source == "consul" %><span class="badge neutral"><%= cert.rollout_status %></span><% else %><span class="muted" title="Dateibestand: kein steuerbarer Puppet-Status">–</span><% end %></td>
+        <% if puppetdb_enabled? %><td class="puppetdb-host-count">
+          <% if cert.puppetdb_checked_at %><%= link_to cert.puppetdb_hosts.size, certificate_path(cert, anchor: "puppetdb-hosts"), data: { turbo_frame: "_top" }, aria: { label: "Hosts zu #{cert.common_name}" } %><% else %><span title="Noch keine erfolgreiche PuppetDB-Abfrage">–</span><% end %>
+          <% if cert.puppetdb_refresh_failed? %><div class="muted small">Abfrage fehlgeschlagen</div><% end %>
+          <% if puppetdb_fingerprint_missing?(cert) %><div class="muted small">Fingerprint fehlt</div><% end %>
+        </td><% end %>
         <td class="nowrap"><%= date_label(cert.not_after) %></td><td><span class="source-label"><%= cert.source_label %></span></td><td class="lookup-cell mono"><%= cert.lookup.presence || "Issuer / Subject (Hiera)" %></td>
         <td><%= link_to certificate_path(cert), aria: { label: "Details zu #{cert.common_name}" }, data: { turbo_frame: "_top" }, class: "row-link" do %><%= icon("arrow") %><% end %></td></tr>
       <% end %>

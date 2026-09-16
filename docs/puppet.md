@@ -22,8 +22,8 @@ these are held by the compilers.
 
 ## Prepared status contract
 
-CCI-UI can set `active`, `norollout`, or `delete` for each certificate, including
-legacy certificates. This release prepares UI and Consul storage only; the
+CCI-UI can set `active`, `norollout`, or `delete` only for Consul certificates.
+Filesystem certificates have no mutable status and cannot be archived. This release prepares UI and Consul storage only; the
 supplied `cci::certificate` manifests do **not** implement status processing.
 They continue to manage configured files even when a stored status is
 `norollout` or `delete`. Deploy status-aware Puppet code before relying on these
@@ -42,15 +42,12 @@ exposes the lookup's status, defaulting to `active` for older entries. The statu
 also applies to explicitly pinned versions. Existing certificate and key reads
 continue to return material without acting on that status.
 
-Legacy status is stored separately at
-`<prefix>/areas/<area>/filesystem-statuses/<sha256-of-certificate-DER>`.
-Identical legacy certificates within one area share it. Local inventories can
-be configured in multiple areas through `CCI_LEGACY_PATHS`; each area retains its
-own status keys even if paths or certificate fingerprints are shared. Missing records mean
-`active`. Once the last disk copy disappears, the indexer removes its legacy
-status record after a complete successful scan. Future Puppet cleanup must
-account for this lifecycle; it cannot rely on that record persisting after disk
-removal. See the [complete Consul schema](consul-schema.md).
+Filesystem certificates remain in the UI catalog, but Puppet must not consume
+historical `filesystem-statuses/` keys. The application ignores those keys and
+retains them only as historical data. Existing filesystem management is unchanged.
+“Archivieren” sets `archived: true` and `status: delete` on a Consul lookup without
+deleting material; it also applies to pinned versions and future renewals.
+See the [complete Consul schema](consul-schema.md).
 
 Cleanup independent of Hiera requires a future Puppet implementation to keep
 an inventory of previously managed paths on each node and to discover deletion
@@ -120,6 +117,16 @@ the UI and search index; this does not change the literal Hiera lookup values.
 The application displays these values for files without inventing new Consul lookups for legacy
 data. Exact integration depends on the existing Puppet lookup code, which has
 not yet been supplied.
+
+## Optional host reporting through PuppetDB
+
+The application can query an existing custom certificate fact to show host
+counts and hostnames. This is separate from the `cci` deployment module: it
+does not install a fact or Puppet class, and reporting does not implement the
+prepared status contract above. Use the actual fact name and matching SHA-256
+or SHA-1 algorithm in your deployment. Examples use the neutral name
+`certificates`; see [PuppetDB host inventory](puppetdb.md) for supported formats,
+configuration and query scope.
 
 ## Verification
 

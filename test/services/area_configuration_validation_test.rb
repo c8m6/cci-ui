@@ -1,7 +1,7 @@
 require "test_helper"
 
 class AreaConfigurationValidationTest < ActiveSupport::TestCase
-  test "index pruning retains seen records even if the system clock moves backwards" do
+  test "indexing retains records even if the system clock moves backwards" do
     record = store(issue.first)
     test_case = self
     earlier = 1.minute.ago
@@ -54,7 +54,7 @@ class AreaConfigurationValidationTest < ActiveSupport::TestCase
     AreaConfiguration.instance_variable_set(:@configuration, previous)
   end
 
-  test "legacy reassignment removes stale search metadata from previous areas" do
+  test "legacy reassignment retains search metadata in previous areas" do
     Dir.mktmpdir do |directory|
       previous = AreaConfiguration.configuration
       configure_legacy_paths("zone_a" => directory)
@@ -63,7 +63,7 @@ class AreaConfigurationValidationTest < ActiveSupport::TestCase
       record = Certificate.find_by!(source: "filesystem")
       record.update!(area: "zone_b", indexed_at: 1.day.ago)
       CatalogIndexer.new.filesystem
-      assert_equal [AreaConfiguration.legacy_area], Certificate.where(source: "filesystem").pluck(:area)
+      assert_equal %w[zone_a zone_b], Certificate.where(source: "filesystem").order(:area).pluck(:area)
       assert File.exist?(File.join(directory, "sample.pem"))
     ensure
       AreaConfiguration.instance_variable_set(:@configuration, previous)
