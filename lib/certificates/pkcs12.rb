@@ -22,7 +22,7 @@ module Certificates
     def self.data_info(data) = seq(oid(DATA), explicit(oct(data)))
     def self.iterations(value)
       number = value.to_i
-      raise Error, "PKCS#12-Iterationszahl außerhalb des unterstützten Bereichs." unless (1..1_000_000).cover?(number)
+      raise Error, Error.translate("errors.app.p12_iterations", default: "PKCS#12-Iterationszahl außerhalb des unterstützten Bereichs.") unless (1..1_000_000).cover?(number)
       number
     end
 
@@ -50,17 +50,17 @@ module Certificates
 
     def self.load(data, password:)
       pfx = OpenSSL::ASN1.decode(data).value
-      raise Error, "Nur PKCS#12-Version 3 wird unterstützt." unless pfx[0].value.to_i == 3
+      raise Error, Error.translate("errors.app.p12_version", default: "Nur PKCS#12-Version 3 wird unterstützt.") unless pfx[0].value.to_i == 3
       info = pfx[1].value
-      raise Error, "PKCS#12 benötigt passwortbasierte Integritätsprüfung." unless info[0].oid == DATA && pfx[2]
+      raise Error, Error.translate("errors.app.p12_integrity_required", default: "PKCS#12 benötigt passwortbasierte Integritätsprüfung.") unless info[0].oid == DATA && pfx[2]
       authenticated = info[1].value[0].value
       mac = pfx[2].value
-      hash = HASHES.fetch(mac[0].value[0].value[0].oid) { raise Error, "Unbekannter PKCS#12-MAC." }
+      hash = HASHES.fetch(mac[0].value[0].value[0].oid) { raise Error, Error.translate("errors.app.p12_mac", default: "Unbekannter PKCS#12-MAC.") }
       expected = mac[0].value[1].value
       digest = OpenSSL::Digest.new(hash)
       key = derive(password, mac[1].value, mac[2]&.value || 1, 3, digest.digest_length, hash)
       actual = OpenSSL::HMAC.digest(hash, key, authenticated)
-      raise Error, "PKCS#12-Passwort oder Integritätsprüfung ungültig." unless actual.bytesize == expected.bytesize && OpenSSL.fixed_length_secure_compare(actual, expected)
+      raise Error, Error.translate("errors.app.p12_integrity", default: "PKCS#12-Passwort oder Integritätsprüfung ungültig.") unless actual.bytesize == expected.bytesize && OpenSSL.fixed_length_secure_compare(actual, expected)
       result = Codec::Result.new(certificates: [], keys: [])
       OpenSSL::ASN1.decode(authenticated).value.each do |safe|
         fields = safe.value
@@ -70,29 +70,29 @@ module Certificates
         when ENCRYPTED
           encrypted_info = content.value[1].value
           decrypt(encrypted_info[1], encrypted_info[2].value, password)
-        else raise Error, "Nicht unterstützter PKCS#12-Inhalt."
+        else raise Error, Error.translate("errors.app.p12_content", default: "Nicht unterstützter PKCS#12-Inhalt.")
         end
         read_bags(OpenSSL::ASN1.decode(plain), result, password, 0)
       end
       result.certificates.uniq!(&:to_der)
       result
     rescue OpenSSL::OpenSSLError, ArgumentError, NoMethodError, TypeError, IndexError, KeyError
-      raise Error, "PKCS#12 konnte nicht gelesen werden. Format, Verschlüsselung und Passwort prüfen."
+      raise Error, Error.translate("errors.app.p12_read", default: "PKCS#12 konnte nicht gelesen werden. Format, Verschlüsselung und Passwort prüfen.")
     end
 
     def self.read_bags(safe, result, password, depth)
-      raise Error, "PKCS#12-Struktur ist zu tief verschachtelt." if depth > 8
+      raise Error, Error.translate("errors.app.p12_depth", default: "PKCS#12-Struktur ist zu tief verschachtelt.") if depth > 8
       safe.value.each do |bag|
-        raise Error, "Zu viele PKCS#12-Einträge." if result.certificates.size + result.keys.size > 200
+        raise Error, Error.translate("errors.app.p12_count", default: "Zu viele PKCS#12-Einträge.") if result.certificates.size + result.keys.size > 200
         value = bag.value[1].value[0]
         case bag.value[0].oid
         when CERT_BAG
-          raise Error, "Nur X.509-Zertifikate werden unterstützt." unless value.value[0].oid == "1.2.840.113549.1.9.22.1"
+          raise Error, Error.translate("errors.app.x509_only", default: "Nur X.509-Zertifikate werden unterstützt.") unless value.value[0].oid == "1.2.840.113549.1.9.22.1"
           result.certificates << OpenSSL::X509::Certificate.new(value.value[1].value[0].value)
         when KEY_BAG then result.keys << OpenSSL::PKey.read(value.to_der)
         when SHROUDED_KEY then result.keys << OpenSSL::PKey.read(decrypt(value.value[0], value.value[1].value, password))
         when SAFE_BAG then read_bags(value, result, password, depth + 1)
-        else raise Error, "PKCS#12 enthält einen nicht unterstützten Eintrag."
+        else raise Error, Error.translate("errors.app.p12_entry", default: "PKCS#12 enthält einen nicht unterstützten Eintrag.")
         end
       end
     end
@@ -101,7 +101,7 @@ module Certificates
       type, params = algorithm.value
       if type.oid == "1.2.840.113549.1.5.13"
         kdf, encryption = params.value
-        raise Error, "Nur PBKDF2 wird unterstützt." unless kdf.value[0].oid == "1.2.840.113549.1.5.12"
+        raise Error, Error.translate("errors.app.pbkdf2_only", default: "Nur PBKDF2 wird unterstützt.") unless kdf.value[0].oid == "1.2.840.113549.1.5.12"
         settings = kdf.value[1].value
         prf = settings.find { |item| item.is_a?(OpenSSL::ASN1::Sequence) }
         hash = prf ? PRFS.fetch(prf.value[0].oid) : "SHA1"
@@ -114,7 +114,7 @@ module Certificates
         cipher.key = derive(password, salt, count, 1, cipher.key_len, "SHA1")
         cipher.iv = derive(password, salt, count, 2, cipher.iv_len, "SHA1")
       else
-        raise Error, "Diese ältere PKCS#12-Verschlüsselung wird nicht unterstützt. Bitte als AES- oder 3DES-PFX bereitstellen."
+        raise Error, Error.translate("errors.app.p12_legacy", default: "Diese ältere PKCS#12-Verschlüsselung wird nicht unterstützt. Bitte als AES- oder 3DES-PFX bereitstellen.")
       end
       cipher.update(data) + cipher.final
     end

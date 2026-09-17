@@ -17,7 +17,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert_select 'input[name="confirm_overwrite"][required]', count: 1
     assert_includes response.body, @record.source_id
     post imports_path, params: { token: token }
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
     assert ImportDraft.exists?(token: token)
     assert_equal @record.source_id, JSON.parse(ConsulStore.status_snapshot(@record)[:value])["active_version"]
     post imports_path, params: { token: token, confirm_overwrite: "1" }
@@ -57,7 +57,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     token = preview
     concurrent = store(issue(serial: 3).first)
     post imports_path, params: { token: token, confirm_overwrite: "1" }
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
     assert_includes response.body, "seit der Vorschau geändert"
     assert_equal 2, Certificate.count
     assert concurrent.reload.active
@@ -67,7 +67,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     token = preview(lookup: "new")
     concurrent = store(issue(serial: 3).first, lookup: "new")
     post imports_path, params: { token: token, confirm_overwrite: "1" }
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
     assert concurrent.reload.active
     assert_equal 2, Certificate.count
   end

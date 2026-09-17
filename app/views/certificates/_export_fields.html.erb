@@ -1,4 +1,4 @@
-<label class="sr-only" for="format_name">Exportformat</label><%= form.select :format_name, [["PEM", "pem"], ["DER", "der"], ["PKCS#12 / PFX", "p12"], ["JKS", "jks"]] %>
-<label class="check-label"><%= form.check_box :include_chain %> Mit Kette</label>
-<% if writer %><label class="check-label"><%= form.check_box :include_key %> Mit privatem Schlüssel</label><% end %>
-<%= form.password_field :password, placeholder: "Exportpasswort (min. 12 Zeichen)", aria: { label: "Exportpasswort, mindestens 12 Zeichen für Schlüssel, PFX oder JKS" }, autocomplete: "new-password" %>
+<label class="sr-only" for="format_name"><%= t("ui.export_format") %></label><%= form.select :format_name, [["PEM", "pem"], ["DER", "der"], ["PKCS#12 / PFX", "p12"], ["JKS", "jks"]] %>
+<label class="check-label"><%= form.check_box :include_chain %> <%= t("ui.include_chain") %></label>
+<% if writer %><label class="check-label"><%= form.check_box :include_key %> <%= t("ui.include_key") %></label><% end %>
+<%= form.password_field :password, placeholder: t("ui.export_password_placeholder"), aria: { label: t("ui.export_password_label") }, autocomplete: "new-password" %>

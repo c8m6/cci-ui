@@ -24,7 +24,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Dienste können dadurch ausfallen"
     params = archive_params
     patch certificate_path(@record), params: params.except(:confirm_archive)
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
     assert_not @record.reload.archived
     assert_empty AuditEvent.where(action: "archive")
     patch certificate_path(@record), params: params

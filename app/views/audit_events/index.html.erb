@@ -1,45 +1,45 @@
-<% content_for :title, "Auditlogs" %>
-<div class="page-heading"><div><span class="eyebrow">ÄNDERUNGEN UND EXPORTE</span><h1>Auditlogs</h1><p class="muted">Wer hat wann welche Zertifikate geändert oder exportiert?</p></div></div>
+<% content_for :title, t("ui.audit_logs") %>
+<div class="page-heading"><div><span class="eyebrow"><%= t("ui.audit_eyebrow") %></span><h1><%= t("ui.audit_logs") %></h1><p class="muted"><%= t("ui.audit_description") %></p></div></div>
 <section class="panel catalog">
   <%= form_with url: audit_events_path, method: :get, class: "search-form" do |form| %>
-    <div class="search-box"><%= icon("search") %><%= form.search_field :q, value: params[:q], placeholder: "Benutzer, Zertifikat, Lookup oder Fingerprint suchen …", aria: { label: "Auditlogs durchsuchen" } %></div>
+    <div class="search-box"><%= icon("search") %><%= form.search_field :q, value: params[:q], placeholder: t("ui.audit_placeholder"), aria: { label: t("ui.search_audit") } %></div>
     <div class="filters">
-      <label>Bereich<%= form.select :area, [["Alle berechtigten Bereiche", ""], *current_identity.audit_areas.map { |area| [area_label(area), area] }], selected: params[:area] %></label>
-      <label>Aktion<%= form.select :event_action, [["Alle Aktionen", ""], *AuditEvent::ACTIONS.map { |key, label| [label, key] }], selected: params[:event_action] %></label>
-      <label>Von<%= form.date_field :from, value: params[:from] %></label>
-      <label>Bis einschließlich<%= form.date_field :to, value: params[:to] %></label>
-      <%= form.submit "Suchen", class: "button secondary" %>
-      <%= link_to "Zurücksetzen", audit_events_path, class: "button quiet" %>
+      <label><%= t("ui.area") %><%= form.select :area, [[t("ui.all_authorized_areas"), ""], *current_identity.audit_areas.map { |area| [area_label(area), area] }], selected: params[:area] %></label>
+      <label><%= t("ui.action") %><%= form.select :event_action, [[t("ui.all_actions"), ""], *AuditEvent::ACTIONS.map { |key| [AuditEvent.action_label(key), key] }], selected: params[:event_action] %></label>
+      <label><%= t("ui.from") %><%= form.date_field :from, value: params[:from] %></label>
+      <label><%= t("ui.through") %><%= form.date_field :to, value: params[:to] %></label>
+      <%= form.submit t("ui.search"), class: "button secondary" %>
+      <%= link_to t("ui.reset"), audit_events_path, class: "button quiet" %>
     </div>
   <% end %>
-  <div class="results-heading"><h2><%= @total %> Ereignisse</h2><span class="muted small">Zeitzone Europe/Berlin · Neueste zuerst</span></div>
-  <div class="table-scroll"><table class="audit-table"><thead><tr><th>Zeit / Benutzer</th><th>Bereich / Aktion</th><th>Betroffene Zertifikate</th><th>Details</th></tr></thead><tbody>
+  <div class="results-heading"><h2><%= t("ui.event_count", count: @total) %></h2><span class="muted small"><%= t("ui.audit_timezone") %></span></div>
+  <div class="table-scroll"><table class="audit-table"><thead><tr><th><%= t("ui.time_user") %></th><th><%= t("ui.area_action") %></th><th><%= t("ui.affected_certificates") %></th><th><%= t("ui.details") %></th></tr></thead><tbody>
     <% @events.each do |event| %>
       <tr>
-        <td><time datetime="<%= event.occurred_at.iso8601 %>" class="nowrap"><%= event.occurred_at.in_time_zone.strftime("%d.%m.%Y %H:%M:%S %Z") %></time><div class="audit-actor"><%= event.actor %></div></td>
-        <td><span class="area-pill"><%= area_label(event.area) %></span><div><%= AuditEvent::ACTIONS.fetch(event.action, event.action) %></div></td>
+        <td><time datetime="<%= event.occurred_at.iso8601 %>" class="nowrap"><%= l(event.occurred_at.in_time_zone, format: :long) %></time><div class="audit-actor"><%= event.actor %></div></td>
+        <td><span class="area-pill"><%= area_label(event.area) %></span><div><%= AuditEvent.action_label(event.action) %></div></td>
         <td>
           <% Array(event.details["certificates"]).each do |cert| %>
             <div class="audit-certificate"><strong><%= cert["common_name"].presence || cert["subject"] %></strong>
-              <% if cert["kind"] == "chain" %><span class="badge neutral">Zertifikatskette</span><% end %>
-              <% if cert["lookup"].present? %><div>Lookup: <code><%= cert["lookup"] %></code></div><% end %>
-              <details><summary>Identifikation</summary><div>Subject: <%= cert["subject"] %></div><div>Aussteller: <%= cert["issuer"] %></div><div>Seriennummer: <%= cert["serial"] %></div><div>SHA-256: <code><%= cert["fingerprint"] %></code></div><% if cert["source_id"] %><div>Quelle: <%= cert["source"] %> · <code><%= cert["source_id"] %></code></div><% end %></details>
+              <% if cert["kind"] == "chain" %><span class="badge neutral"><%= t("ui.chain") %></span><% end %>
+              <% if cert["lookup"].present? %><div><%= t("ui.lookup") %>: <code><%= cert["lookup"] %></code></div><% end %>
+              <details><summary><%= t("ui.identification") %></summary><div><%= t("ui.subject") %>: <%= cert["subject"] %></div><div><%= t("ui.issuer") %>: <%= cert["issuer"] %></div><div><%= t("ui.serial") %>: <%= cert["serial"] %></div><div>SHA-256: <code><%= cert["fingerprint"] %></code></div><% if cert["source_id"] %><div><%= t("ui.source") %>: <%= cert["source"] %> · <code><%= cert["source_id"] %></code></div><% end %></details>
             </div>
           <% end %>
-          <% if event.details["certificates"].blank? %><div class="muted small">Historischer Eintrag: nur Referenzen vorhanden; Zeit entspricht der damaligen Erfassung.</div><% event.references.each do |reference| %><div class="mono"><%= reference %></div><% end %><% end %>
+          <% if event.details["certificates"].blank? %><div class="muted small"><%= t("ui.audit_historical") %></div><% event.references.each do |reference| %><div class="mono"><%= reference %></div><% end %><% end %>
         </td>
         <td>
-          <% if event.action == "archive" %><div><%= event.details["comment"] %></div><div>Umfang: <%= event.details["scope"] == "lookup" ? "Alle Versionen des Lookups im Bereich" : "Alle Kopien des Fingerprints im Bereich" %></div><% end %>
-          <% if %w[status_change archive].include?(event.action) %><div>Puppet-Status: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>
-          <% if event.details["format"] %><div>Format: <%= event.details["format"].upcase %></div><div>Datei: <%= event.details["filename"] %></div><div>Private Schlüssel: <%= event.details["include_key"] ? "Ja" : "Nein" %></div><div>Zertifikatskette: <%= event.details["include_chain"] ? "Ja" : "Nein" %></div><% end %>
-          <% if event.details["previous_version"] %><details><summary>Vorherige aktive Version</summary><code><%= event.details["previous_version"] %></code></details><% end %>
-          <% if event.details.key?("has_key") %><div>Schlüssel vorhanden: <%= event.details["has_key"] ? "Ja" : "Nein" %></div><div>Tags: <%= Array(event.details["tags"]).join(", ").presence || "–" %></div><% end %>
+          <% if event.action == "archive" %><div><%= audit_comment(event) %></div><div><%= t("ui.scope") %>: <%= event.details["scope"] == "lookup" ? t("ui.scope_lookup") : t("ui.scope_fingerprint") %></div><% end %>
+          <% if %w[status_change archive].include?(event.action) %><div><%= t("ui.puppet_status") %>: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>
+          <% if event.details["format"] %><div><%= t("ui.format") %>: <%= event.details["format"].upcase %></div><div><%= t("ui.file") %>: <%= event.details["filename"] %></div><div><%= t("ui.private_keys") %>: <%= event.details["include_key"] ? t("ui.yes") : t("ui.no") %></div><div><%= t("ui.chain") %>: <%= event.details["include_chain"] ? t("ui.yes") : t("ui.no") %></div><% end %>
+          <% if event.details["previous_version"] %><details><summary><%= t("ui.previous_active") %></summary><code><%= event.details["previous_version"] %></code></details><% end %>
+          <% if event.details.key?("has_key") %><div><%= t("ui.key_available") %>: <%= event.details["has_key"] ? t("ui.yes") : t("ui.no") %></div><div><%= t("ui.tags") %>: <%= Array(event.details["tags"]).join(", ").presence || "–" %></div><% end %>
         </td>
       </tr>
     <% end %>
   </tbody></table></div>
-  <% if @total.zero? %><div class="empty-state"><h2>Keine Auditereignisse gefunden</h2><p>Für diese Filter liegen keine Einträge vor.</p></div><% end %>
+  <% if @total.zero? %><div class="empty-state"><h2><%= t("ui.no_audit") %></h2><p><%= t("ui.no_audit_filters") %></p></div><% end %>
   <% filters = params.permit(:q, :area, :event_action, :from, :to).to_h %>
-  <div class="pagination"><span class="muted small">Seite <%= @page %> von <%= @pages %></span><div><% if @page > 1 %><%= link_to "← Zurück", audit_events_path(filters.merge(page: @page - 1)), class: "button quiet" %><% end %><% if @page < @pages %><%= link_to "Weiter →", audit_events_path(filters.merge(page: @page + 1)), class: "button quiet" %><% end %></div></div>
+  <div class="pagination"><span class="muted small"><%= t("ui.page", page: @page, pages: @pages) %></span><div><% if @page > 1 %><%= link_to t("ui.back"), audit_events_path(filters.merge(page: @page - 1)), class: "button quiet" %><% end %><% if @page < @pages %><%= link_to t("ui.next"), audit_events_path(filters.merge(page: @page + 1)), class: "button quiet" %><% end %></div></div>
 </section>
-<p class="index-note">Exporte werden vor der Auslieferung protokolliert. Der vollständige Empfang beim Benutzer kann nicht bestätigt werden. Änderungen erscheinen nach der Indexierung, üblicherweise innerhalb von 60 Sekunden.</p>
+<p class="index-note"><%= t("ui.audit_delivery") %></p>

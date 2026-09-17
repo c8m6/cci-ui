@@ -1,20 +1,20 @@
 <section class="panel detail-panel" id="puppetdb-hosts">
-  <h2>Hosts laut PuppetDB</h2>
+  <h2><%= t("ui.puppetdb_hosts") %></h2>
   <% if puppetdb_fingerprint_missing?(certificate) %>
-    <p class="flash flash-error">Der Fingerprint für den gewählten PuppetDB-Abgleich fehlt noch im Katalog. Er wird beim nächsten erfolgreichen Einlesen der Zertifikatsquelle ergänzt. Vorhandene Hostangaben stammen aus einer früheren Abfrage.</p>
+    <p class="flash flash-error"><%= t("ui.puppetdb_fingerprint_missing") %></p>
   <% end %>
   <% if certificate.puppetdb_refresh_failed? %>
-    <p class="flash flash-error">Die letzte PuppetDB-Abfrage ist fehlgeschlagen. Angezeigte Hostzuordnungen stammen aus der letzten erfolgreichen Abfrage und können veraltet sein.</p>
+    <p class="flash flash-error"><%= t("ui.puppetdb_failed") %></p>
   <% end %>
   <% if certificate.puppetdb_checked_at %>
-    <p><strong><%= certificate.puppetdb_hosts.size %></strong> <%= certificate.puppetdb_hosts.one? ? "Host meldet" : "Hosts melden" %> dieses Zertifikat.</p>
+    <p><%= t("ui.host_count_html", count: certificate.puppetdb_hosts.size) %></p>
     <% if certificate.puppetdb_hosts.any? %>
       <ul><% certificate.puppetdb_hosts.each do |host| %><li class="mono break-word"><%= host %></li><% end %></ul>
     <% else %>
-      <p>In der letzten erfolgreichen Abfrage wurde dieses Zertifikat auf keinem Host gemeldet.</p>
+      <p><%= t("ui.puppetdb_no_hosts") %></p>
     <% end %>
-    <p class="muted small">Zuletzt abgefragt: <%= certificate.puppetdb_checked_at.strftime("%d.%m.%Y, %H:%M:%S %Z") %>. Die Angaben beruhen auf den zuletzt an PuppetDB übermittelten Facts und dem konfigurierten Abfrageumfang; sie sind keine Live-Prüfung der Hosts.</p>
+    <p class="muted small"><%= t("ui.puppetdb_checked", time: l(certificate.puppetdb_checked_at, format: :long)) %></p>
   <% else %>
-    <p>Für dieses Zertifikat liegt noch keine erfolgreiche PuppetDB-Abfrage vor.</p>
+    <p><%= t("ui.puppetdb_no_query") %></p>
   <% end %>
 </section>

@@ -1,35 +1,48 @@
 <!DOCTYPE html>
-<html lang="de" data-controller="theme">
+<html lang="<%= I18n.locale %>" data-controller="theme" data-theme-light-value="<%= t('ui.theme_light') %>" data-theme-dark-value="<%= t('ui.theme_dark') %>">
 <head>
   <title><%= content_for?(:title) ? yield(:title) + " · " : "" %>CCI-UI</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <% if @error_status %><meta name="turbo-visit-control" content="reload"><% end %>
   <%= csrf_meta_tags %><%= csp_meta_tag %>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
   <%= javascript_importmap_tags %>
 </head>
 <body>
-  <a href="#main" class="skip-link">Zum Inhalt</a>
+  <a href="#main" class="skip-link"><%= t("ui.skip_content") %></a>
   <aside class="sidebar">
     <%= link_to root_path, class: "brand" do %><span class="brand-icon"><%= icon("shield") %></span>CCI<span class="brand-light">-UI</span><% end %>
     <div class="sidebar-caption">CONTROLLED CLASSIFIED ITEM</div>
     <% if current_identity %>
-      <nav aria-label="Hauptnavigation">
-        <% if current_identity.auditor? %><%= link_to audit_events_path, class: "nav-item #{controller_name == 'audit_events' ? 'active' : ''}" do %><%= icon("shield") %> Auditlogs<% end %><% end %>
-        <%= link_to root_path, class: "nav-item #{controller_name == 'certificates' ? 'active' : ''}" do %><%= icon("grid") %> Übersicht<% end %>
-        <% if current_identity.any_writer? %><%= link_to new_import_path, class: "nav-item #{controller_name == 'imports' ? 'active' : ''}" do %><%= icon("upload") %> Zertifikate importieren<% end %><% end %>
+      <nav aria-label="<%= t('ui.main_navigation') %>">
+        <% if current_identity.auditor? %><%= link_to audit_events_path, class: "nav-item #{controller_name == 'audit_events' ? 'active' : ''}" do %><%= icon("shield") %> <%= t("ui.audit_logs") %><% end %><% end %>
+        <%= link_to root_path, class: "nav-item #{controller_name == 'certificates' ? 'active' : ''}" do %><%= icon("grid") %> <%= t("ui.overview") %><% end %>
+        <% if current_identity.any_writer? %><%= link_to new_import_path, class: "nav-item #{controller_name == 'imports' ? 'active' : ''}" do %><%= icon("upload") %> <%= t("ui.import_certificates") %><% end %><% end %>
       </nav>
-      <div class="sidebar-caption section-caption">MEINE BEREICHE</div>
+      <div class="sidebar-caption section-caption"><%= t("ui.my_areas") %></div>
       <% current_identity.areas.each do |area| %>
-        <%= link_to certificates_path(area: area), class: "area-link" do %><span class="area-dot"></span><%= area_label(area) %><span class="role-label"><%= current_identity.writer?(area) ? "Writer" : "Reader" %></span><% end %>
+        <%= link_to certificates_path(area: area), class: "area-link" do %><span class="area-dot"></span><%= area_label(area) %><span class="role-label"><%= current_identity.writer?(area) ? t("ui.writer") : t("ui.reader") %></span><% end %>
       <% end %>
     <% end %>
-    <div class="sidebar-bottom"><span class="system-dot"></span> Zertifikate im Blick.<br><small>Zentral verwaltet. Klar zugeordnet.</small></div>
+    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>Workspace <span class="crumb">/</span> <%= { "imports" => "Import", "audit_events" => "Auditlogs" }.fetch(controller_name, "Zertifikate") %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="Dunkles Farbschema verwenden">◐</button>
-      <% if ENV["AUTH_MODE"] == "local" %><span class="badge neutral">Lokaler Testmodus</span><% end %>
-      <% if current_identity %><span class="account-name"><%= current_identity.name %></span><%= button_to "Abmelden", logout_path, method: :delete, class: "text-button" %><% end %>
+    <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
+      <% if ENV["AUTH_MODE"] == "local" %><span class="badge neutral"><%= t("ui.local_mode") %></span><% end %>
+      <% if current_identity %><span class="account-name"><%= current_identity.name %></span><%= button_to t("ui.logout"), logout_path, method: :delete, class: "text-button" %><% end %>
+      <details class="language-menu">
+        <summary aria-label="<%= t('ui.language') %>" title="<%= t('ui.language') %>"><%= I18n.locale.to_s.upcase %><span aria-hidden="true">⌄</span></summary>
+        <div class="language-options">
+          <%= form_with url: locale_path, data: { turbo: false, controller: "locale", action: "submit->locale#prepare", locale_follow_location_value: request.get? && !@error_status } do |form| %>
+            <%= form.hidden_field :return_to, value: locale_return_path, data: { locale_target: "destination" } %>
+            <% I18n.available_locales.each do |locale| %>
+              <button type="submit" name="locale" value="<%= locale %>" lang="<%= locale %>" aria-pressed="<%= cookies.signed[:locale] == locale.to_s %>"><%= t('language_name', locale: locale) %></button>
+            <% end %>
+            <button type="submit" name="locale" value="" class="browser-language" aria-pressed="<%= cookies.signed[:locale].blank? %>"><%= t('ui.browser_language') %></button>
+          <% end %>
+        </div>
+      </details>
     </div></header>
     <main id="main" tabindex="-1">
       <% flash.each do |type, message| %><div role="status" class="flash <%= type == 'alert' ? 'flash-error' : '' %>"><%= message %></div><% end %>

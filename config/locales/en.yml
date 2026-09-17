@@ -1,0 +1,448 @@
+---
+en:
+  ui:
+    certificates: Certificates
+    certificate: Certificate
+    import_certificates: Import certificates
+    skip_content: Skip to content
+    main_navigation: Main navigation
+    audit_logs: Audit logs
+    overview: Overview
+    my_areas: MY AREAS
+    sidebar_title: Your certificates at a glance.
+    sidebar_subtitle: Centrally managed. Clearly assigned.
+    local_mode: Local test mode
+    logout: Sign out
+    import: Import
+    workspace: Workspace
+    reader: Reader
+    writer: Writer
+    inventory_title: YOUR CERTIFICATE INVENTORY
+    inventory_subtitle: Find certificates. Check validity. Deploy securely.
+    inventory_summary: Inventory summary
+    current_certificates: Current certificates
+    authorized_areas: In your authorized areas
+    expiring: Expiring soon
+    expired: Expired
+    future: Not yet valid
+    valid: Valid
+    next_30_days: Within the next 30 days
+    check_renewal: Check renewal
+    search_placeholder: Search name, domain, IP, issuer, serial number or fingerprint …
+    search_certificates: Search certificates
+    search_hint: Search
+    area: Area
+    all_areas: All areas
+    validity: Validity
+    all_validities: All validity states
+    puppet_status: Puppet status
+    all_puppet_statuses: All Puppet statuses
+    source: Source
+    all_sources: All sources
+    filesystem: Filesystem
+    key: Key
+    all: All
+    present: Available
+    absent: Unavailable
+    sorting: Sort order
+    expiry_date: Expiry date
+    name: Name
+    newest_first: Newest first
+    include_archived: Include archived
+    old_versions: Previous versions
+    search: Search
+    search_description: AND search · all data sources · search terms also find archived certificates
+    select_all: Select all exportable certificates on this page
+    certificate_issuer: Certificate / issuer
+    hosts: Hosts
+    valid_until: Valid until
+    puppet_lookup: Puppet lookup
+    details: Details
+    archived: Archived
+    key_present: Key file available
+    old_version: Previous version
+    filesystem_status_hint: 'Filesystem: Puppet status cannot be managed'
+    puppetdb_pending: No successful PuppetDB query yet
+    query_failed: Query failed
+    fingerprint_missing: Fingerprint missing
+    issuer_subject: Issuer / Subject (Hiera)
+    no_certificates: No certificates found
+    empty_filters: Change the filters or import certificates.
+    empty_index: Newly mounted filesystem inventories are indexed automatically.
+    export_selection: Export selection
+    export_button: Export ↓
+    back: "← Previous"
+    next: Next →
+    index_pending: Indexing pending
+    back_certificates: "← All certificates"
+    certificate_details: CERTIFICATE DETAILS
+    summary: Summary
+    archive_status: Archive status
+    not_archived: Not archived
+    filesystem_unmanaged: Not managed (filesystem)
+    storage_location: Storage location
+    source_client: Source / client
+    created_by: Created by
+    unknown_creator: Unknown (not recorded)
+    subject: Subject
+    issuer: Issuer
+    sans: Subject alternative names (SAN)
+    none: None
+    serial_hex: Serial number (hex)
+    fingerprint: SHA-256 fingerprint
+    algorithm: Signature algorithm
+    key_file: Key file
+    key_export_check: Available · matching checked during export
+    tags: Tags
+    chain: Certificate chain
+    no_chain_record: "· No separate accessible entry"
+    chain_complete: Chain includes the self-signed certificate. This is not a trust check.
+    chain_incomplete: 'Incomplete chain: an issuer certificate is missing or inaccessible.'
+    export: Export
+    source_password_placeholder: Source password, if the key is protected
+    source_password_label: Password of the stored key
+    download_certificate: Download certificate ↓
+    source_unavailable: Source material unavailable
+    source_unavailable_description: >-
+      Stored certificate details are retained. Export and the certificate chain will be available when the matching
+      source is readable again.
+    status_scope: The status applies to all versions of this lookup and is preserved on renewal.
+    status_pending: The status is stored. Automatic processing by Puppet is not yet implemented.
+    status_active: ": Puppet should deploy the certificate normally."
+    status_norollout: ": Puppet should not deploy the certificate and should leave existing files unchanged."
+    status_delete: ": Puppet should remove the certificate, even without a Hiera entry."
+    save_status: Save status
+    archive: Archive
+    versions: Versions
+    current_version: Current version
+    activate: Activate
+    activate_confirm: Activate this version for Puppet?
+    hiera_configuration: Hiera configuration
+    public_pem: Public certificate as PEM
+    export_format: Export format
+    include_chain: Include chain
+    include_key: Include private key
+    export_password_placeholder: Export password (at least 12 characters)
+    export_password_label: Export password, at least 12 characters for keys, PFX or JKS
+    puppetdb_hosts: Hosts reported by PuppetDB
+    puppetdb_fingerprint_missing: >-
+      The fingerprint required for the selected PuppetDB comparison is missing from the catalog. It will be added
+      on the next successful scan of the certificate source. Existing host information comes from an earlier query.
+    puppetdb_failed: >-
+      The last PuppetDB query failed. Displayed host associations come from the last successful query and may be
+      outdated.
+    puppetdb_no_hosts: No hosts reported this certificate in the last successful query.
+    puppetdb_no_query: No successful PuppetDB query is available for this certificate yet.
+    archive_title: Confirm archiving
+    back_details: "← Certificate details"
+    archive_question: Archive certificate?
+    archive_visibility: >-
+      The certificate is hidden from the overview and inventory counts. It can still be found using a search term
+      or “Include archived”.
+    archive_retention: >-
+      Catalog entries, certificates and keys stored in Consul, and audit records are retained. The application does
+      not modify filesystem inventory files.
+    archive_audit: >-
+      Archiving is recorded in the audit log with your username, the time and its effects. The UI does not support
+      reactivating archived certificates.
+    archive_puppet_pending: >-
+      The supplied Puppet code does not process the deletion request yet. An appropriately extended Puppet client
+      may execute it in a later run.
+    archive_confirmation: I confirm archiving and the Puppet deletion request with the effects described above.
+    archive_submit: Confirm and archive
+    cancel: Cancel
+    new_certificates: NEW CERTIFICATES
+    import_description: Add files, review the preview and save in the selected area.
+    add_certificates: 1. Add certificates
+    choose_files: Choose files or drop them here
+    supported_files: PEM, DER, PFX / PKCS#12 or JKS · up to 20 MB in total
+    paste_pem: Alternatively, paste PEM text
+    pem_label: Certificate and optional private key as PEM
+    source_file_password: Source file password (if protected)
+    separate_keys: 'Separate key files can be uploaded together with the certificates. JKS: store and key passwords
+      must match.'
+    assignment: 2. Set assignment
+    target_areas: Target areas
+    choose_areas: Select one or more authorized areas.
+    tags_placeholder: e.g. Production, Web server
+    tags_help: Separate multiple tags with commas.
+    optional_lookup: Puppet lookup (optional)
+    lookup_placeholder: e.g. portal.production
+    lookup_help: >-
+      For a single certificate. An existing lookup receives a new active version after explicit confirmation. Its
+      Puppet status is preserved. If omitted, the fingerprint is used.
+    import_storage: >-
+      New certificates are stored in Consul. Certificates already present in the filesystem inventory cannot be
+      uploaded.
+    review_preview: Review preview →
+    review_import: Review import
+    import_preview: IMPORT PREVIEW
+    ready_to_save: Ready to save
+    matching_key: Matching private key
+    public_certificate: Public certificate
+    lookup_exists: >-
+      This lookup already exists. The import replaces its current version. The previous version is retained in the
+      history.
+    overwrite_confirmation: Yes, I am sure and want to overwrite the existing lookups marked above.
+    save_consul: Save in Consul
+    audit_eyebrow: CHANGES AND EXPORTS
+    audit_description: Who changed or exported which certificates, and when?
+    audit_placeholder: Search user, certificate, lookup or fingerprint …
+    search_audit: Search audit logs
+    all_authorized_areas: All authorized areas
+    action: Action
+    all_actions: All actions
+    from: From
+    through: Through
+    reset: Reset
+    audit_timezone: Time zone Europe/Berlin · Newest first
+    time_user: Time / user
+    area_action: Area / action
+    affected_certificates: Affected certificates
+    identification: Identification
+    audit_historical: 'Historical entry: only references are available. The time reflects the original recording.'
+    scope_lookup: All versions of the lookup in the area
+    scope_fingerprint: All copies of the fingerprint in the area
+    'yes': 'Yes'
+    'no': 'No'
+    previous_active: Previous active version
+    no_audit: No audit events found
+    no_audit_filters: No entries match these filters.
+    audit_delivery: >-
+      Exports are logged before delivery. Complete receipt by the user cannot be confirmed. Changes appear after
+      indexing, usually within 60 seconds.
+    login: Sign in
+    welcome: WELCOME TO CERTUI
+    login_heading: Everything for your certificates.
+    login_heading_end: In one place.
+    login_description: Find certificates, manage them securely and deliver them in the right format.
+    local_login: Local test sign-in
+    local_login_help: Select a role to try out its permissions.
+    test_identity: Test identity
+    open_workspace: Open workspace →
+    keycloak_login: Sign in with Keycloak →
+    language: Language
+    browser_language: Browser language
+    theme_light: Use light color scheme
+    theme_dark: Use dark color scheme
+    page: Page %{page} of %{pages}
+    index_updated: 'Search index updated: %{time}'
+    select_certificate: Select %{name}
+    hosts_for: Hosts for %{name}
+    details_for: Details for %{name}
+    unknown_client: Unknown (no client specified)
+    upload_origin: CCI-UI (upload)
+    external_client: 'External client: %{client}'
+    archive_scope_html: >-
+      Archiving affects <strong>all versions of the lookup %{lookup}</strong> in this area, including the currently
+      selected version. Future renewals also remain archived.
+    archive_delete_html: >-
+      The Puppet status is set to <code>delete</code>. This requests removal of managed certificate and key files
+      on the target systems. Affected services may fail as a result.
+    archived_notice_html: This certificate is archived. It remains searchable and its Puppet status remains <code>delete</code>.
+    puppetdb_checked: >-
+      Last queried: %{time}. This information is based on the latest facts submitted to PuppetDB and the configured
+      query scope. It is not a live check of the hosts.
+    lookup_status: 'Lookup: %{lookup} · Puppet status: %{status}'
+    previous_version: 'Previous version: %{version}'
+    lookup: Lookup
+    serial: Serial number
+    scope: Scope
+    format: Format
+    file: File
+    private_keys: Private keys
+    key_available: Key available
+    certificate_count:
+      one: "%{count} certificate"
+      other: "%{count} certificates"
+    selected:
+      one: "%{count} selected"
+      other: "%{count} selected"
+    host_count_html:
+      one: "<strong>%{count}</strong> host reports this certificate."
+      other: "<strong>%{count}</strong> hosts report this certificate."
+    chain_count:
+      one: "%{count} chain certificate"
+      other: "%{count} chain certificates"
+    event_count:
+      one: "%{count} event"
+      other: "%{count} events"
+    preview_summary:
+      one: "%{count} certificate for %{areas}. The preview is valid for 15 minutes."
+      other: "%{count} certificates for %{areas}. The preview is valid for 15 minutes."
+  errors:
+    pages:
+      label: "Error %{status}"
+      request_id: Request ID
+      home: Back to the overview
+      details: Technical details and stack trace
+      generic:
+        title: The request could not be completed
+        message: Please try again later. If the problem persists, contact your administrator with the request ID.
+      status_400:
+        title: Invalid request
+        message: The request could not be read. Check your input and try again.
+      status_401:
+        title: Sign-in required
+        message: Please sign in to continue.
+      status_403:
+        title: Access denied
+        message: You do not have permission to perform this action.
+      status_404:
+        title: Page not found
+        message: This page or certificate is unavailable, or you do not have access to it.
+      status_422:
+        title: The request could not be processed
+        message: Check your input or reload the form and try again.
+      status_500:
+        title: An internal error occurred
+        message: Please try again later. If the problem persists, contact your administrator with the request ID.
+      status_503:
+        title: Service unavailable
+        message: The certificate store is currently unavailable. Please try again later.
+    app:
+      store_unavailable: The certificate store is currently unavailable. Please try again later.
+      export_count: Please select between 1 and 100 certificates.
+      archived_reactivation: Archived certificates cannot be reactivated.
+      archive_confirmation: Please confirm the effects of archiving.
+      consul_only: Puppet status and archiving are only available for Consul certificates. The filesystem inventory
+        is read-only.
+      sso_failed: SSO sign-in failed. Please try again.
+      invalid_dates: Please enter a valid date range.
+      overwrite_confirmation: Please explicitly confirm that you want to overwrite the existing lookups.
+      choose_area: Please select at least one valid area.
+      choose_input: Please select files or enter PEM text.
+      import_size: Each import may contain at most 20 MB in total.
+      no_certificates: No certificates found.
+      import_count: Each import may contain at most 100 certificates.
+      unmatched_key: At least one key does not match any certificate.
+      single_lookup: A custom lookup can only be specified when importing a single certificate.
+      invalid_preview: Invalid import preview.
+      expired_preview: The preview has expired or is not available for this session.
+      write_areas: You do not have write permission for all selected areas.
+      old_preview: This import preview is outdated. Please review the import again.
+      stored_status: Invalid Puppet status in the certificate store.
+      lookup_format: A lookup may only contain letters, digits, dots, underscores and hyphens (maximum 120 characters).
+      stored_archive: Invalid archive status in the certificate store.
+      archived_delete: Archived certificates must retain the Puppet status delete.
+      archive_consul_only: Only Consul certificates can be archived. The filesystem inventory is read-only.
+      archive_changed: The status has changed. Please review and confirm archiving again.
+      lookup_ownership: The lookup no longer belongs to this certificate.
+      unknown_area: Unknown area.
+      missing_consul_certificate: The certificate is no longer present in Consul.
+      client_format: The client identifier must contain letters, digits, dots, underscores or hyphens (maximum 120
+        characters).
+      actor_format: The creator must not be blank (maximum 255 characters).
+      preview_changed: The lookup has changed since the preview. Please review and confirm the import again.
+      duplicate: This certificate already exists under this lookup.
+      missing_lookup: The lookup no longer exists.
+      archived_activation: Archived certificates cannot be activated.
+      missing_version: The version has been removed.
+      invalid_status: Invalid Puppet status.
+      lookup_changed: The lookup has changed. Please reload the page.
+      no_inventory: No filesystem inventory is configured for this area. Refresh the index.
+      inventory_unavailable: The filesystem inventory is unavailable. Please check the mount and access permissions.
+      file_outside: The file is outside the legacy inventory.
+      file_missing: The file no longer exists.
+      file_size: The file is larger than 20 MB.
+      file_unreadable: The application cannot read the file.
+      inventory_incomplete_cert: A certificate in the filesystem inventory is incomplete.
+      inventory_invalid_cert: A certificate in the filesystem inventory is invalid.
+      inventory_symlinks: Linked directories in the filesystem inventory cannot be fully checked.
+      inventory_unreadable: The filesystem inventory is not fully readable. Please check the mount and access permissions.
+      inventory_duplicate: 'Upload rejected: at least one certificate already exists in the filesystem inventory.'
+      no_matching_key: No matching private key is available.
+      protected_key: The private key is protected or invalid. Check the source password.
+      unknown_export: Unknown export format.
+      reader_export: Readers may not export certificates.
+      key_export_role: Private keys also require the Key Exporter role in the corresponding area.
+      export_password: Enter a password with at least 12 characters for this export.
+      der_export: DER exports a single certificate. Choose PEM, PFX or JKS for keys or chains.
+      read_permission: No read permission.
+      no_private_key: No private key is available.
+      unsupported_source: This data source is not supported.
+      source_changed: >-
+        The source now contains a different certificate. The stored entry is retained, but this version cannot be
+        exported from the current source.
+      key_mismatch: The key does not match the certificate.
+      invalid_material: Certificate data is invalid or has changed.
+      input_size: The file is empty or larger than 20 MB.
+      unsupported_input: No supported certificates or private keys found.
+      parse_input: The file could not be read. Check the format and password.
+      key_version: Unknown key version.
+      key_decrypt: The private key could not be decrypted.
+      jks_incomplete: The JKS file is incomplete.
+      jks_integrity: Invalid JKS password or integrity check.
+      jks_format: Invalid JKS format.
+      jks_version: Only JKS versions 1 and 2 are supported.
+      jks_count: Too many JKS entries.
+      jks_encryption: Unknown JKS key encryption.
+      jks_chain: The JKS chain is too long.
+      jks_entry: Unknown JKS entry.
+      jks_extra: Unexpected additional data in the JKS file.
+      jks_read: JKS could not be read. Store and key passwords must match.
+      password_required: Please enter an export password.
+      jks_key: Invalid JKS key.
+      jks_key_password: Invalid JKS key password.
+      x509_only: Only X.509 certificates are supported.
+      p12_iterations: PKCS#12 iteration count is outside the supported range.
+      p12_version: Only PKCS#12 version 3 is supported.
+      p12_integrity_required: PKCS#12 requires password-based integrity verification.
+      p12_mac: Unknown PKCS#12 MAC.
+      p12_integrity: Invalid PKCS#12 password or integrity check.
+      p12_content: Unsupported PKCS#12 content.
+      p12_read: PKCS#12 could not be read. Check the format, encryption and password.
+      p12_depth: The PKCS#12 structure is nested too deeply.
+      p12_count: Too many PKCS#12 entries.
+      p12_entry: PKCS#12 contains an unsupported entry.
+      pbkdf2_only: Only PBKDF2 is supported.
+      p12_legacy: This older PKCS#12 encryption is not supported. Please provide an AES or 3DES PFX file.
+      writer_required: This action requires the Writer role in the %{area} area.
+      area_secret: A valid encryption secret (32 bytes, Base64) is missing for %{area}.
+      concurrent_change: A concurrent change was detected. Please try again.
+    format: "%{attribute} %{message}"
+    messages:
+      blank: can't be blank
+      taken: has already been taken
+      inclusion: is not included in the list
+      invalid: is invalid
+  notices:
+    archived: Certificate archived. The Puppet deletion request has been saved.
+    status_saved: Puppet status saved.
+    version_activated: Version activated for Puppet.
+    imported:
+      one: "%{count} certificate saved."
+      other: "%{count} certificates saved."
+    partial_import:
+      one: "%{count} certificate saved. Some entries could not be saved."
+      other: "%{count} certificates saved. Some entries could not be saved."
+  audit:
+    actions:
+      archive: Certificate archived
+      status_change: Puppet status changed
+      import: Import / new version
+      activate: Version activated
+      delete: Version deleted
+      export_public: Certificates exported
+      export_private: Certificates exported with private keys
+    archive_comment: >-
+      Archiving confirmed: hidden from the overview, still searchable, and Puppet deletion requested. Certificate
+      data and keys remain stored.
+  language_name: English
+  date:
+    formats:
+      default: "%Y-%m-%d"
+  time:
+    formats:
+      default: "%Y-%m-%d %H:%M"
+      short: "%Y-%m-%d, %H:%M"
+      long: "%Y-%m-%d, %H:%M:%S %Z"
+  number:
+    format:
+      separator: "."
+      delimiter: ","
+  support:
+    array:
+      words_connector: ", "
+      two_words_connector: " and "
+      last_word_connector: ", and "

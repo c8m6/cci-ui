@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
   get "/up", to: "rails/health#show", as: :rails_health_check
   root "certificates#index"
+  post "/sprache", to: "locales#update", as: :locale
   get "/anmelden", to: "sessions#new", as: :login
   post "/lokale-anmeldung", to: "sessions#local", as: :local_login
   delete "/abmelden", to: "sessions#destroy", as: :logout
@@ -11,5 +12,6 @@ Rails.application.routes.draw do
     get :archive, on: :member
   end
   resources :imports, path: "import", only: %i[new create]
+  get "/import/vorschau", to: "imports#preview", as: :import_preview
   resources :audit_events, path: "auditlogs", only: :index
 end

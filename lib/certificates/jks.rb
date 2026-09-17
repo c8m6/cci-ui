@@ -15,17 +15,17 @@ module Certificates
     end
 
     def self.load(data, password:)
-      raise Error, "JKS-Datei ist unvollständig." if data.bytesize < 32
+      raise Error, Error.translate("errors.app.jks_incomplete", default: "JKS-Datei ist unvollständig.") if data.bytesize < 32
       body, signature = data.byteslice(0...-20), data.byteslice(-20, 20)
       expected = Digest::SHA1.digest(password_bytes(password) + "Mighty Aphrodite" + body)
-      raise Error, "JKS-Passwort oder Integritätsprüfung ungültig." unless OpenSSL.fixed_length_secure_compare(expected, signature)
+      raise Error, Error.translate("errors.app.jks_integrity", default: "JKS-Passwort oder Integritätsprüfung ungültig.") unless OpenSSL.fixed_length_secure_compare(expected, signature)
       reader = new(body)
-      raise Error, "Ungültiges JKS-Format." unless reader.uint == MAGIC
+      raise Error, Error.translate("errors.app.jks_format", default: "Ungültiges JKS-Format.") unless reader.uint == MAGIC
       version = reader.uint
-      raise Error, "Nur JKS-Version 1 und 2 werden unterstützt." unless [1, 2].include?(version)
+      raise Error, Error.translate("errors.app.jks_version", default: "Nur JKS-Version 1 und 2 werden unterstützt.") unless [1, 2].include?(version)
       certs, keys = [], []
       count = reader.uint
-      raise Error, "Zu viele JKS-Einträge." if count > 10_000
+      raise Error, Error.translate("errors.app.jks_count", default: "Zu viele JKS-Einträge.") if count > 10_000
       count.times do
         type = reader.uint
         reader.utf
@@ -33,25 +33,25 @@ module Certificates
         case type
         when 1
           encrypted = OpenSSL::ASN1.decode(reader.blob)
-          raise Error, "Unbekannte JKS-Schlüsselverschlüsselung." unless encrypted.value[0].value[0].value == OID
+          raise Error, Error.translate("errors.app.jks_encryption", default: "Unbekannte JKS-Schlüsselverschlüsselung.") unless encrypted.value[0].value[0].value == OID
           keys << decrypt(encrypted.value[1].value, password)
           chain_count = reader.uint
-          raise Error, "Zu lange JKS-Kette." if chain_count > 1000
+          raise Error, Error.translate("errors.app.jks_chain", default: "Zu lange JKS-Kette.") if chain_count > 1000
           chain_count.times { certs << reader.certificate(version) }
         when 2
           certs << reader.certificate(version)
         else
-          raise Error, "Unbekannter JKS-Eintrag."
+          raise Error, Error.translate("errors.app.jks_entry", default: "Unbekannter JKS-Eintrag.")
         end
       end
-      raise Error, "Zusätzliche Daten in JKS-Datei." unless reader.eof?
+      raise Error, Error.translate("errors.app.jks_extra", default: "Zusätzliche Daten in JKS-Datei.") unless reader.eof?
       Codec::Result.new(certificates: certs.uniq { |c| c.to_der }, keys: keys)
     rescue EOFError, OpenSSL::OpenSSLError, EncodingError, ArgumentError
-      raise Error, "JKS konnte nicht gelesen werden. Store- und Schlüsselpasswort müssen übereinstimmen."
+      raise Error, Error.translate("errors.app.jks_read", default: "JKS konnte nicht gelesen werden. Store- und Schlüsselpasswort müssen übereinstimmen.")
     end
 
     def self.dump(entries, password:)
-      raise Error, "Bitte ein Exportpasswort angeben." if password.empty?
+      raise Error, Error.translate("errors.app.password_required", default: "Bitte ein Exportpasswort angeben.") if password.empty?
       entries = entries.flat_map do |entry|
         entry[:key] ? [entry] : [entry, *entry.fetch(:chain).map { |cert| { certificate: cert, key: nil, chain: [] } }]
       end
@@ -93,10 +93,10 @@ module Certificates
     end
 
     def self.decrypt(data, password)
-      raise Error, "Ungültiger JKS-Schlüssel." if data.bytesize < 40
+      raise Error, Error.translate("errors.app.jks_key", default: "Ungültiger JKS-Schlüssel.") if data.bytesize < 40
       plain = xor_stream(data.byteslice(20...-20), password, data.byteslice(0, 20))
       expected = Digest::SHA1.digest(password_bytes(password) + plain)
-      raise Error, "JKS-Schlüsselpasswort ungültig." unless OpenSSL.fixed_length_secure_compare(expected, data.byteslice(-20, 20))
+      raise Error, Error.translate("errors.app.jks_key_password", default: "JKS-Schlüsselpasswort ungültig.") unless OpenSSL.fixed_length_secure_compare(expected, data.byteslice(-20, 20))
       OpenSSL::PKey.read(plain)
     end
 
@@ -113,7 +113,7 @@ module Certificates
     def utf = read(read(2).unpack1("n"))
     def eof? = @io.eof?
     def certificate(version)
-      raise Error, "Nur X.509-Zertifikate werden unterstützt." if version == 2 && utf != "X.509"
+      raise Error, Error.translate("errors.app.x509_only", default: "Nur X.509-Zertifikate werden unterstützt.") if version == 2 && utf != "X.509"
       OpenSSL::X509::Certificate.new(blob)
     end
   end

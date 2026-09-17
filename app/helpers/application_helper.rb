@@ -1,7 +1,20 @@
 module ApplicationHelper
   def area_label(area) = AreaConfiguration.label(area)
   def filter_params = params.permit(:q, :area, :source, :status, :rollout_status, :key, :sort, :history, :archived).to_h
-  def date_label(time) = time&.strftime("%d.%m.%Y") || "–"
+  def date_label(time) = time ? l(time.to_date) : "–"
+  def locale_return_path
+    return root_path if @error_status
+    return import_preview_path(token: @token) if controller_name == "imports" && @preview && @token
+    return request.fullpath if request.get?
+    controller_name == "imports" ? new_import_path : root_path
+  end
+
+  def audit_comment(event)
+    comment = event.details["comment"]
+    # Translate only the application's fixed message, never external audit data.
+    original = I18n.t("audit.archive_comment", locale: :de)
+    comment == original ? t("audit.archive_comment") : comment
+  end
   def puppetdb_enabled? = PuppetdbConfiguration.enabled?
   def puppetdb_fingerprint_missing?(certificate)
     certificate.public_send(PuppetdbConfiguration.new.fingerprint_column).nil?

@@ -24,8 +24,9 @@ class CertificatesController < ApplicationController
       @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(active: :desc, id: :asc).to_a.group_by(&:fingerprint).transform_values(&:first)
       @hiera = HieraSnippet.for(@certificate, @material[:certificate])
     rescue Certificates::Error, ConsulConnection::Error => error
+      Rails.logger.error(error.full_message(highlight: false))
       @material = nil
-      @material_error = error.message
+      @material_error = error.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : error.message
     end
   end
   def archive
@@ -37,9 +38,9 @@ class CertificatesController < ApplicationController
 
   def export
     ids = Array(params[:ids]).map(&:to_s).uniq
-    raise Certificates::Error, "Bitte zwischen 1 und 100 Zertifikate auswählen." unless (1..100).cover?(ids.size)
+    raise Certificates::Error, I18n.t("errors.app.export_count") unless (1..100).cover?(ids.size)
     records = Certificate.visible_to(current_identity).where(id: ids).to_a
-    return head :not_found unless records.size == ids.size
+    return render_error(:not_found) unless records.size == ids.size
     content, filename, type = CertificateExport.call(records, identity: current_identity,
       format: params[:format_name], include_key: params[:include_key] == "1", include_chain: params[:include_chain] == "1",
       password: params[:password].to_s, source_password: params[:source_password].to_s)
@@ -50,24 +51,24 @@ class CertificatesController < ApplicationController
     require_writer!(record.area)
     require_consul!(record)
     if record.archived && params[:archive] != "1"
-      raise Certificates::Error, "Archivierte Zertifikate können nicht reaktiviert werden."
+      raise Certificates::Error, I18n.t("errors.app.archived_reactivation")
     end
     if params[:archive] == "1"
       unless params[:confirm_archive] == "1"
         @certificate = record
         @lookup_snapshot = ConsulStore.status_snapshot(record)
-        flash.now[:alert] = "Bitte die Auswirkungen der Archivierung bestätigen."
-        return render :archive, status: :unprocessable_entity
+        flash.now[:alert] = I18n.t("errors.app.archive_confirmation")
+        return render :archive, status: :unprocessable_content
       end
       ConsulStore.archive(record, actor: current_identity.name, expected_lookup_index: params[:lookup_index])
-      notice = "Zertifikat archiviert. Der Puppet-Löschauftrag wurde gespeichert."
+      notice = I18n.t("notices.archived")
     elsif params.key?(:rollout_status)
       options = { status: params[:rollout_status], actor: current_identity.name, expected_lookup_index: params[:lookup_index] }
       ConsulStore.set_status(record.area, record.source_id, **options)
-      notice = "Puppet-Status gespeichert."
+      notice = I18n.t("notices.status_saved")
     else
       ConsulStore.activate(record.area, record.source_id, actor: current_identity.name)
-      notice = "Version für Puppet aktiviert."
+      notice = I18n.t("notices.version_activated")
     end
     CatalogIndexer.refresh_consul
     redirect_to certificate_path(record), notice: notice, status: :see_other
@@ -76,7 +77,7 @@ class CertificatesController < ApplicationController
   private
 
   def require_consul!(record)
-    raise Certificates::Error, "Puppet-Status und Archivierung sind nur für Consul-Zertifikate verfügbar. Der Dateibestand ist nur lesbar." unless record.source == "consul"
+    raise Certificates::Error, I18n.t("errors.app.consul_only") unless record.source == "consul"
   end
 
 end

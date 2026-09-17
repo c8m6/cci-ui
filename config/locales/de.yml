@@ -1,11 +1,451 @@
+---
 de:
+  ui:
+    certificates: Zertifikate
+    certificate: Zertifikat
+    import_certificates: Zertifikate importieren
+    skip_content: Zum Inhalt
+    main_navigation: Hauptnavigation
+    audit_logs: Auditlogs
+    overview: Übersicht
+    my_areas: MEINE BEREICHE
+    sidebar_title: Zertifikate im Blick.
+    sidebar_subtitle: Zentral verwaltet. Klar zugeordnet.
+    local_mode: Lokaler Testmodus
+    logout: Abmelden
+    import: Import
+    workspace: Workspace
+    reader: Reader
+    writer: Writer
+    inventory_title: IHR ZERTIFIKATSBESTAND
+    inventory_subtitle: Alles finden. Gültigkeit prüfen. Sicher bereitstellen.
+    inventory_summary: Bestandsübersicht
+    current_certificates: Aktuelle Zertifikate
+    authorized_areas: In Ihren berechtigten Bereichen
+    expiring: Läuft bald ab
+    expired: Abgelaufen
+    future: Noch nicht gültig
+    valid: Gültig
+    next_30_days: Innerhalb der nächsten 30 Tage
+    check_renewal: Erneuerung prüfen
+    search_placeholder: Name, Domain, IP, Aussteller, Seriennummer oder Fingerprint suchen …
+    search_certificates: Zertifikate durchsuchen
+    search_hint: Suche
+    area: Bereich
+    all_areas: Alle Bereiche
+    validity: Gültigkeit
+    all_validities: Alle Gültigkeiten
+    puppet_status: Puppet-Status
+    all_puppet_statuses: Alle Puppet-Status
+    source: Quelle
+    all_sources: Alle Quellen
+    filesystem: Dateibestand
+    key: Schlüssel
+    all: Alle
+    present: Vorhanden
+    absent: Nicht vorhanden
+    sorting: Sortierung
+    expiry_date: Ablaufdatum
+    name: Name
+    newest_first: Neueste zuerst
+    include_archived: Archivierte einschließen
+    old_versions: Alte Versionen
+    search: Suchen
+    search_description: UND-Suche · alle Datenquellen · Suchbegriffe finden auch archivierte Zertifikate
+    select_all: Alle exportierbaren Zertifikate dieser Seite auswählen
+    certificate_issuer: Zertifikat / Aussteller
+    hosts: Hosts
+    valid_until: Gültig bis
+    puppet_lookup: Puppet-Lookup
+    details: Details
+    archived: Archiviert
+    key_present: Schlüsseldatei vorhanden
+    old_version: Alte Version
+    filesystem_status_hint: 'Dateibestand: kein steuerbarer Puppet-Status'
+    puppetdb_pending: Noch keine erfolgreiche PuppetDB-Abfrage
+    query_failed: Abfrage fehlgeschlagen
+    fingerprint_missing: Fingerprint fehlt
+    issuer_subject: Issuer / Subject (Hiera)
+    no_certificates: Keine Zertifikate gefunden
+    empty_filters: Ändern Sie die Filter oder importieren Sie Zertifikate.
+    empty_index: Ein neu eingebundener Dateibestand wird automatisch indexiert.
+    export_selection: Auswahl exportieren
+    export_button: Exportieren ↓
+    back: "← Zurück"
+    next: Weiter →
+    index_pending: Indexierung steht noch aus
+    back_certificates: "← Alle Zertifikate"
+    certificate_details: ZERTIFIKATSDETAILS
+    summary: Überblick
+    archive_status: Archivstatus
+    not_archived: Nicht archiviert
+    filesystem_unmanaged: Nicht steuerbar (Dateibestand)
+    storage_location: Speicherort
+    source_client: Quelle / Client
+    created_by: Erstellt durch
+    unknown_creator: Unbekannt (nicht erfasst)
+    subject: Subject
+    issuer: Aussteller
+    sans: Alternative Namen (SAN)
+    none: Keine
+    serial_hex: Seriennummer (Hex)
+    fingerprint: SHA-256-Fingerprint
+    algorithm: Signaturalgorithmus
+    key_file: Schlüsseldatei
+    key_export_check: Vorhanden · Zuordnung wird beim Export geprüft
+    tags: Tags
+    chain: Zertifikatskette
+    no_chain_record: "· Kein eigener zugänglicher Eintrag"
+    chain_complete: Kette bis zum selbstsignierten Zertifikat vorhanden. Dies ist keine Vertrauensprüfung.
+    chain_incomplete: 'Kette unvollständig: Ein Ausstellerzertifikat fehlt oder ist nicht zugänglich.'
+    export: Exportieren
+    source_password_placeholder: Quellpasswort, falls Schlüssel geschützt
+    source_password_label: Passwort des gespeicherten Schlüssels
+    download_certificate: Zertifikat herunterladen ↓
+    source_unavailable: Quelldaten nicht verfügbar
+    source_unavailable_description: >-
+      Die gespeicherten Zertifikatsdetails bleiben erhalten. Export und Zertifikatskette sind erst verfügbar, wenn
+      die passende Quelle wieder lesbar ist.
+    status_scope: Der Status gilt für alle Versionen dieses Lookups und bleibt bei einer Erneuerung erhalten.
+    status_pending: Der Status wird gespeichert. Die automatische Auswertung durch Puppet ist noch nicht umgesetzt.
+    status_active: ": Puppet soll das Zertifikat normal ausrollen."
+    status_norollout: ": Puppet soll das Zertifikat nicht ausrollen und vorhandene Dateien unverändert lassen."
+    status_delete: ": Puppet soll das Zertifikat entfernen, auch ohne Hiera-Eintrag."
+    save_status: Status speichern
+    archive: Archivieren
+    versions: Versionen
+    current_version: Aktuelle Version
+    activate: Aktivieren
+    activate_confirm: Diese Version für Puppet aktivieren?
+    hiera_configuration: Hiera-Konfiguration
+    public_pem: Öffentliches Zertifikat als PEM
+    export_format: Exportformat
+    include_chain: Mit Kette
+    include_key: Mit privatem Schlüssel
+    export_password_placeholder: Exportpasswort (min. 12 Zeichen)
+    export_password_label: Exportpasswort, mindestens 12 Zeichen für Schlüssel, PFX oder JKS
+    puppetdb_hosts: Hosts laut PuppetDB
+    puppetdb_fingerprint_missing: >-
+      Der Fingerprint für den gewählten PuppetDB-Abgleich fehlt noch im Katalog. Er wird beim nächsten erfolgreichen
+      Einlesen der Zertifikatsquelle ergänzt. Vorhandene Hostangaben stammen aus einer früheren Abfrage.
+    puppetdb_failed: >-
+      Die letzte PuppetDB-Abfrage ist fehlgeschlagen. Angezeigte Hostzuordnungen stammen aus der letzten erfolgreichen
+      Abfrage und können veraltet sein.
+    puppetdb_no_hosts: In der letzten erfolgreichen Abfrage wurde dieses Zertifikat auf keinem Host gemeldet.
+    puppetdb_no_query: Für dieses Zertifikat liegt noch keine erfolgreiche PuppetDB-Abfrage vor.
+    archive_title: Archivierung bestätigen
+    back_details: "← Zertifikatsdetails"
+    archive_question: Zertifikat archivieren?
+    archive_visibility: >-
+      Das Zertifikat wird in der Übersicht und den Bestandszahlen ausgeblendet. Über einen Suchbegriff oder „Archivierte
+      einschließen“ bleibt es auffindbar.
+    archive_retention: >-
+      Katalogeinträge, in Consul gespeicherte Zertifikate und Schlüssel sowie Audit-Einträge bleiben erhalten. Die
+      Anwendung verändert keine Dateien im Dateibestand.
+    archive_audit: >-
+      Die Archivierung wird mit Ihrem Benutzernamen, Zeitpunkt und den Auswirkungen im Audit-Log protokolliert.
+      Eine Reaktivierung archivierter Zertifikate ist in der UI nicht vorgesehen.
+    archive_puppet_pending: >-
+      Der mitgelieferte Puppet-Code wertet den Löschauftrag noch nicht aus. Ein entsprechend erweiterter Puppet-Client
+      kann ihn bei einem späteren Lauf ausführen.
+    archive_confirmation: Ich bestätige die Archivierung und den Puppet-Löschauftrag mit den genannten Auswirkungen.
+    archive_submit: Verbindlich archivieren
+    cancel: Abbrechen
+    new_certificates: NEUE ZERTIFIKATE
+    import_description: Dateien hinzufügen, Vorschau prüfen und im gewählten Bereich speichern.
+    add_certificates: 1. Zertifikate hinzufügen
+    choose_files: Dateien auswählen oder hier ablegen
+    supported_files: PEM, DER, PFX / PKCS#12 oder JKS · insgesamt bis 20 MB
+    paste_pem: Alternativ PEM-Text einfügen
+    pem_label: Zertifikat und optional privater Schlüssel als PEM
+    source_file_password: Passwort der Quelldatei (falls geschützt)
+    separate_keys: >-
+      Separate Schlüsseldateien können zusammen mit den Zertifikaten hochgeladen werden. JKS: Store- und Schlüsselpasswort
+      müssen übereinstimmen.
+    assignment: 2. Zuordnung festlegen
+    target_areas: Zielbereiche
+    choose_areas: Wählen Sie einen oder mehrere berechtigte Bereiche aus.
+    tags_placeholder: z. B. Produktion, Webserver
+    tags_help: Mehrere Tags durch Komma trennen.
+    optional_lookup: Puppet-Lookup (optional)
+    lookup_placeholder: z. B. portal.produktion
+    lookup_help: >-
+      Für ein einzelnes Zertifikat. Ein bestehender Lookup erhält nach ausdrücklicher Bestätigung eine neue aktive
+      Version. Sein Puppet-Status bleibt erhalten. Ohne Angabe wird der Fingerprint verwendet.
+    import_storage: >-
+      Neue Zertifikate werden in Consul gespeichert. Zertifikate, die bereits im Dateibestand vorhanden sind, können
+      nicht hochgeladen werden.
+    review_preview: Vorschau prüfen →
+    review_import: Import prüfen
+    import_preview: IMPORTVORSCHAU
+    ready_to_save: Bereit zum Speichern
+    matching_key: Passender privater Schlüssel
+    public_certificate: Öffentliches Zertifikat
+    lookup_exists: >-
+      Dieser Lookup ist bereits vorhanden. Seine aktuelle Version wird durch den Import ersetzt. Die bisherige Version
+      bleibt als alte Version erhalten.
+    overwrite_confirmation: Ja, ich bin sicher und möchte die oben gekennzeichneten bestehenden Lookups überschreiben.
+    save_consul: In Consul speichern
+    audit_eyebrow: ÄNDERUNGEN UND EXPORTE
+    audit_description: Wer hat wann welche Zertifikate geändert oder exportiert?
+    audit_placeholder: Benutzer, Zertifikat, Lookup oder Fingerprint suchen …
+    search_audit: Auditlogs durchsuchen
+    all_authorized_areas: Alle berechtigten Bereiche
+    action: Aktion
+    all_actions: Alle Aktionen
+    from: Von
+    through: Bis einschließlich
+    reset: Zurücksetzen
+    audit_timezone: Zeitzone Europe/Berlin · Neueste zuerst
+    time_user: Zeit / Benutzer
+    area_action: Bereich / Aktion
+    affected_certificates: Betroffene Zertifikate
+    identification: Identifikation
+    audit_historical: 'Historischer Eintrag: nur Referenzen vorhanden; Zeit entspricht der damaligen Erfassung.'
+    scope_lookup: Alle Versionen des Lookups im Bereich
+    scope_fingerprint: Alle Kopien des Fingerprints im Bereich
+    'yes': Ja
+    'no': Nein
+    previous_active: Vorherige aktive Version
+    no_audit: Keine Auditereignisse gefunden
+    no_audit_filters: Für diese Filter liegen keine Einträge vor.
+    audit_delivery: >-
+      Exporte werden vor der Auslieferung protokolliert. Der vollständige Empfang beim Benutzer kann nicht bestätigt
+      werden. Änderungen erscheinen nach der Indexierung, üblicherweise innerhalb von 60 Sekunden.
+    login: Anmelden
+    welcome: WILLKOMMEN BEI CERTUI
+    login_heading: Alles für Ihre Zertifikate.
+    login_heading_end: An einem Ort.
+    login_description: Zertifikate finden, sicher verwalten und im passenden Format bereitstellen.
+    local_login: Lokale Testanmeldung
+    local_login_help: Wählen Sie eine Rolle, um deren Berechtigungen zu erproben.
+    test_identity: Testidentität
+    open_workspace: Workspace öffnen →
+    keycloak_login: Mit Keycloak anmelden →
+    language: Sprache
+    browser_language: Browsersprache
+    theme_light: Helles Farbschema verwenden
+    theme_dark: Dunkles Farbschema verwenden
+    page: Seite %{page} von %{pages}
+    index_updated: 'Stand des Suchindex: %{time}'
+    select_certificate: "%{name} auswählen"
+    hosts_for: Hosts zu %{name}
+    details_for: Details zu %{name}
+    unknown_client: Unbekannt (keine Client-Angabe)
+    upload_origin: CCI-UI (Upload)
+    external_client: 'Externer Client: %{client}'
+    archive_scope_html: >-
+      Die Archivierung betrifft <strong>alle Versionen des Lookups %{lookup}</strong> in diesem Bereich, einschließlich
+      der aktuell ausgewählten Version. Auch spätere Erneuerungen bleiben archiviert.
+    archive_delete_html: >-
+      Der Puppet-Status wird auf <code>delete</code> gesetzt. Dies ist ein Auftrag, verwaltete Zertifikats- und
+      Schlüsseldateien auf den Zielsystemen zu entfernen. Betroffene Dienste können dadurch ausfallen.
+    archived_notice_html: >-
+      Dieses Zertifikat ist archiviert. Es bleibt über die Suche auffindbar; der Puppet-Status bleibt <code>delete</code>.
+    puppetdb_checked: >-
+      Zuletzt abgefragt: %{time}. Die Angaben beruhen auf den zuletzt an PuppetDB übermittelten Facts und dem konfigurierten
+      Abfrageumfang; sie sind keine Live-Prüfung der Hosts.
+    lookup_status: 'Lookup: %{lookup} · Puppet-Status: %{status}'
+    previous_version: 'Bisherige Version: %{version}'
+    lookup: Lookup
+    serial: Seriennummer
+    scope: Umfang
+    format: Format
+    file: Datei
+    private_keys: Private Schlüssel
+    key_available: Schlüssel vorhanden
+    certificate_count:
+      one: "%{count} Zertifikat"
+      other: "%{count} Zertifikate"
+    selected:
+      one: "%{count} ausgewählt"
+      other: "%{count} ausgewählt"
+    host_count_html:
+      one: "<strong>%{count}</strong> Host meldet dieses Zertifikat."
+      other: "<strong>%{count}</strong> Hosts melden dieses Zertifikat."
+    chain_count:
+      one: "%{count} Kettenzertifikat"
+      other: "%{count} Kettenzertifikate"
+    event_count:
+      one: "%{count} Ereignis"
+      other: "%{count} Ereignisse"
+    preview_summary:
+      one: "%{count} Zertifikat für %{areas}. Die Vorschau ist 15 Minuten gültig."
+      other: "%{count} Zertifikate für %{areas}. Die Vorschau ist 15 Minuten gültig."
+  errors:
+    pages:
+      label: "Fehler %{status}"
+      request_id: Anfrage-ID
+      home: Zurück zur Übersicht
+      details: Technische Details und Stacktrace
+      generic:
+        title: Die Anfrage konnte nicht abgeschlossen werden
+        message: Bitte versuche es später erneut. Falls das Problem bestehen bleibt, wende dich mit der Anfrage-ID an deine Administration.
+      status_400:
+        title: Ungültige Anfrage
+        message: Die Anfrage konnte nicht gelesen werden. Prüfe deine Eingaben und versuche es erneut.
+      status_401:
+        title: Anmeldung erforderlich
+        message: Bitte melde dich an, um fortzufahren.
+      status_403:
+        title: Zugriff verweigert
+        message: Du hast keine Berechtigung für diese Aktion.
+      status_404:
+        title: Seite nicht gefunden
+        message: Diese Seite oder dieses Zertifikat ist nicht verfügbar oder du hast keinen Zugriff darauf.
+      status_422:
+        title: Die Anfrage konnte nicht verarbeitet werden
+        message: Prüfe deine Eingaben oder lade das Formular neu und versuche es erneut.
+      status_500:
+        title: Ein interner Fehler ist aufgetreten
+        message: Bitte versuche es später erneut. Falls das Problem bestehen bleibt, wende dich mit der Anfrage-ID an deine Administration.
+      status_503:
+        title: Dienst nicht verfügbar
+        message: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte versuche es später erneut.
+    app:
+      store_unavailable: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte später erneut versuchen.
+      export_count: Bitte zwischen 1 und 100 Zertifikate auswählen.
+      archived_reactivation: Archivierte Zertifikate können nicht reaktiviert werden.
+      archive_confirmation: Bitte die Auswirkungen der Archivierung bestätigen.
+      consul_only: Puppet-Status und Archivierung sind nur für Consul-Zertifikate verfügbar. Der Dateibestand ist
+        nur lesbar.
+      sso_failed: SSO-Anmeldung fehlgeschlagen. Bitte erneut versuchen.
+      invalid_dates: Bitte einen gültigen Zeitraum angeben.
+      overwrite_confirmation: Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden Lookups überschreiben
+        möchten.
+      choose_area: Bitte mindestens einen gültigen Bereich auswählen.
+      choose_input: Bitte Dateien auswählen oder PEM eingeben.
+      import_size: Insgesamt höchstens 20 MB pro Import.
+      no_certificates: Keine Zertifikate gefunden.
+      import_count: Höchstens 100 Zertifikate pro Import.
+      unmatched_key: Mindestens ein Schlüssel passt zu keinem Zertifikat.
+      single_lookup: Ein eigener Lookup ist nur beim Import eines einzelnen Zertifikats möglich.
+      invalid_preview: Ungültige Importvorschau.
+      expired_preview: Vorschau abgelaufen oder nicht für diese Sitzung vorhanden.
+      write_areas: Keine Schreibberechtigung für alle gewählten Bereiche.
+      old_preview: Diese Importvorschau ist veraltet. Bitte den Import erneut prüfen.
+      stored_status: Ungültiger Puppet-Status im Zertifikatsspeicher.
+      lookup_format: Lookup darf nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich enthalten (max. 120).
+      stored_archive: Ungültiger Archivstatus im Zertifikatsspeicher.
+      archived_delete: Archivierte Zertifikate müssen den Puppet-Status delete behalten.
+      archive_consul_only: Nur Consul-Zertifikate können archiviert werden. Der Dateibestand ist nur lesbar.
+      archive_changed: Der Status wurde geändert. Bitte Archivierung erneut prüfen und bestätigen.
+      lookup_ownership: Lookup gehört nicht mehr zu diesem Zertifikat.
+      unknown_area: Unbekannter Bereich.
+      missing_consul_certificate: Zertifikat ist in Consul nicht mehr vorhanden.
+      client_format: Client muss eine Kennung aus Buchstaben, Zahlen, Punkt, Unterstrich oder Bindestrich sein (max.
+        120).
+      actor_format: Urheber darf nicht leer sein (max. 255 Zeichen).
+      preview_changed: Der Lookup wurde seit der Vorschau geändert. Bitte Import erneut prüfen und bestätigen.
+      duplicate: Dieses Zertifikat ist unter diesem Lookup bereits vorhanden.
+      missing_lookup: Lookup ist nicht mehr vorhanden.
+      archived_activation: Archivierte Zertifikate können nicht aktiviert werden.
+      missing_version: Version wurde entfernt.
+      invalid_status: Ungültiger Puppet-Status.
+      lookup_changed: Der Lookup wurde geändert. Bitte Seite neu laden.
+      no_inventory: Für diesen Bereich ist kein Dateibestand konfiguriert. Index aktualisieren.
+      inventory_unavailable: Der Dateibestand ist nicht erreichbar. Bitte Einbindung und Zugriffsrechte prüfen.
+      file_outside: Datei liegt außerhalb des Altbestands.
+      file_missing: Datei ist nicht mehr vorhanden.
+      file_size: Datei ist größer als 20 MB.
+      file_unreadable: Datei ist für die Anwendung nicht lesbar.
+      inventory_incomplete_cert: Zertifikat im Dateibestand ist unvollständig.
+      inventory_invalid_cert: Zertifikat im Dateibestand ist ungültig.
+      inventory_symlinks: Verknüpfte Verzeichnisse im Dateibestand können nicht vollständig geprüft werden.
+      inventory_unreadable: Der Dateibestand ist nicht vollständig lesbar. Bitte Einbindung und Zugriffsrechte prüfen.
+      inventory_duplicate: 'Upload abgelehnt: Mindestens ein Zertifikat ist bereits im Dateibestand vorhanden.'
+      no_matching_key: Kein passender privater Schlüssel vorhanden.
+      protected_key: Privater Schlüssel ist geschützt oder ungültig. Quellpasswort prüfen.
+      unknown_export: Unbekanntes Exportformat.
+      reader_export: Reader dürfen keine Zertifikate exportieren.
+      key_export_role: Für private Schlüssel ist zusätzlich die Rolle Key Exporter im jeweiligen Bereich erforderlich.
+      export_password: Für diesen Export ein Passwort mit mindestens 12 Zeichen angeben.
+      der_export: DER exportiert ein einzelnes Zertifikat. Für Schlüssel oder Ketten bitte PEM, PFX oder JKS wählen.
+      read_permission: Keine Leseberechtigung.
+      no_private_key: Kein privater Schlüssel vorhanden.
+      unsupported_source: Diese Datenquelle wird nicht unterstützt.
+      source_changed: >-
+        Die Quelle enthält inzwischen ein anderes Zertifikat. Der gespeicherte Eintrag bleibt erhalten; diese Version
+        kann aus der aktuellen Quelle nicht exportiert werden.
+      key_mismatch: Schlüssel passt nicht zum Zertifikat.
+      invalid_material: Zertifikatsdaten sind ungültig oder wurden geändert.
+      input_size: Datei ist leer oder größer als 20 MB.
+      unsupported_input: Keine unterstützten Zertifikate oder privaten Schlüssel gefunden.
+      parse_input: Datei konnte nicht gelesen werden. Format und Passwort prüfen.
+      key_version: Unbekannte Schlüsselversion.
+      key_decrypt: Privater Schlüssel konnte nicht entschlüsselt werden.
+      jks_incomplete: JKS-Datei ist unvollständig.
+      jks_integrity: JKS-Passwort oder Integritätsprüfung ungültig.
+      jks_format: Ungültiges JKS-Format.
+      jks_version: Nur JKS-Version 1 und 2 werden unterstützt.
+      jks_count: Zu viele JKS-Einträge.
+      jks_encryption: Unbekannte JKS-Schlüsselverschlüsselung.
+      jks_chain: Zu lange JKS-Kette.
+      jks_entry: Unbekannter JKS-Eintrag.
+      jks_extra: Zusätzliche Daten in JKS-Datei.
+      jks_read: JKS konnte nicht gelesen werden. Store- und Schlüsselpasswort müssen übereinstimmen.
+      password_required: Bitte ein Exportpasswort angeben.
+      jks_key: Ungültiger JKS-Schlüssel.
+      jks_key_password: JKS-Schlüsselpasswort ungültig.
+      x509_only: Nur X.509-Zertifikate werden unterstützt.
+      p12_iterations: PKCS#12-Iterationszahl außerhalb des unterstützten Bereichs.
+      p12_version: Nur PKCS#12-Version 3 wird unterstützt.
+      p12_integrity_required: PKCS#12 benötigt passwortbasierte Integritätsprüfung.
+      p12_mac: Unbekannter PKCS#12-MAC.
+      p12_integrity: PKCS#12-Passwort oder Integritätsprüfung ungültig.
+      p12_content: Nicht unterstützter PKCS#12-Inhalt.
+      p12_read: PKCS#12 konnte nicht gelesen werden. Format, Verschlüsselung und Passwort prüfen.
+      p12_depth: PKCS#12-Struktur ist zu tief verschachtelt.
+      p12_count: Zu viele PKCS#12-Einträge.
+      p12_entry: PKCS#12 enthält einen nicht unterstützten Eintrag.
+      pbkdf2_only: Nur PBKDF2 wird unterstützt.
+      p12_legacy: Diese ältere PKCS#12-Verschlüsselung wird nicht unterstützt. Bitte als AES- oder 3DES-PFX bereitstellen.
+      writer_required: Für diese Aktion ist die Writer-Rolle im Bereich %{area} erforderlich.
+      area_secret: Für %{area} fehlt ein gültiges Verschlüsselungs-Secret (32 Byte, Base64).
+      concurrent_change: Gleichzeitige Änderung erkannt. Bitte erneut versuchen.
+    format: "%{attribute} %{message}"
+    messages:
+      blank: darf nicht leer sein
+      taken: ist bereits vergeben
+      inclusion: ist kein zulässiger Wert
+      invalid: ist ungültig
+  notices:
+    archived: Zertifikat archiviert. Der Puppet-Löschauftrag wurde gespeichert.
+    status_saved: Puppet-Status gespeichert.
+    version_activated: Version für Puppet aktiviert.
+    imported:
+      one: "%{count} Zertifikat gespeichert."
+      other: "%{count} Zertifikate gespeichert."
+    partial_import:
+      one: "%{count} Zertifikat gespeichert. Einige Einträge konnten nicht gespeichert werden."
+      other: "%{count} Zertifikate gespeichert. Einige Einträge konnten nicht gespeichert werden."
+  audit:
+    actions:
+      archive: Zertifikat archiviert
+      status_change: Puppet-Status geändert
+      import: Import / neue Version
+      activate: Version aktiviert
+      delete: Version gelöscht
+      export_public: Zertifikate exportiert
+      export_private: Zertifikate mit privaten Schlüsseln exportiert
+    archive_comment: >-
+      Archivierung bestätigt: aus der Übersicht ausgeblendet, weiterhin suchbar; Puppet-Löschauftrag gesetzt. Zertifikatsdaten
+      und Schlüssel bleiben gespeichert.
+  language_name: Deutsch
   date:
     formats:
       default: "%d.%m.%Y"
   time:
     formats:
       default: "%d.%m.%Y %H:%M"
-  errors:
-    messages:
-      blank: "darf nicht leer sein"
-      taken: "ist bereits vergeben"
+      short: "%d.%m.%Y, %H:%M"
+      long: "%d.%m.%Y, %H:%M:%S %Z"
+  number:
+    format:
+      separator: ","
+      delimiter: "."
+  support:
+    array:
+      words_connector: ", "
+      two_words_connector: " und "
+      last_word_connector: " und "

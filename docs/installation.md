@@ -280,6 +280,7 @@ rotated independently; doing so invalidates existing login sessions.
 | Symptom | Check |
 | --- | --- |
 | Search remains empty | Indexer logs, `CCI_LEGACY_PATHS` and container mounts, file permissions, roles and Consul connectivity |
+| An error page shows a request ID without technical details | Check the Rails application log. `CCI_SHOW_ERROR_DETAILS=true` enables exception messages and stack traces for all visitors after restarting web. See [error pages and diagnostics](environment.md#error-pages-and-diagnostics). |
 | Startup rejects area configuration | `CCI_AREAS` JSON, valid IDs/display names, and absolute `CCI_LEGACY_PATHS` |
 | Upload with a private key fails | Correct Base64 encoding and exactly 32 decoded bytes in the area's secret |
 | Reader sees no export action | Expected; Writer is required, plus Key Exporter for private keys |

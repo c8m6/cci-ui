@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["button"]
+  static values = { light: String, dark: String }
   buttonTargetConnected() {
     if (this.element.dataset.theme) this.apply(this.element.dataset.theme)
   }
@@ -17,7 +18,7 @@ export default class extends Controller {
   apply(theme) {
     this.element.dataset.theme = theme
     this.buttonTarget.textContent = theme === "slate" ? "☀" : "☾"
-    const label = theme === "slate" ? "Helles Farbschema verwenden" : "Dunkles Farbschema verwenden"
+    const label = theme === "slate" ? this.lightValue : this.darkValue
     this.buttonTarget.setAttribute("aria-label", label)
     this.buttonTarget.title = label
     this.buttonTarget.setAttribute("aria-pressed", String(theme === "slate"))

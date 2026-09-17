@@ -38,10 +38,10 @@ every 60 seconds.
 
 ## Screenshots
 
-These screenshots show the actual application using **synthetic demonstration
+These screenshots show the actual application in English using **synthetic demonstration
 data only**: example domains, generated certificates and demo identities.
 They contain no real certificate, organization or user information. PuppetDB host
-associations are synthetic as well. See the [capture instructions](docs/screenshots.md)
+associations are synthetic as well. See the [capture script](script/screenshots/capture.cjs)
 to reproduce the screenshots in an isolated demo environment.
 
 ### Certificate overview
@@ -126,10 +126,11 @@ and [fact formats and synchronization](docs/puppetdb.md).
 - [Environment variables and file-free deployment](docs/environment.md)
 - [Technical architecture and data storage](docs/technik.md)
 - [Consul schema, version selection and Ruby import/read examples](docs/consul-schema.md)
+- [Interface languages and adding translations](docs/localization.md)
 - [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)
 - [Puppet integration and idempotence](docs/puppet.md)
 - [PuppetDB host inventory](docs/puppetdb.md)
-- [Reproducing documentation screenshots](docs/screenshots.md)
+- [Documentation screenshot capture script](script/screenshots/capture.cjs)
 
 ## Tests
 

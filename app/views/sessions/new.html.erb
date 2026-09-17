@@ -1,16 +1,16 @@
-<% content_for :title, "Anmelden" %>
+<% content_for :title, t("ui.login") %>
 <section class="login-card panel">
-  <span class="eyebrow">WILLKOMMEN BEI CERTUI</span>
-  <h1>Alles für Ihre Zertifikate.<br>An einem Ort.</h1>
-  <p class="muted">Zertifikate finden, sicher verwalten und im passenden Format bereitstellen.</p>
+  <span class="eyebrow"><%= t("ui.welcome") %></span>
+  <h1><%= t("ui.login_heading") %><br><%= t("ui.login_heading_end") %></h1>
+  <p class="muted"><%= t("ui.login_description") %></p>
   <% if ENV["AUTH_MODE"] == "local" %>
-    <h2>Lokale Testanmeldung</h2><p class="muted">Wählen Sie eine Rolle, um deren Berechtigungen zu erproben.</p>
+    <h2><%= t("ui.local_login") %></h2><p class="muted"><%= t("ui.local_login_help") %></p>
     <%= form_with url: local_login_path do |form| %>
-      <%= form.label :identity, "Testidentität" %>
+      <%= form.label :identity, t("ui.test_identity") %>
       <%= form.select :identity, SessionsController.local_identities.map { |id, (label, _roles)| [label, id] } %>
-      <%= form.submit "Workspace öffnen →", class: "button primary full-width" %>
+      <%= form.submit t("ui.open_workspace"), class: "button primary full-width" %>
     <% end %>
   <% else %>
-    <%= button_to "Mit Keycloak anmelden →", "/auth/keycloak", class: "button primary", data: { turbo: false } %>
+    <%= button_to t("ui.keycloak_login"), "/auth/keycloak", class: "button primary", data: { turbo: false } %>
   <% end %>
 </section>

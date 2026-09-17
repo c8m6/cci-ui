@@ -1,50 +1,50 @@
-<% content_for :title, "Zertifikate" %>
-<div class="page-heading"><div><span class="eyebrow">IHR ZERTIFIKATSBESTAND</span><h1>Zertifikate</h1><p class="muted">Alles finden. Gültigkeit prüfen. Sicher bereitstellen.</p></div>
-<% if current_identity.any_writer? %><%= link_to new_import_path, class: "button primary" do %><%= icon("upload") %> Zertifikate importieren<% end %><% end %></div>
-<section class="stats" aria-label="Bestandsübersicht">
-  <div class="stat-card"><span>Aktuelle Zertifikate</span><strong><%= number_with_delimiter(@stats[:total], delimiter: ".") %></strong><small>In Ihren berechtigten Bereichen</small></div>
-  <div class="stat-card"><span><i class="dot warning"></i> Läuft bald ab</span><strong><%= @stats[:expiring] %></strong><small>Innerhalb der nächsten 30 Tage</small></div>
-  <div class="stat-card"><span><i class="dot danger"></i> Abgelaufen</span><strong><%= @stats[:expired] %></strong><small>Erneuerung prüfen</small></div>
+<% content_for :title, t("ui.certificates") %>
+<div class="page-heading"><div><span class="eyebrow"><%= t("ui.inventory_title") %></span><h1><%= t("ui.certificates") %></h1><p class="muted"><%= t("ui.inventory_subtitle") %></p></div>
+<% if current_identity.any_writer? %><%= link_to new_import_path, class: "button primary" do %><%= icon("upload") %> <%= t("ui.import_certificates") %><% end %><% end %></div>
+<section class="stats" aria-label="<%= t('ui.inventory_summary') %>">
+  <div class="stat-card"><span><%= t("ui.current_certificates") %></span><strong><%= number_with_delimiter(@stats[:total]) %></strong><small><%= t("ui.authorized_areas") %></small></div>
+  <div class="stat-card"><span><i class="dot warning"></i> <%= t("ui.expiring") %></span><strong><%= @stats[:expiring] %></strong><small><%= t("ui.next_30_days") %></small></div>
+  <div class="stat-card"><span><i class="dot danger"></i> <%= t("ui.expired") %></span><strong><%= @stats[:expired] %></strong><small><%= t("ui.check_renewal") %></small></div>
 </section>
-<section class="panel catalog" data-controller="selection">
+<section class="panel catalog" data-controller="selection" data-selection-messages-value="<%= t("ui.selected").to_json %>">
   <%= form_with url: certificates_path, method: :get, class: "search-form", data: { controller: "search", turbo_frame: "results", turbo_action: "advance" } do |form| %>
-    <div class="search-box"><%= icon("search") %><%= form.search_field :q, value: params[:q], placeholder: "Name, Domain, IP, Aussteller, Seriennummer oder Fingerprint suchen …", aria: { label: "Zertifikate durchsuchen" }, data: { action: "input->search#schedule" } %><kbd>Suche</kbd></div>
+    <div class="search-box"><%= icon("search") %><%= form.search_field :q, value: params[:q], placeholder: t("ui.search_placeholder"), aria: { label: t("ui.search_certificates") }, data: { action: "input->search#schedule" } %><kbd><%= t("ui.search_hint") %></kbd></div>
     <div class="filters">
-      <label>Bereich<%= form.select :area, [["Alle Bereiche", ""], *current_identity.areas.map { |a| [area_label(a), a] }], { selected: params[:area] }, data: { action: "change->search#submit" } %></label>
-      <label>Gültigkeit<%= form.select :status, [["Alle Gültigkeiten", ""], ["Gültig", "valid"], ["Läuft bald ab", "soon"], ["Abgelaufen", "expired"], ["Noch nicht gültig", "future"]], { selected: params[:status] }, data: { action: "change->search#submit" } %></label>
-      <label>Puppet-Status<%= form.select :rollout_status, [["Alle Puppet-Status", ""], *ConsulStore::ROLLOUT_STATUSES.map { |status| [status, status] }], { selected: params[:rollout_status] }, data: { action: "change->search#submit" } %></label>
-      <label>Quelle<%= form.select :source, [["Alle Quellen", ""], ["Dateibestand", "filesystem"], ["Consul", "consul"]], { selected: params[:source] }, data: { action: "change->search#submit" } %></label>
-      <label>Schlüssel<%= form.select :key, [["Alle", ""], ["Vorhanden", "1"], ["Nicht vorhanden", "0"]], { selected: params[:key] }, data: { action: "change->search#submit" } %></label>
-      <label>Sortierung<%= form.select :sort, [["Ablaufdatum", "ablauf"], ["Name", "name"], ["Neueste zuerst", "neueste"]], { selected: params[:sort] }, data: { action: "change->search#submit" } %></label>
-      <label class="check-label"><%= form.check_box :archived, { checked: params[:archived] == "1", data: { action: "change->search#submit" } }, "1", "0" %> Archivierte einschließen</label>
-      <label class="check-label"><%= form.check_box :history, { checked: params[:history] == "1", data: { action: "change->search#submit" } }, "1", "0" %> Alte Versionen</label>
-      <%= form.submit "Suchen", class: "button secondary" %>
+      <label><%= t("ui.area") %><%= form.select :area, [[t("ui.all_areas"), ""], *current_identity.areas.map { |a| [area_label(a), a] }], { selected: params[:area] }, data: { action: "change->search#submit" } %></label>
+      <label><%= t("ui.validity") %><%= form.select :status, [[t("ui.all_validities"), ""], [t("ui.valid"), "valid"], [t("ui.expiring"), "soon"], [t("ui.expired"), "expired"], [t("ui.future"), "future"]], { selected: params[:status] }, data: { action: "change->search#submit" } %></label>
+      <label><%= t("ui.puppet_status") %><%= form.select :rollout_status, [[t("ui.all_puppet_statuses"), ""], *ConsulStore::ROLLOUT_STATUSES.map { |status| [status, status] }], { selected: params[:rollout_status] }, data: { action: "change->search#submit" } %></label>
+      <label><%= t("ui.source") %><%= form.select :source, [[t("ui.all_sources"), ""], [t("ui.filesystem"), "filesystem"], ["Consul", "consul"]], { selected: params[:source] }, data: { action: "change->search#submit" } %></label>
+      <label><%= t("ui.key") %><%= form.select :key, [[t("ui.all"), ""], [t("ui.present"), "1"], [t("ui.absent"), "0"]], { selected: params[:key] }, data: { action: "change->search#submit" } %></label>
+      <label><%= t("ui.sorting") %><%= form.select :sort, [[t("ui.expiry_date"), "ablauf"], [t("ui.name"), "name"], [t("ui.newest_first"), "neueste"]], { selected: params[:sort] }, data: { action: "change->search#submit" } %></label>
+      <label class="check-label"><%= form.check_box :archived, { checked: params[:archived] == "1", data: { action: "change->search#submit" } }, "1", "0" %> <%= t("ui.include_archived") %></label>
+      <label class="check-label"><%= form.check_box :history, { checked: params[:history] == "1", data: { action: "change->search#submit" } }, "1", "0" %> <%= t("ui.old_versions") %></label>
+      <%= form.submit t("ui.search"), class: "button secondary" %>
     </div>
   <% end %>
   <%= turbo_frame_tag "results" do %>
-    <div class="results-heading"><h2><%= @total %> <%= @total == 1 ? "Zertifikat" : "Zertifikate" %></h2><span class="muted small">UND-Suche · alle Datenquellen · Suchbegriffe finden auch archivierte Zertifikate</span></div>
+    <div class="results-heading"><h2><%= t("ui.certificate_count", count: @total) %></h2><span class="muted small"><%= t("ui.search_description") %></span></div>
     <%= form_with url: export_certificates_path, data: { turbo: false }, class: "export-form" do |form| %>
-      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="Alle exportierbaren Zertifikate dieser Seite auswählen" data-action="selection#toggleAll"><% end %></th><th>Zertifikat / Aussteller</th><th>Bereich</th><th>Gültigkeit</th><th>Puppet-Status</th><% if puppetdb_enabled? %><th>Hosts</th><% end %><th>Gültig bis</th><th>Quelle</th><th>Puppet-Lookup</th><th><span class="sr-only">Details</span></th></tr></thead>
+      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="<%= t('ui.select_all') %>" data-action="selection#toggleAll"><% end %></th><th><%= t("ui.certificate_issuer") %></th><th><%= t("ui.area") %></th><th><%= t("ui.validity") %></th><th><%= t("ui.puppet_status") %></th><% if puppetdb_enabled? %><th><%= t("ui.hosts") %></th><% end %><th><%= t("ui.valid_until") %></th><th><%= t("ui.source") %></th><th><%= t("ui.puppet_lookup") %></th><th><span class="sr-only"><%= t("ui.details") %></span></th></tr></thead>
       <tbody>
       <% @certificates.each do |cert| %>
-        <tr><td><% if current_identity.export?(cert.area) %><%= check_box_tag "ids[]", cert.id, false, aria: { label: "#{cert.common_name} auswählen" }, data: { selection_target: "checkbox", action: "selection#update" } %><% end %></td>
-        <td class="certificate-cell"><%= link_to certificate_path(cert), data: { turbo_frame: "_top" }, class: "certificate-name" do %><%= cert.common_name %><% end %><% if cert.archived %> <span class="badge neutral">Archiviert</span><% end %><% if cert.has_key %><span title="Schlüsseldatei vorhanden"><%= icon("key") %></span><% end %><div class="truncate muted small" title="<%= cert.issuer %>"><%= cert.issuer %></div><% if cert.tags.any? %><div class="tags"><% cert.tags.each do |tag| %><span><%= tag %></span><% end %></div><% end %></td>
+        <tr><td><% if current_identity.export?(cert.area) %><%= check_box_tag "ids[]", cert.id, false, aria: { label: t("ui.select_certificate", name: cert.common_name) }, data: { selection_target: "checkbox", action: "selection#update" } %><% end %></td>
+        <td class="certificate-cell"><%= link_to certificate_path(cert), data: { turbo_frame: "_top" }, class: "certificate-name" do %><%= cert.common_name %><% end %><% if cert.archived %> <span class="badge neutral"><%= t("ui.archived") %></span><% end %><% if cert.has_key %><span title="<%= t('ui.key_present') %>"><%= icon("key") %></span><% end %><div class="truncate muted small" title="<%= cert.issuer %>"><%= cert.issuer %></div><% if cert.tags.any? %><div class="tags"><% cert.tags.each do |tag| %><span><%= tag %></span><% end %></div><% end %></td>
         <td><span class="area-pill"><%= area_label(cert.area) %></span></td>
-        <td><span class="badge <%= cert.status_class %>"><%= cert.status %></span><% unless cert.active %><div class="muted small">Alte Version</div><% end %></td>
-        <td><% if cert.source == "consul" %><span class="badge neutral"><%= cert.rollout_status %></span><% else %><span class="muted" title="Dateibestand: kein steuerbarer Puppet-Status">–</span><% end %></td>
+        <td><span class="badge <%= cert.status_class %>"><%= cert.status %></span><% unless cert.active %><div class="muted small"><%= t("ui.old_version") %></div><% end %></td>
+        <td><% if cert.source == "consul" %><span class="badge neutral"><%= cert.rollout_status %></span><% else %><span class="muted" title="<%= t('ui.filesystem_status_hint') %>">–</span><% end %></td>
         <% if puppetdb_enabled? %><td class="puppetdb-host-count">
-          <% if cert.puppetdb_checked_at %><%= link_to cert.puppetdb_hosts.size, certificate_path(cert, anchor: "puppetdb-hosts"), data: { turbo_frame: "_top" }, aria: { label: "Hosts zu #{cert.common_name}" } %><% else %><span title="Noch keine erfolgreiche PuppetDB-Abfrage">–</span><% end %>
-          <% if cert.puppetdb_refresh_failed? %><div class="muted small">Abfrage fehlgeschlagen</div><% end %>
-          <% if puppetdb_fingerprint_missing?(cert) %><div class="muted small">Fingerprint fehlt</div><% end %>
+          <% if cert.puppetdb_checked_at %><%= link_to cert.puppetdb_hosts.size, certificate_path(cert, anchor: "puppetdb-hosts"), data: { turbo_frame: "_top" }, aria: { label: t("ui.hosts_for", name: cert.common_name) } %><% else %><span title="<%= t('ui.puppetdb_pending') %>">–</span><% end %>
+          <% if cert.puppetdb_refresh_failed? %><div class="muted small"><%= t("ui.query_failed") %></div><% end %>
+          <% if puppetdb_fingerprint_missing?(cert) %><div class="muted small"><%= t("ui.fingerprint_missing") %></div><% end %>
         </td><% end %>
-        <td class="nowrap"><%= date_label(cert.not_after) %></td><td><span class="source-label"><%= cert.source_label %></span></td><td class="lookup-cell mono"><%= cert.lookup.presence || "Issuer / Subject (Hiera)" %></td>
-        <td><%= link_to certificate_path(cert), aria: { label: "Details zu #{cert.common_name}" }, data: { turbo_frame: "_top" }, class: "row-link" do %><%= icon("arrow") %><% end %></td></tr>
+        <td class="nowrap"><%= date_label(cert.not_after) %></td><td><span class="source-label"><%= cert.source_label %></span></td><td class="lookup-cell mono"><%= cert.lookup.presence || t("ui.issuer_subject") %></td>
+        <td><%= link_to certificate_path(cert), aria: { label: t("ui.details_for", name: cert.common_name) }, data: { turbo_frame: "_top" }, class: "row-link" do %><%= icon("arrow") %><% end %></td></tr>
       <% end %>
       </tbody></table></div>
-      <% if @total.zero? %><div class="empty-state"><%= icon("search") %><h2>Keine Zertifikate gefunden</h2><p>Ändern Sie die Filter oder importieren Sie Zertifikate.<br>Ein neu eingebundener Dateibestand wird automatisch indexiert.</p></div><% end %>
-      <% if current_identity.any_writer? %><div class="batch-toolbar"><span data-selection-target="count">Auswahl exportieren</span><%= render "export_fields", form: form, writer: current_identity.any_key_exporter? %><%= form.submit "Exportieren ↓", class: "button secondary" %></div><% end %>
+      <% if @total.zero? %><div class="empty-state"><%= icon("search") %><h2><%= t("ui.no_certificates") %></h2><p><%= t("ui.empty_filters") %><br><%= t("ui.empty_index") %></p></div><% end %>
+      <% if current_identity.any_writer? %><div class="batch-toolbar"><span data-selection-target="count"><%= t("ui.export_selection") %></span><%= render "export_fields", form: form, writer: current_identity.any_key_exporter? %><%= form.submit t("ui.export_button"), class: "button secondary" %></div><% end %>
     <% end %>
-    <div class="pagination"><span class="muted small">Seite <%= @page %> von <%= @pages %></span><div><% if @page > 1 %><%= link_to "← Zurück", certificates_path(filter_params.merge(page: @page - 1)), class: "button quiet" %><% end %><% if @page < @pages %><%= link_to "Weiter →", certificates_path(filter_params.merge(page: @page + 1)), class: "button quiet" %><% end %></div></div>
+    <div class="pagination"><span class="muted small"><%= t("ui.page", page: @page, pages: @pages) %></span><div><% if @page > 1 %><%= link_to t("ui.back"), certificates_path(filter_params.merge(page: @page - 1)), class: "button quiet" %><% end %><% if @page < @pages %><%= link_to t("ui.next"), certificates_path(filter_params.merge(page: @page + 1)), class: "button quiet" %><% end %></div></div>
   <% end %>
 </section>
-<p class="index-note">Stand des Suchindex: <%= @indexed_at ? @indexed_at.strftime("%d.%m.%Y, %H:%M") : "Indexierung steht noch aus" %></p>
+<p class="index-note"><%= t("ui.index_updated", time: @indexed_at ? l(@indexed_at, format: :short) : t("ui.index_pending")) %></p>
