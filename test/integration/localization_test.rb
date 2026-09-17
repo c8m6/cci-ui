@@ -122,9 +122,51 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     token = css_select('input[name="token"]').first["value"]
     delete logout_path
     post local_login_path, params: { identity: "zone_a_writer" }
-    get import_preview_path(token: token), headers: { "Accept-Language" => "en" }
-    assert_response :see_other
+    preview_path = import_preview_path(token: token)
+    get preview_path, headers: { "Accept-Language" => "en", "HTTP_REFERER" => "http://www.example.com#{preview_path}" }
+    assert_redirected_to new_import_path
     assert_equal "The preview has expired or is not available for this session.", flash[:alert]
+    follow_redirect!
+    assert_response :success
+    assert_select "h1", text: "Zertifikate importieren"
+  end
+
+  test "expired and consumed previews return to the import form without redirecting back" do
+    post locale_path, params: { locale: "en" }
+    post local_login_path, params: { identity: "zone_a_writer" }
+    cert, = issue
+    post imports_path, params: { areas: ["zone_a"], pem: cert.to_pem }
+    token = css_select('input[name="token"]').first["value"]
+    preview_path = import_preview_path(token: token)
+    draft = ImportDraft.find_by!(token: token)
+
+    [:expired, :consumed].each do |state|
+      state == :expired ? draft.update!(expires_at: 1.minute.ago) : draft.destroy!
+      [:get, :post].each do |method|
+        assert_no_difference "Certificate.count" do
+          headers = { "HTTP_REFERER" => "http://www.example.com#{preview_path}" }
+          if method == :get
+            get preview_path, headers: headers
+          else
+            post imports_path, params: { token: token }, headers: headers
+          end
+          assert_redirected_to new_import_path
+          follow_redirect!
+          assert_language "en"
+          assert_select ".flash-error", text: "The preview has expired or is not available for this session."
+          assert_select "h1", text: "Import certificates"
+        end
+      end
+    end
+  end
+
+  test "a reader with an unavailable preview returns to the catalog" do
+    post local_login_path, params: { identity: "zone_a_reader" }
+    preview_path = import_preview_path(token: "0" * 48)
+    get preview_path, headers: { "HTTP_REFERER" => "http://www.example.com#{preview_path}" }
+    assert_redirected_to root_path
+    follow_redirect!
+    assert_response :success
   end
 
   test "store outage handlers retain the browser language and restore the locale" do

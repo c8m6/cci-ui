@@ -33,8 +33,8 @@
       <details class="language-menu">
         <summary aria-label="<%= t('ui.language') %>" title="<%= t('ui.language') %>"><%= I18n.locale.to_s.upcase %><span aria-hidden="true">⌄</span></summary>
         <div class="language-options">
-          <%= form_with url: locale_path, data: { turbo: false } do |form| %>
-            <%= form.hidden_field :return_to, value: locale_return_path %>
+          <%= form_with url: locale_path, data: { turbo: false, controller: "locale", action: "submit->locale#prepare", locale_follow_location_value: request.get? } do |form| %>
+            <%= form.hidden_field :return_to, value: locale_return_path, data: { locale_target: "destination" } %>
             <% I18n.available_locales.each do |locale| %>
               <button type="submit" name="locale" value="<%= locale %>" lang="<%= locale %>" aria-pressed="<%= cookies.signed[:locale] == locale.to_s %>"><%= t('language_name', locale: locale) %></button>
             <% end %>

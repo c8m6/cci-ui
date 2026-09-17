@@ -61,3 +61,16 @@ docker compose -f compose.yml exec -T web ruby bin/rails test \
 docker compose -f compose.yml exec -T web ruby bin/rails test
 docker compose -f compose.yml up --build -d --wait
 ```
+
+The browser regression test exercises live Turbo search followed by a language
+change, and switching an existing POST-rendered import preview. Run it against
+the disposable screenshot stack with Node.js, OpenSSL and Puppeteer installed:
+
+```bash
+docker compose -f script/screenshots/compose.yml up --build -d --wait
+PUPPETEER_MODULE=/path/to/node_modules/puppeteer node --test test/browser/localization_test.cjs
+docker compose -f script/screenshots/compose.yml down
+```
+
+`PUPPETEER_EXECUTABLE_PATH` can select a compatible Chrome binary. The test
+creates an uncommitted synthetic preview. Removing the demo stack discards it.

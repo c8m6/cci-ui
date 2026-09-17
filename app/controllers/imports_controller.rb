@@ -1,4 +1,11 @@
 class ImportsController < ApplicationController
+  rescue_from Certificates::Error do |error|
+    # A preview can expire or be consumed. Redirecting back to its URL would
+    # repeat the same failure, so always return to a usable page.
+    destination = current_identity&.any_writer? ? new_import_path : root_path
+    redirect_to destination, alert: error.message, status: :see_other
+  end
+
   def new
     return head :forbidden unless current_identity.any_writer?
   end
