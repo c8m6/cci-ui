@@ -12,6 +12,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     const page = await browser.newPage();
     await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
     await page.emulateTimezone('Europe/Berlin');
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
@@ -20,6 +21,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     const ready = async () => {
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => Boolean(document.documentElement.dataset.theme));
+      assert.equal(await page.$eval('html', node => node.lang), 'en');
     };
     const capture = async filename => {
       await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
@@ -40,7 +42,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     await ready();
     const headers = await page.$$eval('thead th', cells => cells.map(cell => cell.textContent.trim()));
     assert(headers.includes('Hosts'));
-    assert(headers.includes('Puppet-Status'));
+    assert(headers.includes('Puppet status'));
     const portal = await page.$eval('a.certificate-name', () => {
       const link = [...document.querySelectorAll('a.certificate-name')].find(a => a.textContent === 'portal.example.test');
       return { url: link.href, hosts: link.closest('tr').querySelector('.puppetdb-host-count').textContent.trim() };
@@ -55,8 +57,8 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     await ready();
     const hosts = await page.$$eval('#puppetdb-hosts li', nodes => nodes.map(node => node.textContent));
     assert.deepEqual(hosts, ['proxy01.example.test', 'web01.example.test', 'web02.example.test']);
-    assert.equal(await page.$eval('.status-actions input[type=submit]', node => node.value), 'Status speichern');
-    assert.equal(await page.$eval('.status-actions a', node => node.textContent), 'Archivieren');
+    assert.equal(await page.$eval('.status-actions input[type=submit]', node => node.value), 'Save status');
+    assert.equal(await page.$eval('.status-actions a', node => node.textContent), 'Archive');
     await capture('details.png');
 
     await page.click('.account input[type=submit], .account button.text-button');
@@ -68,9 +70,9 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     await ready();
     // The top rows include the newest archive/status/export events.
     const audit = await page.$eval('.audit-table', node => node.textContent);
-    assert(audit.includes('Zertifikat archiviert'));
-    assert(audit.includes('Puppet-Status geändert'));
-    assert(audit.includes('Zertifikate exportiert'));
+    assert(audit.includes('Certificate archived'));
+    assert(audit.includes('Puppet status changed'));
+    assert(audit.includes('Certificates exported'));
     await capture('audit.png');
     assert.deepEqual(errors, []);
     console.log('Updated overview.png, details.png and audit.png; host counts, names and controls verified.');

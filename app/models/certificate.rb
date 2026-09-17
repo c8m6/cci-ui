@@ -7,21 +7,25 @@ class Certificate < ApplicationRecord
   def puppetdb_refresh_failed? = puppetdb_error_at.present?
 
   def status
-    return "Noch nicht gültig" if not_before > Time.current
-    return "Abgelaufen" if not_after <= Time.current
-    return "Läuft bald ab" if not_after < 30.days.from_now
-    "Gültig"
+    I18n.t("ui.#{status_key}")
+  end
+
+  def status_key
+    return "future" if not_before > Time.current
+    return "expired" if not_after <= Time.current
+    return "expiring" if not_after < 30.days.from_now
+    "valid"
   end
 
   def status_class
-    { "Noch nicht gültig" => "neutral", "Abgelaufen" => "danger", "Läuft bald ab" => "warning", "Gültig" => "success" }.fetch(status)
+    { "future" => "neutral", "expired" => "danger", "expiring" => "warning", "valid" => "success" }.fetch(status_key)
   end
 
-  def source_label = source == "consul" ? "Consul" : "Dateibestand"
+  def source_label = source == "consul" ? "Consul" : I18n.t("ui.filesystem")
 
   def origin_label
-    return "Dateibestand" if source == "filesystem"
-    return "Unbekannt (keine Client-Angabe)" if client.blank?
-    client == "cci-ui" ? "CCI-UI (Upload)" : "Externer Client: #{client}"
+    return I18n.t("ui.filesystem") if source == "filesystem"
+    return I18n.t("ui.unknown_client") if client.blank?
+    client == "cci-ui" ? I18n.t("ui.upload_origin") : I18n.t("ui.external_client", client: client)
   end
 end

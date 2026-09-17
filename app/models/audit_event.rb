@@ -1,11 +1,9 @@
 class AuditEvent < ApplicationRecord
-  ACTIONS = {
-    "archive" => "Zertifikat archiviert",
-    "status_change" => "Puppet-Status geändert",
-    "import" => "Import / neue Version", "activate" => "Version aktiviert",
-    "delete" => "Version gelöscht", "export_public" => "Zertifikate exportiert",
-    "export_private" => "Zertifikate mit privaten Schlüsseln exportiert"
-  }.freeze
+  ACTIONS = %w[archive status_change import activate delete export_public export_private].freeze
+
+  def self.action_label(action)
+    ACTIONS.include?(action) ? I18n.t("audit.actions.#{action}") : action
+  end
 
   scope :visible_to, ->(identity) { where(area: identity.audit_areas) }
   before_validation { self.occurred_at ||= Time.current }

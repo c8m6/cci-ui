@@ -33,12 +33,12 @@ File.write(legacy_root.join("monitor.pem"), legacy.to_pem)
 
 issued = {}
 [
-  ["portal.example.test", "zone_a", "portal.production", -5, "Produktion"],
-  ["portal.example.test", "zone_a", "portal.production", 180, "Produktion"],
-  ["api.example.test", "zone_a", "api.production", 18, "Produktion"],
-  ["gateway.example.test", "zone_b", "gateway.production", -7, "Erneuerung"],
+  ["portal.example.test", "zone_a", "portal.production", -5, "Production"],
+  ["portal.example.test", "zone_a", "portal.production", 180, "Production"],
+  ["api.example.test", "zone_a", "api.production", 18, "Production"],
+  ["gateway.example.test", "zone_b", "gateway.production", -7, "Renewal"],
   ["staging.example.test", "zone_b", "portal.staging", 90, "Staging"],
-  ["retired.example.test", "zone_b", "retired.service", 60, "Außer Betrieb"]
+  ["retired.example.test", "zone_b", "retired.service", 60, "Retired"]
 ].each_with_index do |(name, area, lookup, days, tag), index|
   cert, key = issue(name, serial: 10 + index, days: days, issuer: root, issuer_key: root_key)
   id = ConsulStore.save(area: area, cert: cert, key: key, chain: [root], tags: [tag],

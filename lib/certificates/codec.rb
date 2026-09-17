@@ -7,7 +7,7 @@ module Certificates
     MAX_BYTES = 20 * 1024 * 1024
 
     def self.parse(data, password: "")
-      raise Error, "Datei ist leer oder größer als 20 MB." if data.empty? || data.bytesize > MAX_BYTES
+      raise Error, Error.translate("errors.app.input_size", default: "Datei ist leer oder größer als 20 MB.") if data.empty? || data.bytesize > MAX_BYTES
       data = data.b
       if data.start_with?([0xfeedfeed].pack("N"))
         return Jks.load(data, password: password)
@@ -15,7 +15,7 @@ module Certificates
       if data.include?("-----BEGIN")
         certs = data.scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m).map { |pem| OpenSSL::X509::Certificate.new(pem) }
         keys = data.scan(/-----BEGIN (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----.*?-----END (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----/m).map { |pem| OpenSSL::PKey.read(pem, password) }
-        raise Error, "Keine unterstützten Zertifikate oder privaten Schlüssel gefunden." if certs.empty? && keys.empty?
+        raise Error, Error.translate("errors.app.unsupported_input", default: "Keine unterstützten Zertifikate oder privaten Schlüssel gefunden.") if certs.empty? && keys.empty?
         return Result.new(certificates: certs, keys: keys)
       end
       begin
@@ -25,7 +25,7 @@ module Certificates
       end
       Pkcs12.load(data, password: password)
     rescue OpenSSL::OpenSSLError, ArgumentError
-      raise Error, "Datei konnte nicht gelesen werden. Format und Passwort prüfen."
+      raise Error, Error.translate("errors.app.parse_input", default: "Datei konnte nicht gelesen werden. Format und Passwort prüfen.")
     end
 
     def self.fingerprint(cert)

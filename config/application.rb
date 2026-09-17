@@ -11,6 +11,7 @@ module Certui
     config.load_defaults 8.1
     config.time_zone = "Berlin"
     config.i18n.default_locale = :de
+    config.i18n.available_locales = Dir[root.join("config/locales/*.yml")].map { |path| File.basename(path, ".yml").to_sym }
     config.autoload_lib(ignore: %w[assets tasks])
     config.filter_parameters += %i[password private_key key pem content file files token secret authorization]
     config.action_dispatch.cookies_same_site_protection = :lax

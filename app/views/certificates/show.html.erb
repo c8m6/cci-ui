@@ -1,51 +1,51 @@
 <% content_for :title, @certificate.common_name %>
-<%= link_to "← Alle Zertifikate", root_path, class: "back-link" %>
-<div class="page-heading"><div><span class="eyebrow">ZERTIFIKATSDETAILS</span><h1 class="break-word"><%= @certificate.common_name %></h1><p><span class="area-pill"><%= area_label(@certificate.area) %></span> <span class="badge <%= @certificate.status_class %>"><%= @certificate.status %></span> <span class="source-label"><%= @certificate.source_label %></span></p></div></div>
-<div class="detail-grid"><section class="panel detail-panel"><h2>Überblick</h2><dl>
-  <% if @certificate.source == "consul" %><dt>Archivstatus</dt><dd><%= @archived ? "Archiviert" : "Nicht archiviert" %></dd><% end %>
-  <dt>Puppet-Status</dt><dd><%= @certificate.source == "consul" ? @rollout_status : "Nicht steuerbar (Dateibestand)" %></dd>
-  <dt>Speicherort</dt><dd><%= @certificate.source_label %></dd>
-  <dt>Quelle / Client</dt><dd><%= @certificate.origin_label %></dd>
-  <dt>Erstellt durch</dt><dd><%= @certificate.created_by.presence || "Unbekannt (nicht erfasst)" %></dd>
-  <dt>Subject</dt><dd><%= @certificate.subject %></dd><dt>Aussteller</dt><dd><%= @certificate.issuer %></dd>
-  <dt>Gültigkeit</dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %></dd>
-  <dt>Alternative Namen (SAN)</dt><dd><% @certificate.sans.each do |san| %><span class="san"><%= san %></span><% end %><%= "Keine" if @certificate.sans.empty? %></dd>
-  <dt>Seriennummer (Hex)</dt><dd class="mono"><%= @certificate.serial %></dd><dt>SHA-256-Fingerprint</dt><dd class="mono"><%= @certificate.fingerprint %></dd>
-  <dt>Signaturalgorithmus</dt><dd><%= @certificate.algorithm %></dd><dt>Schlüsseldatei</dt><dd><%= @certificate.has_key ? "Vorhanden · Zuordnung wird beim Export geprüft" : "Nicht vorhanden" %></dd>
-  <dt>Tags</dt><dd><%= @certificate.tags.join(", ").presence || "Keine" %></dd>
-  <% if @certificate.lookup %><dt>Puppet-Lookup</dt><dd class="mono"><%= @certificate.lookup %></dd><% end %>
-</dl></section><section class="panel detail-panel"><% if @material %><h2>Zertifikatskette</h2><ol class="chain-list"><% [@material[:certificate], *@material[:chain]].each do |cert| %><li><% linked = @chain_records[Certificates::Codec.fingerprint(cert)] %><% if linked %><%= link_to Certificates::Codec.metadata(cert)[:common_name], certificate_path(linked) %><% else %><%= Certificates::Codec.metadata(cert)[:common_name] %><span class="muted small"> · Kein eigener zugänglicher Eintrag</span><% end %></li><% end %></ol>
+<%= link_to t("ui.back_certificates"), root_path, class: "back-link" %>
+<div class="page-heading"><div><span class="eyebrow"><%= t("ui.certificate_details") %></span><h1 class="break-word"><%= @certificate.common_name %></h1><p><span class="area-pill"><%= area_label(@certificate.area) %></span> <span class="badge <%= @certificate.status_class %>"><%= @certificate.status %></span> <span class="source-label"><%= @certificate.source_label %></span></p></div></div>
+<div class="detail-grid"><section class="panel detail-panel"><h2><%= t("ui.summary") %></h2><dl>
+  <% if @certificate.source == "consul" %><dt><%= t("ui.archive_status") %></dt><dd><%= @archived ? t("ui.archived") : t("ui.not_archived") %></dd><% end %>
+  <dt><%= t("ui.puppet_status") %></dt><dd><%= @certificate.source == "consul" ? @rollout_status : t("ui.filesystem_unmanaged") %></dd>
+  <dt><%= t("ui.storage_location") %></dt><dd><%= @certificate.source_label %></dd>
+  <dt><%= t("ui.source_client") %></dt><dd><%= @certificate.origin_label %></dd>
+  <dt><%= t("ui.created_by") %></dt><dd><%= @certificate.created_by.presence || t("ui.unknown_creator") %></dd>
+  <dt><%= t("ui.subject") %></dt><dd><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd><%= @certificate.issuer %></dd>
+  <dt><%= t("ui.validity") %></dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %></dd>
+  <dt><%= t("ui.sans") %></dt><dd><% @certificate.sans.each do |san| %><span class="san"><%= san %></span><% end %><%= t("ui.none") if @certificate.sans.empty? %></dd>
+  <dt><%= t("ui.serial_hex") %></dt><dd class="mono"><%= @certificate.serial %></dd><dt><%= t("ui.fingerprint") %></dt><dd class="mono"><%= @certificate.fingerprint %></dd>
+  <dt><%= t("ui.algorithm") %></dt><dd><%= @certificate.algorithm %></dd><dt><%= t("ui.key_file") %></dt><dd><%= @certificate.has_key ? t("ui.key_export_check") : t("ui.absent") %></dd>
+  <dt><%= t("ui.tags") %></dt><dd><%= @certificate.tags.join(", ").presence || t("ui.none") %></dd>
+  <% if @certificate.lookup %><dt><%= t("ui.puppet_lookup") %></dt><dd class="mono"><%= @certificate.lookup %></dd><% end %>
+</dl></section><section class="panel detail-panel"><% if @material %><h2><%= t("ui.chain") %></h2><ol class="chain-list"><% [@material[:certificate], *@material[:chain]].each do |cert| %><li><% linked = @chain_records[Certificates::Codec.fingerprint(cert)] %><% if linked %><%= link_to Certificates::Codec.metadata(cert)[:common_name], certificate_path(linked) %><% else %><%= Certificates::Codec.metadata(cert)[:common_name] %><span class="muted small"> <%= t("ui.no_chain_record") %></span><% end %></li><% end %></ol>
 <% root_cert = @material[:chain].last || @material[:certificate] %>
-<p class="muted small"><%= root_cert.subject == root_cert.issuer && root_cert.verify(root_cert.public_key) ? "Kette bis zum selbstsignierten Zertifikat vorhanden. Dies ist keine Vertrauensprüfung." : "Kette unvollständig: Ein Ausstellerzertifikat fehlt oder ist nicht zugänglich." %></p>
-<% if current_identity.export?(@certificate.area) %><h2>Exportieren</h2><%= form_with url: export_certificates_path, data: { turbo: false }, class: "detail-export" do |form| %><%= hidden_field_tag "ids[]", @certificate.id %><%= render "export_fields", form: form, writer: current_identity.export_key?(@certificate.area) %><% if @certificate.source == "filesystem" && current_identity.export_key?(@certificate.area) %><%= form.password_field :source_password, placeholder: "Quellpasswort, falls Schlüssel geschützt", aria: { label: "Passwort des gespeicherten Schlüssels" }, autocomplete: "off" %><% end %><%= form.submit "Zertifikat herunterladen ↓", class: "button primary" %><% end %>
-<% end %><% else %><h2>Quelldaten nicht verfügbar</h2><p>Die gespeicherten Zertifikatsdetails bleiben erhalten. Export und Zertifikatskette sind erst verfügbar, wenn die passende Quelle wieder lesbar ist.</p><p class="muted"><%= @material_error %></p><% end %></section></div>
+<p class="muted small"><%= root_cert.subject == root_cert.issuer && root_cert.verify(root_cert.public_key) ? t("ui.chain_complete") : t("ui.chain_incomplete") %></p>
+<% if current_identity.export?(@certificate.area) %><h2><%= t("ui.export") %></h2><%= form_with url: export_certificates_path, data: { turbo: false }, class: "detail-export" do |form| %><%= hidden_field_tag "ids[]", @certificate.id %><%= render "export_fields", form: form, writer: current_identity.export_key?(@certificate.area) %><% if @certificate.source == "filesystem" && current_identity.export_key?(@certificate.area) %><%= form.password_field :source_password, placeholder: t("ui.source_password_placeholder"), aria: { label: t("ui.source_password_label") }, autocomplete: "off" %><% end %><%= form.submit t("ui.download_certificate"), class: "button primary" %><% end %>
+<% end %><% else %><h2><%= t("ui.source_unavailable") %></h2><p><%= t("ui.source_unavailable_description") %></p><p class="muted"><%= @material_error %></p><% end %></section></div>
 <% if puppetdb_enabled? %><%= render "puppetdb_hosts", certificate: @certificate %><% end %>
 <% if @certificate.source == "consul" && current_identity.writer?(@certificate.area) %>
-  <section class="panel detail-panel"><h2>Puppet-Status</h2>
-    <p>Der Status gilt für alle Versionen dieses Lookups und bleibt bei einer Erneuerung erhalten.</p>
-    <p class="muted">Der Status wird gespeichert. Die automatische Auswertung durch Puppet ist noch nicht umgesetzt.</p>
+  <section class="panel detail-panel"><h2><%= t("ui.puppet_status") %></h2>
+    <p><%= t("ui.status_scope") %></p>
+    <p class="muted"><%= t("ui.status_pending") %></p>
     <ul>
-      <li><code>active</code>: Puppet soll das Zertifikat normal ausrollen.</li>
-      <li><code>norollout</code>: Puppet soll das Zertifikat nicht ausrollen und vorhandene Dateien unverändert lassen.</li>
-      <li><code>delete</code>: Puppet soll das Zertifikat entfernen, auch ohne Hiera-Eintrag.</li>
+      <li><code>active</code><%= t("ui.status_active") %></li>
+      <li><code>norollout</code><%= t("ui.status_norollout") %></li>
+      <li><code>delete</code><%= t("ui.status_delete") %></li>
     </ul>
     <% unless @archived %>
     <%= form_with url: certificate_path(@certificate), method: :patch do |form| %>
       <%= form.hidden_field :lookup_index, value: @lookup_snapshot&.fetch(:index) || 0 %>
-      <%= form.label :rollout_status, "Puppet-Status" %>
+      <%= form.label :rollout_status, t("ui.puppet_status") %>
       <%= form.select :rollout_status, ConsulStore::ROLLOUT_STATUSES, selected: @rollout_status %>
       <div class="status-actions">
-        <%= form.submit "Status speichern", class: "button primary" %>
-        <%= link_to "Archivieren", archive_certificate_path(@certificate), class: "button secondary" %>
+        <%= form.submit t("ui.save_status"), class: "button primary" %>
+        <%= link_to t("ui.archive"), archive_certificate_path(@certificate), class: "button secondary" %>
       </div>
     <% end %>
-    <% else %><p>Dieses Zertifikat ist archiviert. Es bleibt über die Suche auffindbar; der Puppet-Status bleibt <code>delete</code>.</p><% end %>
+    <% else %><p><%= t("ui.archived_notice_html") %></p><% end %>
   </section>
 <% end %>
-<% if @versions.any? %><section class="panel detail-panel"><h2>Versionen</h2><% @versions.each do |version| %><div class="version-row"><%= link_to "#{date_label(version.not_before)} – #{date_label(version.not_after)}", certificate_path(version) %><span class="mono small"><%= version.fingerprint.first(16) %>…</span><% if version.active %><span class="badge success">Aktuelle Version</span><% elsif !@archived && current_identity.writer?(version.area) %><%= button_to "Aktivieren", certificate_path(version), method: :patch, class: "button secondary", data: { turbo_confirm: "Diese Version für Puppet aktivieren?" } %><% end %></div><% end %></section><% end %>
+<% if @versions.any? %><section class="panel detail-panel"><h2><%= t("ui.versions") %></h2><% @versions.each do |version| %><div class="version-row"><%= link_to "#{date_label(version.not_before)} – #{date_label(version.not_after)}", certificate_path(version) %><span class="mono small"><%= version.fingerprint.first(16) %>…</span><% if version.active %><span class="badge success"><%= t("ui.current_version") %></span><% elsif !@archived && current_identity.writer?(version.area) %><%= button_to t("ui.activate"), certificate_path(version), method: :patch, class: "button secondary", data: { turbo_confirm: t("ui.activate_confirm") } %><% end %></div><% end %></section><% end %>
 <% if @material %>
-<section class="panel detail-panel"><h2>Hiera-Konfiguration</h2><pre><%= @hiera %></pre></section>
-<% if current_identity.export?(@certificate.area) %><details class="panel detail-panel"><summary>Öffentliches Zertifikat als PEM</summary><pre><%= @material[:certificate].to_pem %></pre></details>
+<section class="panel detail-panel"><h2><%= t("ui.hiera_configuration") %></h2><pre><%= @hiera %></pre></section>
+<% if current_identity.export?(@certificate.area) %><details class="panel detail-panel"><summary><%= t("ui.public_pem") %></summary><pre><%= @material[:certificate].to_pem %></pre></details>
 
 <% end %>
 

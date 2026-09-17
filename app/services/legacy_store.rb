@@ -3,35 +3,35 @@ class LegacyStore
   def self.area = AreaConfiguration.legacy_area
   def self.root(area: self.area)
     configured = AreaConfiguration.legacy_paths[area]
-    raise Certificates::Error, "Für diesen Bereich ist kein Dateibestand konfiguriert. Index aktualisieren." unless configured
+    raise Certificates::Error, I18n.t("errors.app.no_inventory") unless configured
     Pathname.new(configured).realpath
   rescue SystemCallError
-    raise Certificates::Error, "Der Dateibestand ist nicht erreichbar. Bitte Einbindung und Zugriffsrechte prüfen."
+    raise Certificates::Error, I18n.t("errors.app.inventory_unavailable")
   end
 
   def self.safe_path(relative, area: self.area)
     base = root(area: area)
     path = base.join(relative).realpath
-    raise Certificates::Error, "Datei liegt außerhalb des Altbestands." unless path.to_s.start_with?(base.to_s + File::SEPARATOR)
+    raise Certificates::Error, I18n.t("errors.app.file_outside") unless path.to_s.start_with?(base.to_s + File::SEPARATOR)
     path
   rescue Errno::ENOENT
-    raise Certificates::Error, "Datei ist nicht mehr vorhanden."
+    raise Certificates::Error, I18n.t("errors.app.file_missing")
   end
   def self.read(path)
-    raise Certificates::Error, "Datei ist größer als 20 MB." if path.size > Certificates::Codec::MAX_BYTES
+    raise Certificates::Error, I18n.t("errors.app.file_size") if path.size > Certificates::Codec::MAX_BYTES
     path.binread
   rescue SystemCallError
-    raise Certificates::Error, "Datei ist für die Anwendung nicht lesbar."
+    raise Certificates::Error, I18n.t("errors.app.file_unreadable")
   end
   def self.certificates(relative, area: self.area)
     data = read(safe_path(relative, area: area))
     blocks = data.scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m)
     if blocks.size != data.scan("-----BEGIN CERTIFICATE-----").size
-      raise Certificates::Error, "Zertifikat im Dateibestand ist unvollständig."
+      raise Certificates::Error, I18n.t("errors.app.inventory_incomplete_cert")
     end
     blocks.map { |pem| OpenSSL::X509::Certificate.new(pem) }
   rescue OpenSSL::OpenSSLError
-    raise Certificates::Error, "Zertifikat im Dateibestand ist ungültig."
+    raise Certificates::Error, I18n.t("errors.app.inventory_invalid_cert")
   end
   # Read the actual inventory; an incomplete scan must never authorize deletion
   # or an import. Dir.children reports inaccessible directories instead of
@@ -47,7 +47,7 @@ class LegacyStore
         if stat.directory?
           pending << path
         elsif stat.symlink? && path.directory?
-          raise Certificates::Error, "Verknüpfte Verzeichnisse im Dateibestand können nicht vollständig geprüft werden."
+          raise Certificates::Error, I18n.t("errors.app.inventory_symlinks")
         elsif path.extname.downcase == ".pem"
           relative = path.relative_path_from(base).to_s
           entries << { relative: relative, certificates: certificates(relative, area: area) }
@@ -56,7 +56,7 @@ class LegacyStore
     end
     entries
   rescue SystemCallError
-    raise Certificates::Error, "Der Dateibestand ist nicht vollständig lesbar. Bitte Einbindung und Zugriffsrechte prüfen."
+    raise Certificates::Error, I18n.t("errors.app.inventory_unreadable")
   end
 
   def self.reject_duplicates!(fingerprints)
@@ -64,7 +64,7 @@ class LegacyStore
       inventory(area: area).flat_map { |entry| entry.fetch(:certificates).map { |cert| Certificates::Codec.fingerprint(cert) } }
     end.to_set
     if fingerprints.any? { |fingerprint| existing.include?(fingerprint) }
-      raise Certificates::Error, "Upload abgelehnt: Mindestens ein Zertifikat ist bereits im Dateibestand vorhanden."
+      raise Certificates::Error, I18n.t("errors.app.inventory_duplicate")
     end
   end
 
@@ -81,8 +81,8 @@ class LegacyStore
       key = OpenSSL::PKey.read(candidate, password)
       return key if cert.check_private_key(key)
     end
-    raise Certificates::Error, "Kein passender privater Schlüssel vorhanden."
+    raise Certificates::Error, I18n.t("errors.app.no_matching_key")
   rescue OpenSSL::OpenSSLError
-    raise Certificates::Error, "Privater Schlüssel ist geschützt oder ungültig. Quellpasswort prüfen."
+    raise Certificates::Error, I18n.t("errors.app.protected_key")
   end
 end

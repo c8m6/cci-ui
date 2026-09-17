@@ -2,16 +2,16 @@ require "zip"
 class CertificateExport
   FORMATS = %w[pem der p12 jks].freeze
   def self.call(records, identity:, format:, include_key:, include_chain:, password:, source_password: "")
-    raise Certificates::Error, "Unbekanntes Exportformat." unless FORMATS.include?(format)
-    raise Certificates::Error, "Bitte zwischen 1 und 100 Zertifikate auswählen." unless (1..100).cover?(records.size)
-    raise Certificates::Error, "Reader dürfen keine Zertifikate exportieren." if records.any? { |record| !identity.export?(record.area) }
+    raise Certificates::Error, I18n.t("errors.app.unknown_export") unless FORMATS.include?(format)
+    raise Certificates::Error, I18n.t("errors.app.export_count") unless (1..100).cover?(records.size)
+    raise Certificates::Error, I18n.t("errors.app.reader_export") if records.any? { |record| !identity.export?(record.area) }
     if include_key && records.any? { |record| !identity.export_key?(record.area) }
-      raise Certificates::Error, "Für private Schlüssel ist zusätzlich die Rolle Key Exporter im jeweiligen Bereich erforderlich."
+      raise Certificates::Error, I18n.t("errors.app.key_export_role")
     end
-    raise Certificates::Error, "Für diesen Export ein Passwort mit mindestens 12 Zeichen angeben." if (include_key || %w[p12 jks].include?(format)) && password.length < 12
-    raise Certificates::Error, "DER exportiert ein einzelnes Zertifikat. Für Schlüssel oder Ketten bitte PEM, PFX oder JKS wählen." if format == "der" && (include_key || include_chain)
+    raise Certificates::Error, I18n.t("errors.app.export_password") if (include_key || %w[p12 jks].include?(format)) && password.length < 12
+    raise Certificates::Error, I18n.t("errors.app.der_export") if format == "der" && (include_key || include_chain)
     entries = records.map do |record|
-      raise Certificates::Error, "Keine Leseberechtigung." unless identity.reader?(record.area)
+      raise Certificates::Error, I18n.t("errors.app.read_permission") unless identity.reader?(record.area)
       material = CertificateMaterial.load(record, private_key: include_key, password: source_password)
       material = CertificateMaterial.with_chain(record, material, identity) if include_chain
       material[:chain] = [] unless include_chain

@@ -11,7 +11,7 @@ class SessionsController < ApplicationController
       end
     end
     groups.each do |suffix, (label, roles)|
-      identities["all:#{suffix}"] = ["Alle Bereiche · #{label}", AreaConfiguration.ids.product(roles).map { |area, role| "#{area}_#{role}" }]
+      identities["all:#{suffix}"] = ["#{I18n.t('ui.all_areas')} · #{label}", AreaConfiguration.ids.product(roles).map { |area, role| "#{area}_#{role}" }]
     end
     identities
   end
@@ -33,7 +33,7 @@ class SessionsController < ApplicationController
     establish(auth.uid.to_s, Identity.new(name: auth.uid, roles: roles).roles)
   end
   def failure
-    redirect_to login_path, alert: "SSO-Anmeldung fehlgeschlagen. Bitte erneut versuchen."
+    redirect_to login_path, alert: I18n.t("errors.app.sso_failed")
   end
   def destroy
     reset_session

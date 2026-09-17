@@ -7,7 +7,7 @@ class CertificateMaterial
       key = nil
       if private_key
         envelope = ConsulStore.client.get("#{ConsulStore.prefix(record.area)}/private-keys/#{record.source_id}")&.fetch(:value)
-        raise Certificates::Error, "Kein privater Schlüssel vorhanden." unless envelope
+        raise Certificates::Error, I18n.t("errors.app.no_private_key") unless envelope
         key = OpenSSL::PKey.read(Certificates::Vault.decrypt(envelope, area: record.area, id: record.source_id))
       end
     elsif record.source == "filesystem"
@@ -17,13 +17,13 @@ class CertificateMaterial
       chain = Certificates::Codec.chain(cert, certificates)
       key = private_key ? LegacyStore.key(relative, cert, password: password, area: record.area) : nil
     else
-      raise Certificates::Error, "Diese Datenquelle wird nicht unterstützt."
+      raise Certificates::Error, I18n.t("errors.app.unsupported_source")
     end
-    raise Certificates::Error, "Die Quelle enthält inzwischen ein anderes Zertifikat. Der gespeicherte Eintrag bleibt erhalten; diese Version kann aus der aktuellen Quelle nicht exportiert werden." unless Certificates::Codec.fingerprint(cert) == record.fingerprint
-    raise Certificates::Error, "Schlüssel passt nicht zum Zertifikat." if key && !cert.check_private_key(key)
+    raise Certificates::Error, I18n.t("errors.app.source_changed") unless Certificates::Codec.fingerprint(cert) == record.fingerprint
+    raise Certificates::Error, I18n.t("errors.app.key_mismatch") if key && !cert.check_private_key(key)
     { certificate: cert, key: key, chain: Certificates::Codec.chain(cert, chain) }
   rescue IndexError, ArgumentError, OpenSSL::OpenSSLError
-    raise Certificates::Error, "Zertifikatsdaten sind ungültig oder wurden geändert."
+    raise Certificates::Error, I18n.t("errors.app.invalid_material")
   end
 
   def self.with_chain(record, material, identity)

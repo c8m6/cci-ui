@@ -15,7 +15,7 @@ class AuditEventsController < ApplicationController
     @page = params[:page].to_i.clamp(1, @pages)
     @events = events.order(occurred_at: :desc, id: :desc).limit(30).offset((@page - 1) * 30)
   rescue ArgumentError, Date::Error
-    render plain: "Bitte einen gültigen Zeitraum angeben.", status: :unprocessable_entity
+    render plain: I18n.t("errors.app.invalid_dates"), status: :unprocessable_entity
   end
 
   private

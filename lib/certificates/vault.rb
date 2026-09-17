@@ -7,13 +7,13 @@ require_relative "../area_secrets"
 module Certificates
   class Vault
     def self.key(area)
-      raise Error, "Unbekannter Bereich." unless AreaConfiguration.ids.include?(area)
+      raise Error, Error.translate("errors.app.unknown_area", default: "Unbekannter Bereich.") unless AreaConfiguration.ids.include?(area)
       encoded = AreaSecrets.fetch(area)
       key = Base64.strict_decode64(encoded)
       raise ArgumentError unless key.bytesize == 32
       key
     rescue ArgumentError
-      raise Error, "Für #{AreaConfiguration.label(area)} fehlt ein gültiges Verschlüsselungs-Secret (32 Byte, Base64)."
+      raise Error, Error.translate("errors.app.area_secret", default: "Für %{area} fehlt ein gültiges Verschlüsselungs-Secret (32 Byte, Base64).", area: AreaConfiguration.label(area))
     end
 
     def self.encrypt(pem, area:, id:)
@@ -27,7 +27,7 @@ module Certificates
 
     def self.decrypt(envelope, area:, id:)
       data = JSON.parse(envelope)
-      raise Error, "Unbekannte Schlüsselversion." unless data.fetch("version") == 1
+      raise Error, Error.translate("errors.app.key_version", default: "Unbekannte Schlüsselversion.") unless data.fetch("version") == 1
       cipher = OpenSSL::Cipher.new("aes-256-gcm").decrypt
       cipher.key = key(area)
       cipher.iv = Base64.strict_decode64(data.fetch("iv"))
@@ -35,7 +35,7 @@ module Certificates
       cipher.auth_data = "cci:v1:#{area}:#{id}"
       cipher.update(Base64.strict_decode64(data.fetch("data"))) + cipher.final
     rescue OpenSSL::OpenSSLError, JSON::ParserError, KeyError, ArgumentError
-      raise Error, "Privater Schlüssel konnte nicht entschlüsselt werden."
+      raise Error, Error.translate("errors.app.key_decrypt", default: "Privater Schlüssel konnte nicht entschlüsselt werden.")
     end
   end
 end

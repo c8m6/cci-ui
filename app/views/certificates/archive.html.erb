@@ -1,21 +1,21 @@
-<% content_for :title, "Archivierung bestätigen" %>
-<%= link_to "← Zertifikatsdetails", certificate_path(@certificate), class: "back-link" %>
+<% content_for :title, t("ui.archive_title") %>
+<%= link_to t("ui.back_details"), certificate_path(@certificate), class: "back-link" %>
 <section class="panel detail-panel">
-  <h1>Zertifikat archivieren?</h1>
+  <h1><%= t("ui.archive_question") %></h1>
   <p><strong><%= @certificate.common_name %></strong> · <%= area_label(@certificate.area) %></p>
   <p class="mono break-word"><%= @certificate.fingerprint %></p>
-  <p>Die Archivierung betrifft <strong>alle Versionen des Lookups <%= @certificate.lookup %></strong> in diesem Bereich, einschließlich der aktuell ausgewählten Version. Auch spätere Erneuerungen bleiben archiviert.</p>
+  <p><%= t("ui.archive_scope_html", lookup: @certificate.lookup) %></p>
   <ul>
-    <li>Der Puppet-Status wird auf <code>delete</code> gesetzt. Dies ist ein Auftrag, verwaltete Zertifikats- und Schlüsseldateien auf den Zielsystemen zu entfernen. Betroffene Dienste können dadurch ausfallen.</li>
-    <li>Das Zertifikat wird in der Übersicht und den Bestandszahlen ausgeblendet. Über einen Suchbegriff oder „Archivierte einschließen“ bleibt es auffindbar.</li>
-    <li>Katalogeinträge, in Consul gespeicherte Zertifikate und Schlüssel sowie Audit-Einträge bleiben erhalten. Die Anwendung verändert keine Dateien im Dateibestand.</li>
-    <li>Die Archivierung wird mit Ihrem Benutzernamen, Zeitpunkt und den Auswirkungen im Audit-Log protokolliert. Eine Reaktivierung archivierter Zertifikate ist in der UI nicht vorgesehen.</li>
+    <li><%= t("ui.archive_delete_html") %></li>
+    <li><%= t("ui.archive_visibility") %></li>
+    <li><%= t("ui.archive_retention") %></li>
+    <li><%= t("ui.archive_audit") %></li>
   </ul>
-  <p class="muted">Der mitgelieferte Puppet-Code wertet den Löschauftrag noch nicht aus. Ein entsprechend erweiterter Puppet-Client kann ihn bei einem späteren Lauf ausführen.</p>
+  <p class="muted"><%= t("ui.archive_puppet_pending") %></p>
   <%= form_with url: certificate_path(@certificate), method: :patch do |form| %>
     <%= form.hidden_field :archive, value: "1" %>
     <%= form.hidden_field :lookup_index, value: @lookup_snapshot&.fetch(:index) || 0 %>
-    <label class="check-label"><%= form.check_box :confirm_archive, { required: true }, "1", "0" %> Ich bestätige die Archivierung und den Puppet-Löschauftrag mit den genannten Auswirkungen.</label>
-    <p><%= form.submit "Verbindlich archivieren", class: "button primary" %> <%= link_to "Abbrechen", certificate_path(@certificate), class: "button secondary" %></p>
+    <label class="check-label"><%= form.check_box :confirm_archive, { required: true }, "1", "0" %> <%= t("ui.archive_confirmation") %></label>
+    <p><%= form.submit t("ui.archive_submit"), class: "button primary" %> <%= link_to t("ui.cancel"), certificate_path(@certificate), class: "button secondary" %></p>
   <% end %>
 </section>

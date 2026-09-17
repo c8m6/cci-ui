@@ -906,3 +906,19 @@
 .area-pill { background: var(--subtle); color: var(--teal); border: 1px solid var(--line); }
 
 .status-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-top: 1rem; }
+
+/* Compact language picker, shared by signed-in pages and the sign-in screen. */
+.language-menu { position: relative; flex-shrink: 0; }
+.language-menu summary { display: flex; align-items: center; gap: 5px; padding: 7px 9px; border-radius: 6px; color: var(--muted); font-size: 12px; list-style: none; }
+.language-menu summary::-webkit-details-marker { display: none; }
+.language-menu summary:hover, .language-menu[open] summary { color: var(--ink); background: var(--bg); }
+.language-options { position: absolute; right: 0; top: calc(100% + 6px); min-width: 165px; padding: 5px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 5px 18px #0002; z-index: 10; }
+.language-options button { display: block; width: 100%; border: 0; background: transparent; color: var(--ink); padding: 9px 12px; text-align: left; border-radius: 4px; }
+.language-options button:hover, .language-options button[aria-pressed="true"] { background: var(--line); }
+.language-options button[aria-pressed="true"] { font-weight: 600; }
+.language-options .browser-language { border-top: 1px solid var(--line); border-radius: 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 760px) {
+  .topbar { height: auto; min-height: 58px; padding: 10px 18px; gap: 12px; }
+  .topbar > span { flex-shrink: 0; }
+  .account { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+}
