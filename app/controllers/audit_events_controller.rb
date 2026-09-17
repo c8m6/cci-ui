@@ -1,6 +1,6 @@
 class AuditEventsController < ApplicationController
   def index
-    return head :forbidden unless current_identity.auditor?
+    return render_error(:forbidden) unless current_identity.auditor?
     events = AuditEvent.visible_to(current_identity)
     events = events.where(area: params[:area]) if params[:area].present?
     events = events.where(action: params[:event_action]) if params[:event_action].present?
@@ -14,8 +14,8 @@ class AuditEventsController < ApplicationController
     @pages = [(@total / 30.0).ceil, 1].max
     @page = params[:page].to_i.clamp(1, @pages)
     @events = events.order(occurred_at: :desc, id: :desc).limit(30).offset((@page - 1) * 30)
-  rescue ArgumentError, Date::Error
-    render plain: I18n.t("errors.app.invalid_dates"), status: :unprocessable_entity
+  rescue ArgumentError, Date::Error => error
+    render_error(:unprocessable_entity, exception: error, message: I18n.t("errors.app.invalid_dates"))
   end
 
   private

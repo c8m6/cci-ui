@@ -3,6 +3,7 @@ module ApplicationHelper
   def filter_params = params.permit(:q, :area, :source, :status, :rollout_status, :key, :sort, :history, :archived).to_h
   def date_label(time) = time ? l(time.to_date) : "–"
   def locale_return_path
+    return root_path if @error_status
     return import_preview_path(token: @token) if controller_name == "imports" && @preview && @token
     return request.fullpath if request.get?
     controller_name == "imports" ? new_import_path : root_path

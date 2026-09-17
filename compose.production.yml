@@ -24,6 +24,7 @@ services:
         required: false
     environment: &production_environment
       RAILS_ENV: production
+      CCI_SHOW_ERROR_DETAILS: ${CCI_SHOW_ERROR_DETAILS:-false}
       AUTH_MODE: oidc
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE setzen}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS setzen}

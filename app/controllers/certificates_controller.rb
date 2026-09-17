@@ -24,6 +24,7 @@ class CertificatesController < ApplicationController
       @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(active: :desc, id: :asc).to_a.group_by(&:fingerprint).transform_values(&:first)
       @hiera = HieraSnippet.for(@certificate, @material[:certificate])
     rescue Certificates::Error, ConsulConnection::Error => error
+      Rails.logger.error(error.full_message(highlight: false))
       @material = nil
       @material_error = error.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : error.message
     end
@@ -39,7 +40,7 @@ class CertificatesController < ApplicationController
     ids = Array(params[:ids]).map(&:to_s).uniq
     raise Certificates::Error, I18n.t("errors.app.export_count") unless (1..100).cover?(ids.size)
     records = Certificate.visible_to(current_identity).where(id: ids).to_a
-    return head :not_found unless records.size == ids.size
+    return render_error(:not_found) unless records.size == ids.size
     content, filename, type = CertificateExport.call(records, identity: current_identity,
       format: params[:format_name], include_key: params[:include_key] == "1", include_chain: params[:include_chain] == "1",
       password: params[:password].to_s, source_password: params[:source_password].to_s)

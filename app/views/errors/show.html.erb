@@ -1,0 +1,14 @@
+<% content_for :title, @error_title %>
+<section class="panel error-page" aria-labelledby="error-title">
+  <span class="eyebrow"><%= t("errors.pages.label", status: @error_status) %></span>
+  <h1 id="error-title"><%= @error_title %></h1>
+  <p class="muted"><%= @error_message %></p>
+  <p class="error-reference"><%= t("errors.pages.request_id") %>: <code><%= request.request_id %></code></p>
+  <%= link_to t("errors.pages.home"), root_path, class: "button primary", data: { turbo: false } %>
+  <% if @error_details %>
+    <details class="error-details" open>
+      <summary><%= t("errors.pages.details") %></summary>
+      <pre><%= @error_details %></pre>
+    </details>
+  <% end %>
+</section>

@@ -177,7 +177,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     get certificate_path(record), headers: { "Accept-Language" => "en" }
     assert_response :service_unavailable
     assert_equal "en", response.headers["Content-Language"]
-    assert_equal "The certificate store is currently unavailable. Please try again later.", response.body
+    assert_select ".error-page p", text: "The certificate store is currently unavailable. Please try again later."
     assert_equal :de, I18n.locale
   ensure
     ConsulStore.define_singleton_method(:status_snapshot, original) if original

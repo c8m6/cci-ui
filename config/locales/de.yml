@@ -273,6 +273,35 @@ de:
       one: "%{count} Zertifikat für %{areas}. Die Vorschau ist 15 Minuten gültig."
       other: "%{count} Zertifikate für %{areas}. Die Vorschau ist 15 Minuten gültig."
   errors:
+    pages:
+      label: "Fehler %{status}"
+      request_id: Anfrage-ID
+      home: Zurück zur Übersicht
+      details: Technische Details und Stacktrace
+      generic:
+        title: Die Anfrage konnte nicht abgeschlossen werden
+        message: Bitte versuche es später erneut. Falls das Problem bestehen bleibt, wende dich mit der Anfrage-ID an deine Administration.
+      status_400:
+        title: Ungültige Anfrage
+        message: Die Anfrage konnte nicht gelesen werden. Prüfe deine Eingaben und versuche es erneut.
+      status_401:
+        title: Anmeldung erforderlich
+        message: Bitte melde dich an, um fortzufahren.
+      status_403:
+        title: Zugriff verweigert
+        message: Du hast keine Berechtigung für diese Aktion.
+      status_404:
+        title: Seite nicht gefunden
+        message: Diese Seite oder dieses Zertifikat ist nicht verfügbar oder du hast keinen Zugriff darauf.
+      status_422:
+        title: Die Anfrage konnte nicht verarbeitet werden
+        message: Prüfe deine Eingaben oder lade das Formular neu und versuche es erneut.
+      status_500:
+        title: Ein interner Fehler ist aufgetreten
+        message: Bitte versuche es später erneut. Falls das Problem bestehen bleibt, wende dich mit der Anfrage-ID an deine Administration.
+      status_503:
+        title: Dienst nicht verfügbar
+        message: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte versuche es später erneut.
     app:
       store_unavailable: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte später erneut versuchen.
       export_count: Bitte zwischen 1 und 100 Zertifikate auswählen.

@@ -72,6 +72,7 @@ class CertificateImport
           expected_lookup_index: entry.fetch("lookup_index"))
         successes << id
       rescue Certificates::Error, ConsulConnection::Error => error
+        Rails.logger.error(error.full_message(highlight: false))
         message = error.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : error.message
         errors << "#{AreaConfiguration.label(area)} / #{entry.fetch('name')}: #{message}"
       end

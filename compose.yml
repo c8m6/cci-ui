@@ -32,6 +32,7 @@ services:
         required: false
     environment: &app_environment
       RAILS_ENV: development
+      CCI_SHOW_ERROR_DETAILS: ${CCI_SHOW_ERROR_DETAILS:-false}
       AUTH_MODE: ${AUTH_MODE:-local}
       DATABASE_URL: postgresql://certui:${POSTGRES_PASSWORD:-certui}@db/certui_development
       TEST_DATABASE_URL: postgresql://certui:${POSTGRES_PASSWORD:-certui}@db/certui_test

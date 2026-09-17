@@ -18,14 +18,14 @@ class SessionsController < ApplicationController
 
   def new; end
   def local
-    return head :not_found unless ENV["AUTH_MODE"] == "local" && !Rails.env.production?
+    return render_error(:not_found) unless ENV["AUTH_MODE"] == "local" && !Rails.env.production?
     identity = self.class.local_identities[params[:identity]]
-    return head :unprocessable_entity unless identity
+    return render_error(:unprocessable_entity) unless identity
     establish(identity[0], identity[1])
   end
   def callback
     auth = request.env["omniauth.auth"]
-    return head :unauthorized unless auth && auth.provider == "keycloak" && ENV.fetch("AUTH_MODE", "oidc") == "oidc"
+    return render_error(:unauthorized) unless auth && auth.provider == "keycloak" && ENV.fetch("AUTH_MODE", "oidc") == "oidc"
     info = auth.extra.raw_info.to_h.deep_stringify_keys
     supplied = Array(info["groups"]) + Array(info.dig("realm_access", "roles")) + Array(info.dig("resource_access", ENV["OIDC_CLIENT_ID"], "roles"))
     mapping = JSON.parse(ENV.fetch("OIDC_ROLE_MAP", "{}"))

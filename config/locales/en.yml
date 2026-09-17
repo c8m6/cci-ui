@@ -271,6 +271,35 @@ en:
       one: "%{count} certificate for %{areas}. The preview is valid for 15 minutes."
       other: "%{count} certificates for %{areas}. The preview is valid for 15 minutes."
   errors:
+    pages:
+      label: "Error %{status}"
+      request_id: Request ID
+      home: Back to the overview
+      details: Technical details and stack trace
+      generic:
+        title: The request could not be completed
+        message: Please try again later. If the problem persists, contact your administrator with the request ID.
+      status_400:
+        title: Invalid request
+        message: The request could not be read. Check your input and try again.
+      status_401:
+        title: Sign-in required
+        message: Please sign in to continue.
+      status_403:
+        title: Access denied
+        message: You do not have permission to perform this action.
+      status_404:
+        title: Page not found
+        message: This page or certificate is unavailable, or you do not have access to it.
+      status_422:
+        title: The request could not be processed
+        message: Check your input or reload the form and try again.
+      status_500:
+        title: An internal error occurred
+        message: Please try again later. If the problem persists, contact your administrator with the request ID.
+      status_503:
+        title: Service unavailable
+        message: The certificate store is currently unavailable. Please try again later.
     app:
       store_unavailable: The certificate store is currently unavailable. Please try again later.
       export_count: Please select between 1 and 100 certificates.
