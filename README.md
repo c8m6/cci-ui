@@ -125,7 +125,7 @@ and [fact formats and synchronization](docs/puppetdb.md).
 - [Installation and operations](docs/installation.md)
 - [Environment variables and file-free deployment](docs/environment.md)
 - [Technical architecture and data storage](docs/technik.md)
-- [Consul schema, client provenance and Ruby import examples](docs/consul-schema.md)
+- [Consul schema, version selection and Ruby import/read examples](docs/consul-schema.md)
 - [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)
 - [Puppet integration and idempotence](docs/puppet.md)
 - [PuppetDB host inventory](docs/puppetdb.md)
