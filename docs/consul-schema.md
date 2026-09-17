@@ -1,4 +1,4 @@
-# Consul schema and writing clients
+# Consul schema and Ruby integrations
 
 Consul is the source of truth for imported certificates and their lookup status
 and archive state. PostgreSQL contains the search index, including provenance
@@ -8,6 +8,54 @@ requires the original sources; back up PostgreSQL to retain entries whose
 material is no longer available. Direct Consul imports become
 visible on the next successful indexing pass (normally within approximately
 60 seconds). There is no separate HTTP upload API.
+
+## Which version is current?
+
+The authoritative selection is `active_version` in
+`<prefix>/areas/<area>/lookups/<lookup>`. A reader follows that ID to
+`<prefix>/areas/<area>/versions/<active_version>` and, when needed,
+`<prefix>/areas/<area>/private-keys/<active_version>`. Read Consul directly to
+discover the selection without waiting for the PostgreSQL index.
+
+The word "version" refers to several independent values:
+
+| Value | Meaning | Who supplies it? |
+| --- | --- | --- |
+| `cci/v1` | Default namespace for the CCI storage contract | Deployment configuration shared by all clients |
+| `schema: "1"` | Certificate JSON format, a string | Writer, exactly `"1"` for this contract |
+| `entry_id` | Stable UUID for one area/lookup pair | First writer generates it, renewals reuse it |
+| `version_id` | Immutable certificate version ID, a 64-character lowercase SHA-256 digest | Writer calculates it from `entry_id` and certificate fingerprint |
+| `active_version` | Selected `version_id` for a lookup | Writer updates it atomically on import or activation |
+| Private-key `version: 1` | Encryption-envelope format, a number | Writer, exactly `1` for AES-256-GCM as specified below |
+| Consul `ModifyIndex` | Revision of a KV entry used for compare-and-set (CAS) | Consul generates it, clients retain it for concurrency checks |
+
+The certificate version is **not** an incrementing number, timestamp, X.509
+serial number, or application release. `version_id` is the version key's path
+component, not a required field inside the stored certificate JSON. Ruby
+readers expose it in metadata. Changing `CONSUL_PREFIX` changes the storage
+location, not the schema or encryption format. Consul's `/v1/` HTTP API path is
+also independent of the CCI schema.
+
+Given an OpenSSL certificate and the lookup's stable identity, the writer uses:
+
+```ruby
+fingerprint = Digest::SHA256.hexdigest(cert.to_der)
+version_id = Digest::SHA256.hexdigest("#{entry_id}:#{fingerprint}")
+```
+
+For a renewal, keep the same area, lookup and `entry_id`, calculate a new ID
+from the renewed certificate, then publish the material and selection in one
+transaction. The same certificate DER under the same entry produces the same
+ID. Changing tags, chain, provenance or adding a private key does not create a
+new ID and cannot overwrite an existing immutable version. Do not generate a
+new `entry_id` on every import to work around duplicate detection.
+
+"Current" means **selected**, not newest by `created_at`, longest validity,
+largest serial, or lexicographically greatest ID. For example, importing A and
+then B selects B. Activating A again points `active_version` back to A while B
+remains stored. Never sort the version keys to choose a certificate. Selection
+does not guarantee that the certificate is valid now, trusted, or authorized
+for rollout. Check validity and the lookup's `status` for the consuming workflow.
 
 ## Setup
 
@@ -38,8 +86,9 @@ indexer. Discard import previews opened before deployment and create new ones.
 
 ## KV structure
 
-All values are JSON objects. The Consul KV and transaction APIs additionally
-encode them as Base64 for transport. `<base>` means `<prefix>/areas/<area>`.
+All stored values are JSON objects. KV GET responses and transaction write
+operations represent those JSON bytes as Base64 in `Value`. The supplied helper
+handles this transport encoding. `<base>` means `<prefix>/areas/<area>`.
 
 | Path | Meaning |
 | --- | --- |
@@ -201,6 +250,29 @@ The private PEM key is encrypted using AES-256-GCM, a fresh 12-byte IV, and the
 `cci:v1:<area>:<version_id>`, even when `CONSUL_PREFIX` is customized. Private
 keys must never appear in the public version object.
 
+### External writer checklist
+
+A Ruby importer supplies a configured area ID, a stable lookup name, the public
+certificate, its issuer chain (possibly empty), tags (possibly empty), a stable
+client identifier, and the initiating user or service account. The private key
+is optional. When supplied, it must match the certificate and be encrypted with
+the shared area key. Use area IDs matching `[a-z][a-z0-9_]{0,47}` and the lookup
+format above. The area must also be configured in CCI-UI to be indexed there.
+
+The writer constructs every field in the certificate-version table, including
+the correctly typed schema, fingerprints and creation timestamp. `chain` and
+`tags` are JSON-encoded **strings inside the outer JSON object**, while `has_key`
+is `"0"` or `"1"`, not a Boolean. With `CertificateExample.add`, pass OpenSSL
+certificate/key objects and Ruby arrays instead. The helper creates the IDs,
+serializes the fields, encrypts the key and publishes the audit event.
+
+Creating only a version key does not select it. Publishing only the lookup can
+leave readers pointing at missing material. Use the atomic transaction below
+and preserve existing lookup status, archive metadata and additional fields.
+Use read ACLs for the lookup plus write ACLs for all transaction paths. The
+caller is responsible for certificate/chain validation, renewal authorization
+and any inventory duplicate policy beyond the same-entry ID check.
+
 ### Transaction and audit
 
 First, read the lookup consistently. Generate a UUID for the first import;
@@ -279,6 +351,41 @@ certificate DER under the same lookup remains a duplicate even if confirmed.
 Confirmation is a UI workflow; noninteractive clients implement their own
 renewal authorization and must still use CAS and preserve status.
 
+## Reading the selected version
+
+1. Consistently read the lookup and retain its `active_version`, `entry_id` and
+   status. The supplied `ConsulConnection#get` uses `?consistent`.
+2. Read that exact version ID. Require `schema == "1"` and the matching
+   `entry_id`, and verify the certificate's DER fingerprint against the stored
+   fingerprint. Missing material or an unsupported format is an error, not a
+   reason to choose another version from the directory.
+3. Read the private-key envelope under the **same ID** if needed, decrypt it
+   with the area's secret and version-specific AAD, and verify the key matches
+   the certificate. `CciClient` performs these checks.
+
+Use one `CciClient` instance and the same `area`, `lookup` and `version` arguments
+for all fields in a single operation. It caches the selected material and
+status on the first fetch, so a concurrent renewal cannot mix one version's
+certificate with another version's key. This is the selection observed at the
+lookup read, not a guarantee that no later publication has occurred.
+
+Create a **new reader instance for each polling cycle or job** to discover
+renewals, rollbacks and status changes. A long-lived instance does not refresh
+automatically. Compare `metadata["version_id"]` with the previously processed
+ID to detect a selection change, and inspect `metadata["status"]` separately
+because status can change without a new certificate. Consul's `ModifyIndex`
+can detect lookup changes for clients implementing their own polling, but it
+is not a certificate version ID.
+
+Passing `version: "<64-character ID>"` explicitly pins a historical version.
+The reader still loads the lookup, checks entry ownership and returns the
+lookup's status. Such a request does not discover which version is selected.
+Omit `version:` to follow `active_version`. The supplied reader returns material
+even for `norollout` or `delete`, so the consumer must implement status handling.
+Public reads need read ACLs on lookups and versions. Private-key reads also need
+read ACLs on private-keys and the corresponding area secret. They need no write
+ACLs, Rails process, PostgreSQL connection or provenance fields from the caller.
+
 ## Ruby examples
 
 [examples/add_certificate.rb](../examples/add_certificate.rb) works without Rails
@@ -312,6 +419,52 @@ version_id = CertificateExample.add(
 )
 puts version_id
 ```
+
+### Read current or pinned material
+
+[examples/read_certificate.rb](../examples/read_certificate.rb) uses
+[lib/cci_client.rb](../lib/cci_client.rb) together with the same connection and
+area-secret helpers. Copy `examples/` and the three required `lib/` files with
+their relative paths intact. It requires no Rails or additional gems. The CLI
+prints JSON with metadata, the public certificate and a PEM bundle containing
+the certificate followed by its issuer chain. It does not print private keys.
+
+```bash
+# Uses CONSUL_URL, CONSUL_TOKEN, CONSUL_PREFIX and optionally CONSUL_CA_FILE.
+ruby examples/read_certificate.rb zone_a portal.production
+# Deliberately pin a stored version instead of following active_version:
+ruby examples/read_certificate.rb zone_a portal.production "$VERSION_ID"
+```
+
+In another Ruby application:
+
+```ruby
+require_relative "examples/read_certificate"
+
+material = CertificateReadExample.read(area: "zone_a", lookup: "portal.production")
+selected_id = material.fetch("metadata").fetch("version_id")
+status = material.fetch("metadata").fetch("status")
+# Apply the consuming application's status and validity policy before deployment.
+
+# Call read again in the next job/poll to resolve the then-current selection.
+# For a matching certificate/key pair, request both in this one operation.
+# This requires CCI_AREA_KEYS (or ZONE_A_KEY) and read access to private-keys.
+with_key = CertificateReadExample.read(
+  area: "zone_a", lookup: "portal.production", private_key: true
+)
+# with_key["private_key"] contains sensitive PEM. Do not log it or the whole hash.
+```
+
+Each example import selects its new version immediately. Repeating the import
+with identical DER raises `ConsulConnection::Conflict` and leaves the lookup,
+versions, key envelopes and audit events unchanged. A concurrent lookup change
+also raises this exception. Reload and reassess the intended import before
+retrying. To select an already stored version again, use CCI-UI's activation
+action or implement the activation transaction used by `ConsulStore.activate`
+(check the target version, CAS the lookup, preserve its fields, write an
+`activate` event). Reimporting is not an activation operation. Archived lookups
+cannot be activated through CCI-UI, and external activation clients must enforce
+the same restriction.
 
 Within the Rails application, a custom importer can instead call
 `ConsulStore.save(area:, cert:, key:, chain:, tags:, lookup:, actor:, client:,

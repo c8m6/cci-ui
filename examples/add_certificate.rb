@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# Standalone Ruby client; needs only the standard library and ConsulConnection.
+# Standalone Ruby writer; uses the standard library and the helpers in lib/.
 require_relative "../lib/consul_connection"
 require_relative "../lib/area_secrets"
 require "securerandom"
@@ -25,6 +25,8 @@ module CertificateExample
     raise ArgumentError, "Invalid rollout status" unless %w[active norollout delete].include?(status)
     entry_id = entry ? entry.fetch("entry_id") : SecureRandom.uuid
     fingerprint = Digest::SHA256.hexdigest(cert.to_der)
+    # Stable entry identity plus certificate DER determines the immutable version.
+    # Reimporting the same certificate conflicts, even with different tags or keys.
     id = Digest::SHA256.hexdigest("#{entry_id}:#{fingerprint}")
     now = Time.now.utc.iso8601(6)
     version = {
@@ -46,6 +48,8 @@ module CertificateExample
       details: { certificates: [snapshot], previous_version: entry && entry["active_version"],
         tags: tags, has_key: !key.nil? }
     }
+    # active_version is the selection pointer. Its CAS publishes the new material
+    # atomically and retains status, archive metadata and unknown lookup fields.
     operations = [
       ConsulConnection.set(lookup_path, (entry || {}).merge("entry_id" => entry_id, "active_version" => id, "status" => status), index: previous ? previous.fetch(:index) : 0),
       ConsulConnection.set("#{base}/versions/#{id}", version, index: 0),
