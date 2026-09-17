@@ -3,7 +3,7 @@ class LocalesController < ApplicationController
 
   def update
     locale = params[:locale].to_s
-    return render_error(:unprocessable_entity) unless locale.empty? || I18n.available_locales.map(&:to_s).include?(locale)
+    return render_error(:unprocessable_content) unless locale.empty? || I18n.available_locales.map(&:to_s).include?(locale)
 
     if locale.empty?
       cookies.delete(:locale)

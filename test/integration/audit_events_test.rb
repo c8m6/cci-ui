@@ -82,6 +82,6 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
     get audit_events_path, params: filters.merge(page: 2)
     assert_select "tbody tr", count: 2
     get audit_events_path, params: { from: "invalid" }
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
   end
 end

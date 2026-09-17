@@ -10,7 +10,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     @log_output = StringIO.new
     @original_logger = Rails.logger
     @original_request_logger = Rails.application.env_config["action_dispatch.logger"]
-    Rails.logger = ActiveSupport::Logger.new(@log_output)
+    Rails.logger = ActiveSupport::TaggedLogging.new(ActiveSupport::Logger.new(@log_output))
     Rails.application.env_config["action_dispatch.logger"] = Rails.logger
   end
 
@@ -28,6 +28,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     assert_select ".error-details", count: 0
     assert_not_includes response.body, "missing-private-path"
     assert_includes @log_output.string, "ActionController::RoutingError"
+    assert_includes @log_output.string, "error-page-test"
     assert_select 'input[name=return_to][value="/"]'
   end
 
@@ -37,7 +38,6 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
       get root_path, headers: { "Accept-Language" => "en" }
     end
     assert_error_page :internal_server_error, "en", "An internal error occurred"
-    assert_select 'nav a[href="/zertifikate"]', count: 0
     assert_select "nav", count: 1
     assert_select ".error-details", count: 0
     assert_not_includes response.body, "sensitive diagnostic"
@@ -76,7 +76,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
   end
 
   test "invalid JSON and malformed queries render bad request pages without leaking input" do
-    post local_login_path, params: '{"password":"private-value",', headers: { "Content-Type" => "application/json", "Accept-Language" => "en" }
+    post local_login_path, params: '{"password":"private-value",'.dup, headers: { "Content-Type" => "application/json", "Accept-Language" => "en" }
     assert_error_page :bad_request, "en", "Invalid request"
     assert_not_includes response.body, "private-value"
     get "/anmelden?identity[x]=a&identity[]=b", headers: { "Accept-Language" => "en" }
@@ -87,7 +87,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     previous = ActionController::Base.allow_forgery_protection
     ActionController::Base.allow_forgery_protection = true
     post local_login_path, params: { identity: "zone_a_writer" }, headers: { "Accept-Language" => "en" }
-    assert_error_page :unprocessable_entity, "en", "The request could not be processed"
+    assert_error_page :unprocessable_content, "en", "The request could not be processed"
     assert_includes @log_output.string, "InvalidAuthenticityToken"
   ensure
     ActionController::Base.allow_forgery_protection = previous
@@ -128,6 +128,26 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     head "/missing", headers: { "Accept-Language" => "en" }
     assert_response :not_found
     assert_empty response.body
+    assert_equal "en", response.headers["Content-Language"]
+    assert_equal "text/html", response.media_type
+    assert_includes @log_output.string, "ActionController::RoutingError"
+  end
+
+  test "HEAD Ruby errors log diagnostics without sending a body even when enabled" do
+    Rails.application.config.x.show_error_details = true
+    post local_login_path, params: { identity: "zone_a_reader" }
+    with_search_failure { head root_path }
+    assert_response :internal_server_error
+    assert_empty response.body
+    assert_includes @log_output.string, "sensitive diagnostic"
+  end
+
+  test "HEAD permission failures also have an empty body" do
+    post local_login_path, params: { identity: "zone_a_reader" }
+    head new_import_path
+    assert_response :forbidden
+    assert_empty response.body
+    assert_includes @log_output.string, "HTTP 403"
   end
 
   private

@@ -13,6 +13,7 @@ module Certui
     config.consider_all_requests_local = false
     config.action_dispatch.show_exceptions = :all
     config.action_dispatch.log_rescued_responses = true
+    config.log_tags = [:request_id]
     config.action_dispatch.rescue_responses["ConsulConnection::Error"] = :service_unavailable
     config.x.show_error_details = %w[true 1].include?(ENV.fetch("CCI_SHOW_ERROR_DETAILS", "false").downcase)
     config.exceptions_app = lambda do |env|

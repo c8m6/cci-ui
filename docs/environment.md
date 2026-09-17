@@ -57,6 +57,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `SECRET_KEY_BASE` | Rails session secret, required in production. Development has a local fallback. Changing it invalidates sessions. |
 | `ALLOWED_HOSTS` | Comma-separated allowed request hostnames. Required in production; development adds `localhost,127.0.0.1` by default. |
 | `RAILS_ENV` | Rails environment. The Compose templates set `development` or `production`. Set explicitly with `docker run`. |
+| `CCI_SHOW_ERROR_DETAILS` | `true` / `1` shows exception messages and stack traces on error pages. Default: `false`, including in development. Applies to all visitors, including users who are not signed in. Errors are logged regardless of this setting. Restart the web service after changing it. |
 | `PORT` | Puma listening port. Default: `3000`. Compose publishes the same port on `127.0.0.1`. |
 | `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
 | `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
@@ -64,6 +65,34 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 Consul tokens, OIDC secrets and encryption keys are supplied directly through
 the environment. Optional PuppetDB TLS credentials use the file paths below.
 Keep existing area key bytes during migration.
+
+### Error pages and diagnostics
+
+HTTP error pages use the application layout and the selected German or English
+language. This includes unhandled Ruby/Rails exceptions, missing routes and
+certificates, permission errors, invalid requests and an unavailable certificate
+store. HTTP status codes are preserved. HEAD responses have no body.
+
+With `CCI_SHOW_ERROR_DETAILS=false`, pages show a general explanation and a
+request ID. Exception messages, source locations and stack traces are hidden.
+Set `CCI_SHOW_ERROR_DETAILS=true` to include technical diagnostics in the same
+layout. This is a deployment setting, not a user preference. It can expose
+internal information to any visitor, so enable it only in a trusted environment.
+Ordinary validation messages, such as an invalid certificate or missing input,
+remain visible so users can correct their input.
+
+Rails logs unhandled exceptions independently of the display setting, including
+their class, message and backtrace. Handled import and certificate errors are
+also logged. Logs use the configured Rails logger, by default
+`log/<RAILS_ENV>.log` inside the application container. For example:
+
+```bash
+docker compose -f compose.yml exec -T web tail -n 100 log/development.log
+```
+
+If the application cannot start, or the error layout itself fails, Rails or the
+web server must provide its fallback response. Those failures cannot use the
+application layout. The error renderer does not query the database or Consul.
 
 ## Optional PuppetDB host inventory
 
@@ -176,7 +205,7 @@ export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
 export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
 
 app_env=(
-  -e RAILS_ENV -e AUTH_MODE -e PORT -e RAILS_MAX_THREADS
+  -e RAILS_ENV -e AUTH_MODE -e PORT -e RAILS_MAX_THREADS -e CCI_SHOW_ERROR_DETAILS
   -e CCI_AREAS -e CCI_LEGACY_PATHS -e CCI_AREA_KEYS
   -e DATABASE_URL -e SECRET_KEY_BASE -e ALLOWED_HOSTS
   -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE

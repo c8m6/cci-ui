@@ -25,7 +25,7 @@ class ImportsController < ApplicationController
       successes, @errors = CertificateImport.commit(token: params[:token], owner: session[:import_owner], identity: current_identity, confirm_overwrite: params[:confirm_overwrite] == "1")
       return redirect_to root_path, notice: I18n.t("notices.imported", count: successes.size), status: :see_other if @errors.empty?
       flash.now[:alert] = I18n.t("notices.partial_import", count: successes.size)
-      render :new, status: :unprocessable_entity
+      render :new, status: :unprocessable_content
     else
       areas = Array(params[:areas]).reject(&:blank?).uniq
       areas.each { |area| require_writer!(area) }
@@ -37,6 +37,6 @@ class ImportsController < ApplicationController
   rescue CertificateImport::ConfirmationRequired => error
     @token, @preview = params[:token], error.preview
     flash.now[:alert] = error.message
-    render :preview, status: :unprocessable_entity
+    render :preview, status: :unprocessable_content
   end
 end

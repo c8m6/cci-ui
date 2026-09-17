@@ -58,7 +58,7 @@ class CertificatesController < ApplicationController
         @certificate = record
         @lookup_snapshot = ConsulStore.status_snapshot(record)
         flash.now[:alert] = I18n.t("errors.app.archive_confirmation")
-        return render :archive, status: :unprocessable_entity
+        return render :archive, status: :unprocessable_content
       end
       ConsulStore.archive(record, actor: current_identity.name, expected_lookup_index: params[:lookup_index])
       notice = I18n.t("notices.archived")

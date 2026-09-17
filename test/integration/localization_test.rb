@@ -45,7 +45,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
 
   test "locale changes validate input reject external destinations and retain search filters" do
     post locale_path, params: { locale: "../../fr", return_to: root_path }
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
     post locale_path, params: { locale: "en", return_to: "https://example.org" }
     assert_redirected_to root_path
     post locale_path, params: { locale: "de", return_to: "//example.org" }

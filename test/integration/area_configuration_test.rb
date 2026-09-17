@@ -54,6 +54,6 @@ class AreaConfigurationTest < ActionDispatch::IntegrationTest
     assert_equal [], Identity.new(name: "unknown", roles: %w[missing_writer missing_auditor]).roles
     assert_raises(Certificates::Error) { ConsulStore.prefix("../other") }
     post local_login_path, params: { identity: "missing_writer" }
-    assert_response :unprocessable_entity
+    assert_response :unprocessable_content
   end
 end

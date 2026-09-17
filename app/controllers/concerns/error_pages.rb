@@ -10,6 +10,10 @@ module ErrorPages
     unless request.env["action_dispatch.exception"].equal?(exception) && exception
       Rails.logger.error("[#{request.request_id}] HTTP #{@error_status}: #{exception ? exception.full_message(highlight: false) : @error_title}")
     end
+    # ShowExceptions rewrites even HEAD requests to GET before dispatching here.
+    if request.head? || request.env["action_dispatch.original_request_method"] == "HEAD"
+      return head @error_status, content_type: "text/html"
+    end
     render template: "errors/show", layout: "application", formats: [:html], status: @error_status
   end
 end

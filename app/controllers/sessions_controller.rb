@@ -20,7 +20,7 @@ class SessionsController < ApplicationController
   def local
     return render_error(:not_found) unless ENV["AUTH_MODE"] == "local" && !Rails.env.production?
     identity = self.class.local_identities[params[:identity]]
-    return render_error(:unprocessable_entity) unless identity
+    return render_error(:unprocessable_content) unless identity
     establish(identity[0], identity[1])
   end
   def callback
