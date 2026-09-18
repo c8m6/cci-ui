@@ -89,22 +89,29 @@ inventories in all configured areas are checked both before preview and before s
 
 Writers can set `active`, `norollout`, or `delete` in certificate details for
 Consul certificates only. Filesystem certificates remain read-only catalog
-entries without Puppet controls or archiving. The overview displays “Puppet-Status” and
-provides a matching filter, independent of “Gültigkeit”. Status changes are
-audited. Consul stores lookup status; local files remain unchanged. Renewals preserve lookup status. Certificate entries, stored
-material and status records are never deleted by the UI or indexer, even when
-files disappear, a mount becomes empty, or an inventory mapping is removed.
+entries without Puppet controls or archiving. The overview displays
+“Puppet-Status” and provides a matching filter independently of “Gültigkeit”.
+Status changes are audited. Consul stores lookup status, while local files stay
+unchanged. Renewals preserve the lookup status.
 
-Writers can choose “Archivieren” next to “Status speichern” in Consul certificate details. A separate confirmation
-page explains the scope and potential service disruption from the Puppet
-`delete` request; confirmation is also enforced on the server. Archiving sets
+The UI and indexer never delete certificate entries, stored material, or status
+records. This also applies when files disappear, a mount becomes empty, or an
+inventory mapping is removed.
+
+Writers can choose “Archivieren” next to “Status speichern” in Consul
+certificate details. A separate confirmation page explains the scope and
+potential service disruption from the Puppet `delete` request. The server also
+requires this confirmation. Archiving sets
 `archived: true` and `status: delete` atomically with an audit event in Consul.
-It covers all versions of a Consul lookup in that area. Archived entries are excluded from the default overview and
-statistics, but a text search automatically includes them, including historical
-versions. “Archivierte einschließen” lists them without a search term. The UI
-does not reactivate archived entries; renewals of an archived lookup stay archived.
-Details remain readable if the source material disappears; exports still require
-the matching source material. Back up PostgreSQL to retain metadata for absent sources.
+It covers all versions of a Consul lookup in that area. Archived entries are
+excluded from the default overview and statistics. A text search automatically
+includes archived entries and their historical versions. “Archivierte
+einschließen” lists them without a search term.
+
+The UI does not reactivate archived entries. Renewals of an archived lookup stay
+archived. Details remain readable if the source material disappears, but exports
+still require the matching source material. Back up PostgreSQL to retain metadata
+for absent sources.
 
 **Puppet execution is deferred:** this release prepares UI and Consul only.
 The supplied Puppet manifests do not yet enforce the three statuses. See the

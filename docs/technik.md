@@ -1,8 +1,9 @@
 # CCI-UI: technical architecture
 
-As of 16 September 2026. This document describes configurable areas, import
-confirmation, Consul-only status and archiving, retained filesystem inventory,
-audit logging and optional PuppetDB host associations.
+This architecture overview reflects the state on 16 September 2026. It covers
+configurable areas, import confirmation, Consul-only status and archiving,
+retained filesystem inventory, audit logging and optional PuppetDB host
+associations.
 Consul is the authoritative store for imported certificates.
 
 ## Components and data flow
