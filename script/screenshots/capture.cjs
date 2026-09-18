@@ -22,6 +22,8 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => Boolean(document.documentElement.dataset.theme));
       assert.equal(await page.$eval('html', node => node.lang), 'en');
+      assert.equal(await page.$eval('.sidebar-caption', node => node.textContent.trim()), 'Controlled Cryptographic Item');
+      assert.equal(await page.$eval('footer', node => node.textContent.trim()), 'CCI-UI · Controlled Cryptographic Item');
     };
     const capture = async filename => {
       await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });

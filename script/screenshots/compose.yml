@@ -21,6 +21,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+  puppetdb:
+    build: ../..
+    image: cci-ui-screenshots:local
+    command: ["bundle", "exec", "puma", "-b", "tcp://0.0.0.0:8080", "script/screenshots/puppetdb.ru"]
   web:
     build: ../..
     image: cci-ui-screenshots:local
@@ -41,9 +45,11 @@ services:
       PUPPETDB_FINGERPRINT_ALGORITHM: sha256
       PUPPETDB_FACT_NAME: certificates
       PUPPETDB_FINGERPRINT_FIELD: fingerprint
-      # Hosts are supplied to the real inventory mapper by seed.rb; no live API.
-      PUPPETDB_URL: http://127.0.0.1:1
+      # seed.rb supplies host mappings; the demo API answers health probes only.
+      PUPPETDB_URL: http://puppetdb:8080
     depends_on:
+      puppetdb:
+        condition: service_started
       db:
         condition: service_healthy
       consul:

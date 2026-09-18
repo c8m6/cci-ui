@@ -301,7 +301,7 @@ de:
         message: Bitte versuche es später erneut. Falls das Problem bestehen bleibt, wende dich mit der Anfrage-ID an deine Administration.
       status_503:
         title: Dienst nicht verfügbar
-        message: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte versuche es später erneut.
+        message: Ein benötigter Dienst oder eine Datenquelle ist derzeit nicht verfügbar. Bitte versuche es später erneut.
     app:
       store_unavailable: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte später erneut versuchen.
       export_count: Bitte zwischen 1 und 100 Zertifikate auswählen.

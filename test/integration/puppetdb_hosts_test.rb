@@ -4,16 +4,21 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
   setup do
     @previous_enabled = ENV["PUPPETDB_ENABLED"]
     @previous_algorithm = ENV["PUPPETDB_FINGERPRINT_ALGORITHM"]
+    @previous_connection = PuppetdbConnection.method(:new)
+    connection = Object.new
+    connection.define_singleton_method(:inventory) { |_query| [] }
+    PuppetdbConnection.define_singleton_method(:new) { connection }
     @record = store(issue.first)
     post local_login_path, params: { identity: "zone_a_reader" }
   end
 
   teardown do
+    PuppetdbConnection.define_singleton_method(:new, @previous_connection)
     ENV["PUPPETDB_ENABLED"] = @previous_enabled
     ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = @previous_algorithm
   end
 
-  test "host counts and detail lists are optional and require no PuppetDB request" do
+  test "host counts and detail lists are optional and use stored inventory" do
     @record.update!(puppetdb_hosts: %w[app01.example.test app02.example.test], puppetdb_checked_at: Time.current)
     ENV["PUPPETDB_ENABLED"] = "false"
     get root_path

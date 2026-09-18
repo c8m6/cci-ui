@@ -1,10 +1,13 @@
 # CCI-UI
 
-**Controlled classified item** — certificate management with configurable permission
+**Controlled Cryptographic Item** — certificate management with configurable permission
 areas, built with Ruby on Rails, Hotwire, PostgreSQL and HashiCorp Consul.
 
 Search legacy files and new certificates together, manage certificate versions
-and Puppet status, and export PEM, DER, PKCS#12/PFX or JKS. The application interface is in German.
+and Puppet status, and export PEM, DER, PKCS#12/PFX or JKS. The project is multilingual,
+with a German and English application interface. The language follows your browser
+preferences and can be changed in the language menu. See
+[interface languages and adding translations](docs/localization.md).
 
 ## Quick start
 

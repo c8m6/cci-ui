@@ -92,10 +92,10 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
     token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
     configure_legacy_paths("zone_a" => File.join(@directory, "missing"))
     post imports_path, params: { token: token }
-    assert_response :see_other
+    assert_response :service_unavailable
     assert_empty Certificate.where(source: "consul")
     upload
-    assert_response :see_other
+    assert_response :service_unavailable
     configure_legacy_paths("zone_a" => @directory)
     File.write(@path, "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----\n")
     upload

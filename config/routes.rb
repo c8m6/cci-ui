@@ -1,5 +1,6 @@
 Rails.application.routes.draw do
   get "/up", to: "rails/health#show", as: :rails_health_check
+  get "/health", to: "health#show"
   root "certificates#index"
   post "/sprache", to: "locales#update", as: :locale
   get "/anmelden", to: "sessions#new", as: :login

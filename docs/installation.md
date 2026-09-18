@@ -369,3 +369,22 @@ details. Until then, counts show “–”. On query or parsing errors the index
 a sanitized message, preserves the last successful host list and marks it as
 potentially stale in the UI. No certificate is removed. See the
 [fact format and operational limits](puppetdb.md).
+
+## Health checks
+
+`GET /up` checks whether Rails is running. `GET /health` checks PostgreSQL with
+a query, Consul with a consistent read under the configured storage prefix,
+and the accessibility of each configured legacy directory. It also queries
+PuppetDB when enabled and checks OIDC discovery when OIDC authentication is used.
+Both endpoints are available without authentication.
+
+The overall check returns HTTP 200 with `{"status":"ok"}` or HTTP 503 with
+`{"status":"unavailable"}`. Normal application requests also check dependencies
+and show the existing 503 error page when a check fails. Responses are not cached.
+`CCI_SHOW_ERROR_DETAILS=true` adds failure details to the health response and
+the error page. Leave it disabled to show only the general error notification.
+
+The Compose web healthcheck uses `/health`. Checks run on every request and may
+wait for the configured connection timeouts during an outage. They verify read
+access, not write permissions or indexer freshness. An accessible empty legacy
+directory is valid. This check cannot distinguish it from an empty mount point.
