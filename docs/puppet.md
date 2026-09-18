@@ -23,8 +23,9 @@ these are held by the compilers.
 ## Prepared status contract
 
 CCI-UI can set `active`, `norollout`, or `delete` only for Consul certificates.
-Filesystem certificates have no mutable status and cannot be archived. This release prepares UI and Consul storage only; the
-supplied `cci::certificate` manifests do **not** implement status processing.
+Filesystem certificates have no mutable status and cannot be archived. This
+release prepares only the UI and Consul storage. The supplied
+`cci::certificate` manifests do **not** implement status processing.
 They continue to manage configured files even when a stored status is
 `norollout` or `delete`. Deploy status-aware Puppet code before relying on these
 values to suspend rollout or remove files.

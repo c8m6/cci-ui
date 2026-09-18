@@ -250,9 +250,9 @@ The private PEM key is encrypted using AES-256-GCM, a fresh 12-byte IV, and the
 `cci:v1:<area>:<version_id>`, even when `CONSUL_PREFIX` is customized. Private
 keys must never appear in the public version object.
 
-### External writer checklist
+### Writing certificate data from another application
 
-A Ruby importer supplies a configured area ID, a stable lookup name, the public
+A Ruby importer must supply a configured area ID, a stable lookup name, the public
 certificate, its issuer chain (possibly empty), tags (possibly empty), a stable
 client identifier, and the initiating user or service account. The private key
 is optional. When supplied, it must match the certificate and be encrypted with
