@@ -25,6 +25,12 @@ services:
       retries: 15
   web:
     build: .
+    healthcheck:
+      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:' + ENV.fetch('PORT', '3000') + '/health')).code == '200' ? 0 : 1)"]
+      interval: 30s
+      timeout: 60s
+      start_period: 30s
+      retries: 3
     ports:
       - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"
     env_file:

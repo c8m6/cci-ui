@@ -13,7 +13,7 @@
   <a href="#main" class="skip-link"><%= t("ui.skip_content") %></a>
   <aside class="sidebar">
     <%= link_to root_path, class: "brand" do %><span class="brand-icon"><%= icon("shield") %></span>CCI<span class="brand-light">-UI</span><% end %>
-    <div class="sidebar-caption">CONTROLLED CLASSIFIED ITEM</div>
+    <div class="sidebar-caption">Controlled Cryptographic Item</div>
     <% if current_identity %>
       <nav aria-label="<%= t('ui.main_navigation') %>">
         <% if current_identity.auditor? %><%= link_to audit_events_path, class: "nav-item #{controller_name == 'audit_events' ? 'active' : ''}" do %><%= icon("shield") %> <%= t("ui.audit_logs") %><% end %><% end %>
@@ -48,7 +48,7 @@
       <% flash.each do |type, message| %><div role="status" class="flash <%= type == 'alert' ? 'flash-error' : '' %>"><%= message %></div><% end %>
       <%= yield %>
     </main>
-    <footer>CCI-UI · Controlled classified item</footer>
+    <footer>CCI-UI · Controlled Cryptographic Item</footer>
   </div>
 </body>
 </html>

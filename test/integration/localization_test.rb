@@ -62,6 +62,10 @@ class LocalizationTest < ActionDispatch::IntegrationTest
   end
 
   test "English certificate details archive and PuppetDB presentation retain stored values" do
+    previous_connection = PuppetdbConnection.method(:new)
+    connection = Object.new
+    connection.define_singleton_method(:inventory) { |_query| [] }
+    PuppetdbConnection.define_singleton_method(:new) { connection }
     cert, key = issue
     record = store(cert, key: key)
     record.update!(puppetdb_hosts: ["host.example.test"], puppetdb_checked_at: Time.current)
@@ -89,6 +93,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_equal "norollout", record.reload.rollout_status
     assert_equal "1", ConsulStore.get(record.area, record.source_id).fetch("schema")
   ensure
+    PuppetdbConnection.define_singleton_method(:new, previous_connection)
     ENV["PUPPETDB_ENABLED"] = previous
   end
 
@@ -177,7 +182,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     get certificate_path(record), headers: { "Accept-Language" => "en" }
     assert_response :service_unavailable
     assert_equal "en", response.headers["Content-Language"]
-    assert_select ".error-page p", text: "The certificate store is currently unavailable. Please try again later."
+    assert_select ".error-page p", text: "A required service or data source is currently unavailable. Please try again later."
     assert_equal :de, I18n.locale
   ensure
     ConsulStore.define_singleton_method(:status_snapshot, original) if original

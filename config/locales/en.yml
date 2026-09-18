@@ -299,7 +299,7 @@ en:
         message: Please try again later. If the problem persists, contact your administrator with the request ID.
       status_503:
         title: Service unavailable
-        message: The certificate store is currently unavailable. Please try again later.
+        message: A required service or data source is currently unavailable. Please try again later.
     app:
       store_unavailable: The certificate store is currently unavailable. Please try again later.
       export_count: Please select between 1 and 100 certificates.
