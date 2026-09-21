@@ -40,10 +40,10 @@ class CertificatesTest < ActiveSupport::TestCase
     newer = store(renewed, key: renewed_key)
     assert_not original.reload.active
     assert newer.active
-    raw = ConsulStore.client.get("#{ConsulStore.prefix('zone_a')}/private-keys/#{original.source_id}")[:value]
+    raw = ConsulStore.client.get("#{ConsulStore.prefix('zone_a')}/private_keys/#{original.source_id}")[:value]
     assert_not_includes raw, "PRIVATE KEY"
     assert CertificateMaterial.load(original, private_key: true)[:certificate].check_private_key(key)
-    assert_raises(Certificates::Error) { store(cert, key: key) }
+    assert_equal 3, store(cert, key: key).certificate_version
     ConsulStore.activate("zone_a", original.source_id, actor: "test")
     CatalogIndexer.new.consul
     assert original.reload.active
@@ -151,14 +151,14 @@ class CertificatesTest < ActiveSupport::TestCase
     cert, key = issue
     original = store(cert, key: key)
     client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace, keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
-    pem = client.fetch(area: "zone_a", lookup: "test")
+    pem = client.fetch(area: "zone_a", certid: "test")
     assert_equal cert.to_pem, pem
     renewed, new_key = issue(serial: 99)
     store(renewed, key: new_key)
-    assert_equal pem, client.fetch(area: "zone_a", lookup: "test")
-    assert cert.check_private_key(OpenSSL::PKey.read(client.fetch(area: "zone_a", lookup: "test", field: "private_key")))
+    assert_equal pem, client.fetch(area: "zone_a", certid: "test")
+    assert cert.check_private_key(OpenSSL::PKey.read(client.fetch(area: "zone_a", certid: "test", field: "private_key")))
     next_compile = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal renewed.to_pem, next_compile.fetch(area: "zone_a", lookup: "test")
-    assert_equal original.fingerprint, client.fetch(area: "zone_a", lookup: "test", field: "metadata")["fingerprint"]
+    assert_equal renewed.to_pem, next_compile.fetch(area: "zone_a", certid: "test")
+    assert_equal original.fingerprint, client.fetch(area: "zone_a", certid: "test", field: "metadata")["fingerprint"]
   end
 end

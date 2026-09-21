@@ -46,7 +46,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `DATABASE_URL` | PostgreSQL connection URL. Set explicitly for deployment. The development fallback is `postgresql://certui:certui@127.0.0.1:55432/certui_development`; development Compose supplies its internal `db` connection. |
 | `CONSUL_URL` | Consul HTTP(S) endpoint. Application default: `http://127.0.0.1:8500`; development Compose uses `http://consul:8500`. |
 | `CONSUL_TOKEN` | Consul ACL token. Default: empty for local evaluation. Production Compose requires it. |
-| `CONSUL_PREFIX` | Consul KV namespace. Default: `cci/v1`. Preserve it when migrating. |
+| `CONSUL_PREFIX` | Consul KV namespace. Default: `cci`. Preserve it when migrating. |
 | `CONSUL_CA_FILE` | Optional CA certificate path inside the container for HTTPS Consul. Empty or omitted uses system trust. Mount the certificate into both services if needed. |
 | `AUTH_MODE` | `oidc` (application default) or `local`. Development Compose defaults to `local`; production Compose sets `oidc`. Production rejects local authentication. |
 | `OIDC_ISSUER` | Keycloak realm URL, required in OIDC mode; production requires HTTPS. |
@@ -251,7 +251,7 @@ file path in an environment variable does not mount the file itself.
 5. Recreate web and indexer with identical environment and inventory mounts.
 
 No SQL or Consul schema migration is needed for this configuration change.
-Preserve area IDs, Consul prefix and key bytes so existing lookups, encrypted
+Preserve area IDs, Consul prefix and key bytes so existing certids, encrypted
 material, roles and audit ownership remain accessible. The complete storage
 contract is in the [Consul schema](consul-schema.md).
 

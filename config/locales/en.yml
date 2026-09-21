@@ -56,7 +56,7 @@ en:
     certificate_issuer: Certificate / issuer
     hosts: Hosts
     valid_until: Valid until
-    puppet_lookup: Puppet lookup
+    puppet_certid: Puppet certid
     details: Details
     archived: Archived
     key_present: Key file available
@@ -106,13 +106,15 @@ en:
     source_unavailable_description: >-
       Stored certificate details are retained. Export and the certificate chain will be available when the matching
       source is readable again.
-    status_scope: The status applies to all versions of this lookup and is preserved on renewal.
+    status_scope: The status applies to all versions of this certid and is preserved on renewal.
     status_pending: The status is stored. Automatic processing by Puppet is not yet implemented.
     status_active: ": Puppet should deploy the certificate normally."
     status_norollout: ": Puppet should not deploy the certificate and should leave existing files unchanged."
     status_delete: ": Puppet should remove the certificate, even without a Hiera entry."
     save_status: Save status
     archive: Archive
+    version: Version
+    imported_at: Imported at
     versions: Versions
     current_version: Current version
     activate: Activate
@@ -166,10 +168,10 @@ en:
     choose_areas: Select one or more authorized areas.
     tags_placeholder: e.g. Production, Web server
     tags_help: Separate multiple tags with commas.
-    optional_lookup: Puppet lookup (optional)
-    lookup_placeholder: e.g. portal.production
-    lookup_help: >-
-      For a single certificate. An existing lookup receives a new active version after explicit confirmation. Its
+    optional_certid: Puppet certid (optional)
+    certid_placeholder: e.g. portal.production
+    certid_help: >-
+      For a single certificate. An existing certid receives a new active version after explicit confirmation. Its
       Puppet status is preserved. If omitted, the fingerprint is used.
     import_storage: >-
       New certificates are stored in Consul. Certificates already present in the filesystem inventory cannot be
@@ -180,14 +182,14 @@ en:
     ready_to_save: Ready to save
     matching_key: Matching private key
     public_certificate: Public certificate
-    lookup_exists: >-
-      This lookup already exists. The import replaces its current version. The previous version is retained in the
+    certid_exists: >-
+      This certid already exists. The import replaces its current version. The previous version is retained in the
       history.
-    overwrite_confirmation: Yes, I am sure and want to overwrite the existing lookups marked above.
+    overwrite_confirmation: Yes, I am sure and want to overwrite the existing certids marked above.
     save_consul: Save in Consul
     audit_eyebrow: CHANGES AND EXPORTS
     audit_description: Who changed or exported which certificates, and when?
-    audit_placeholder: Search user, certificate, lookup or fingerprint …
+    audit_placeholder: Search user, certificate, certid or fingerprint …
     search_audit: Search audit logs
     all_authorized_areas: All authorized areas
     action: Action
@@ -201,16 +203,20 @@ en:
     affected_certificates: Affected certificates
     identification: Identification
     audit_historical: 'Historical entry: only references are available. The time reflects the original recording.'
-    scope_lookup: All versions of the lookup in the area
+    scope_certid: All versions of the certid in the area
     scope_fingerprint: All copies of the fingerprint in the area
     'yes': 'Yes'
     'no': 'No'
     previous_active: Previous active version
     no_audit: No audit events found
     no_audit_filters: No entries match these filters.
-    audit_delivery: >-
-      Exports are logged before delivery. Complete receipt by the user cannot be confirmed. Changes appear after
-      indexing, usually within 60 seconds.
+    audit_outcome: Outcome
+    audit_outcomes:
+      pending: Pending / unresolved if interrupted
+      succeeded: Succeeded
+      rejected: Rejected
+      unknown: Unknown
+    audit_delivery: UI changes are recorded in PostgreSQL with user, time and outcome. Direct Puppet imports show their origin on the certificate.
     login: Sign in
     welcome: WELCOME TO CERTUI
     login_heading: Everything for your certificates.
@@ -234,7 +240,7 @@ en:
     upload_origin: CCI-UI (upload)
     external_client: 'External client: %{client}'
     archive_scope_html: >-
-      Archiving affects <strong>all versions of the lookup %{lookup}</strong> in this area, including the currently
+      Archiving affects <strong>all versions of the certid %{certid}</strong> in this area, including the currently
       selected version. Future renewals also remain archived.
     archive_delete_html: >-
       The Puppet status is set to <code>delete</code>. This requests removal of managed certificate and key files
@@ -243,9 +249,9 @@ en:
     puppetdb_checked: >-
       Last queried: %{time}. This information is based on the latest facts submitted to PuppetDB and the configured
       query scope. It is not a live check of the hosts.
-    lookup_status: 'Lookup: %{lookup} · Puppet status: %{status}'
+    certid_status: 'CertID: %{certid} · Puppet status: %{status}'
     previous_version: 'Previous version: %{version}'
-    lookup: Lookup
+    certid: CertID
     serial: Serial number
     scope: Scope
     format: Format
@@ -309,37 +315,37 @@ en:
         is read-only.
       sso_failed: SSO sign-in failed. Please try again.
       invalid_dates: Please enter a valid date range.
-      overwrite_confirmation: Please explicitly confirm that you want to overwrite the existing lookups.
+      overwrite_confirmation: Please explicitly confirm that you want to overwrite the existing certids.
       choose_area: Please select at least one valid area.
       choose_input: Please select files or enter PEM text.
       import_size: Each import may contain at most 20 MB in total.
       no_certificates: No certificates found.
       import_count: Each import may contain at most 100 certificates.
       unmatched_key: At least one key does not match any certificate.
-      single_lookup: A custom lookup can only be specified when importing a single certificate.
+      single_certid: A custom certid can only be specified when importing a single certificate.
       invalid_preview: Invalid import preview.
       expired_preview: The preview has expired or is not available for this session.
       write_areas: You do not have write permission for all selected areas.
       old_preview: This import preview is outdated. Please review the import again.
       stored_status: Invalid Puppet status in the certificate store.
-      lookup_format: A lookup may only contain letters, digits, dots, underscores and hyphens (maximum 120 characters).
+      certid_format: A certid may only contain letters, digits, dots, underscores and hyphens (maximum 120 characters).
       stored_archive: Invalid archive status in the certificate store.
       archived_delete: Archived certificates must retain the Puppet status delete.
       archive_consul_only: Only Consul certificates can be archived. The filesystem inventory is read-only.
       archive_changed: The status has changed. Please review and confirm archiving again.
-      lookup_ownership: The lookup no longer belongs to this certificate.
+      certid_ownership: The certid no longer belongs to this certificate.
       unknown_area: Unknown area.
       missing_consul_certificate: The certificate is no longer present in Consul.
       client_format: The client identifier must contain letters, digits, dots, underscores or hyphens (maximum 120
         characters).
       actor_format: The creator must not be blank (maximum 255 characters).
-      preview_changed: The lookup has changed since the preview. Please review and confirm the import again.
-      duplicate: This certificate already exists under this lookup.
-      missing_lookup: The lookup no longer exists.
+      preview_changed: The certid has changed since the preview. Please review and confirm the import again.
+      duplicate: This certificate already exists under this certid.
+      missing_certid: The certid no longer exists.
       archived_activation: Archived certificates cannot be activated.
       missing_version: The version has been removed.
       invalid_status: Invalid Puppet status.
-      lookup_changed: The lookup has changed. Please reload the page.
+      certid_changed: The certid has changed. Please reload the page.
       no_inventory: No filesystem inventory is configured for this area. Refresh the index.
       inventory_unavailable: The filesystem inventory is unavailable. Please check the mount and access permissions.
       file_outside: The file is outside the legacy inventory.

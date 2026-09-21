@@ -10,12 +10,12 @@ with the existing file and writes only when contents or permissions change.
 It does not reissue certificates or generate a randomized PKCS#12 container
 on every run.
 
-The Ruby reader pins the active version ID for the duration of a compile.
+The Ruby reader pins the active integer version for the duration of a compile.
 Certificate and key therefore come from the same version even if renewal happens
-concurrently. The next compile sees the new active version. A version ID can
+concurrently. The next compile sees the new active version. A version number can
 also be pinned explicitly.
 
-The adapter exposes `metadata` containing the version ID, certificate fingerprint
+The adapter exposes `metadata` containing the integer version, certificate fingerprint
 and public-key fingerprint. Native file management needs no separate API
 comparison. The agent requires neither Consul credentials nor the area secret;
 these are held by the compilers.
@@ -38,15 +38,13 @@ The intended behavior is:
 | `norollout` | Do not deploy or recreate missing certificate/key files; leave existing files unchanged. |
 | `delete` | Remove managed certificate/key files even after removal from Hiera. |
 
-For Consul material, `$metadata['status']` from `cci::lookup(..., 'metadata')`
-exposes the lookup's status, defaulting to `active` for older entries. The status
+For Consul material, `$metadata['status']` from `cci::certid(..., 'metadata')`
+exposes the certid's status, defaulting to `active` for older entries. The status
 also applies to explicitly pinned versions. Existing certificate and key reads
 continue to return material without acting on that status.
 
-Filesystem certificates remain in the UI catalog, but Puppet must not consume
-historical `filesystem-statuses/` keys. The application ignores those keys and
-retains them only as historical data. Existing filesystem management is unchanged.
-“Archivieren” sets `archived: true` and `status: delete` on a Consul lookup without
+Filesystem certificates remain read-only UI catalog entries without Consul state.
+“Archivieren” sets `archived: true` and `status: delete` on a Consul certid without
 deleting material; it also applies to pinned versions and future renewals.
 See the [complete Consul schema](consul-schema.md).
 
@@ -72,7 +70,7 @@ Set the following in the compiler process environment:
 
 ```text
 CCI_CONSUL_URL=https://consul.example.internal:8501
-CCI_CONSUL_PREFIX=cci/v1
+CCI_CONSUL_PREFIX=cci
 CCI_ZONE_A_CONSUL_TOKEN=<ACL token for the example area zone_a>
 CCI_AREA_KEYS={"zone_a":"<Base64 secret; required only for private-key distribution>"}
 CONSUL_CA_FILE=/etc/ssl/certs/consul-ca.pem
@@ -90,7 +88,7 @@ are disabled for private keys.
 cci::certificates:
   portal.production:
     area: zone_a
-    lookup: portal.production
+    certid: portal.production
     path: /etc/ssl/certs/portal.pem
     key_path: /etc/ssl/private/portal.key
     include_chain: true
@@ -104,9 +102,31 @@ only public material is needed.
 Direct function calls:
 
 ```puppet
-$metadata = cci::lookup('zone_a', 'portal.production', 'metadata')
-$pem = cci::lookup('zone_a', 'portal.production', 'certificate')
+$metadata = cci::certid('zone_a', 'portal.production', 'metadata')
+$pem = cci::certid('zone_a', 'portal.production', 'certificate')
 ```
+
+Pin an integer version with `version: 2` in Hiera, or:
+
+```puppet
+$pem = cci::certid('zone_a', 'portal.production', 'certificate', 2)
+```
+
+Certificates are stored individually. `include_chain: true` builds the chain
+in the client with an additional public-certificate discovery read. Intermediate
+and root certificates must be published separately. Missing issuers produce a
+partial chain. This is not trust-store or revocation validation.
+
+A read uses one metadata request and one material request. Configuring an area
+secret opts into fetching the encrypted private key with the public material.
+Public-only clients should omit that secret. Subsequent fields use the same
+cached version within the compile.
+
+Direct Puppet writers can use the packaged `CciWriter` helper with
+`client: "puppet"`. It records UTC import time without a required human actor,
+using one metadata read and one atomic write. See the
+[writer example](consul-schema.md#ruby-writer). The supplied manifest remains a
+reader and does not automatically issue or upload certificates.
 
 Existing NFS data stays with the legacy Puppet module. Its Hiera settings
 continue to use `issuer` and `subject`, including historical tags. Hiera name
@@ -115,7 +135,7 @@ as `\xHH` (for example, UTF-8 `ü` becomes `\xC3\xBC`). This also handles
 OpenSSL name values returned as `ASCII-8BIT` without lossy character replacement.
 Display names are decoded separately according to their ASN.1 string type for
 the UI and search index; this does not change the literal Hiera lookup values.
-The application displays these values for files without inventing new Consul lookups for legacy
+The application displays these values for files without inventing new Consul certids for legacy
 data. Exact integration depends on the existing Puppet lookup code, which has
 not yet been supplied.
 

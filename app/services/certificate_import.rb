@@ -8,7 +8,7 @@ class CertificateImport
     end
   end
 
-  def self.preview(files:, pem:, password:, areas:, tags:, lookup:, owner:)
+  def self.preview(files:, pem:, password:, areas:, tags:, certid:, owner:)
     raise Certificates::Error, I18n.t("errors.app.choose_area") if areas.empty? || (areas - AreaConfiguration.ids).any?
     inputs = files.map { |file| file.read(Certificates::Codec::MAX_BYTES + 1) }
     inputs << pem if pem.present?
@@ -20,20 +20,20 @@ class CertificateImport
     raise Certificates::Error, I18n.t("errors.app.no_certificates") if certs.empty?
     raise Certificates::Error, I18n.t("errors.app.import_count") if certs.size > 100
     raise Certificates::Error, I18n.t("errors.app.unmatched_key") if keys.any? { |key| certs.none? { |cert| cert.check_private_key(key) } }
-    raise Certificates::Error, I18n.t("errors.app.single_lookup") if lookup.present? && certs.size > 1
+    raise Certificates::Error, I18n.t("errors.app.single_certid") if certid.present? && certs.size > 1
     LegacyStore.reject_duplicates!(certs.map { |cert| Certificates::Codec.fingerprint(cert) })
     token = SecureRandom.hex(24)
     entries = areas.flat_map do |area|
       certs.map do |cert|
         key = keys.find { |candidate| cert.check_private_key(candidate) }
         fingerprint = Certificates::Codec.fingerprint(cert)
-        name = lookup.presence || fingerprint
-        snapshot = ConsulStore.lookup_snapshot(area, name)
+        name = certid.presence || fingerprint
+        snapshot = ConsulStore.certid_snapshot(area, name)
         previous = snapshot && JSON.parse(snapshot.fetch(:value))
         { area: area, pem: cert.to_pem, fingerprint: fingerprint, name: Certificates::Codec.metadata(cert)[:common_name],
           key: key && Certificates::Vault.encrypt(key.private_to_pem, area: area, id: "preview:#{token}:#{fingerprint}"),
-          chain: Certificates::Codec.chain(cert, certs).map(&:to_pem), lookup: name,
-          lookup_index: snapshot&.fetch(:index) || 0, previous_version: previous && previous.fetch("active_version"),
+          certid: name,
+          certid_index: snapshot&.fetch(:index) || 0, previous_version: previous && previous.fetch("active_version"),
           rollout_status: previous ? ConsulStore.rollout_status(previous) : "active",
           tags: tags.split(",").map(&:strip).reject(&:empty?).first(30) }
       end
@@ -50,10 +50,10 @@ class CertificateImport
       raise Certificates::Error, I18n.t("errors.app.expired_preview") unless draft && draft.expires_at > Time.current
       data = JSON.parse(draft.payload)
       raise Certificates::Error, I18n.t("errors.app.write_areas") unless data.fetch("areas").all? { |area| identity.writer?(area) }
-      unless data.fetch("entries").all? { |entry| entry["lookup_index"].is_a?(Integer) && entry["lookup_index"] >= 0 }
+      unless data.fetch("entries").all? { |entry| entry["certid_index"].is_a?(Integer) && entry["certid_index"] >= 0 }
         raise Certificates::Error, I18n.t("errors.app.old_preview")
       end
-      if data.fetch("entries").any? { |entry| entry.fetch("lookup_index") > 0 } && !confirm_overwrite
+      if data.fetch("entries").any? { |entry| entry.fetch("certid_index") > 0 } && !confirm_overwrite
         raise ConfirmationRequired.new(data)
       end
       LegacyStore.reject_duplicates!(data.fetch("entries").map { |entry| entry.fetch("fingerprint") }.uniq)
@@ -67,9 +67,8 @@ class CertificateImport
         cert = OpenSSL::X509::Certificate.new(entry.fetch("pem"))
         key = entry["key"] && OpenSSL::PKey.read(Certificates::Vault.decrypt(entry["key"], area: area, id: "preview:#{token}:#{entry.fetch('fingerprint')}"))
         id = ConsulStore.save(area: area, cert: cert, key: key,
-          chain: entry.fetch("chain").map { |pem| OpenSSL::X509::Certificate.new(pem) },
-          tags: entry.fetch("tags"), lookup: entry.fetch("lookup"), actor: identity.name, client: "cci-ui",
-          expected_lookup_index: entry.fetch("lookup_index"))
+          tags: entry.fetch("tags"), certid: entry.fetch("certid"), actor: identity.name, client: "cci-ui",
+          expected_certid_index: entry.fetch("certid_index"))
         successes << id
       rescue Certificates::Error, ConsulConnection::Error => error
         Rails.logger.error(error.full_message(highlight: false))

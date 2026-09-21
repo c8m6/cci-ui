@@ -8,6 +8,6 @@
 <p class="muted small"><%= t("ui.separate_keys") %></p>
 </section><section class="panel detail-panel"><h2><%= t("ui.assignment") %></h2><fieldset class="area-choices"><legend><%= t("ui.target_areas") %></legend><% current_identity.areas.select { |area| current_identity.writer?(area) }.each_with_index do |area, index| %><label class="check-label"><%= check_box_tag "areas[]", area, index.zero?, id: "area_#{area}" %> <%= area_label(area) %></label><% end %></fieldset><p class="muted small"><%= t("ui.choose_areas") %></p>
 <%= form.label :tags, t("ui.tags") %><%= form.text_field :tags, placeholder: t("ui.tags_placeholder"), maxlength: 500 %><p class="muted small"><%= t("ui.tags_help") %></p>
-<%= form.label :lookup, t("ui.optional_lookup") %><%= form.text_field :lookup, placeholder: t("ui.lookup_placeholder"), maxlength: 120, pattern: "[a-zA-Z0-9_.-]+" %><p class="muted small"><%= t("ui.lookup_help") %></p>
+<%= form.label :certid, t("ui.optional_certid") %><%= form.text_field :certid, placeholder: t("ui.certid_placeholder"), maxlength: 120, pattern: "[a-zA-Z0-9_.-]+" %><p class="muted small"><%= t("ui.certid_help") %></p>
 <div class="info-note"><%= t("ui.import_storage") %></div><%= form.submit t("ui.review_preview"), class: "button primary full-width" %></section>
 <% end %>

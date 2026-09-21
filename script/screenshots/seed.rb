@@ -31,6 +31,9 @@ legacy_root = LegacyStore.root(area: "zone_a")
 File.write(legacy_root.join("demo-ca.pem"), root.to_pem)
 File.write(legacy_root.join("monitor.pem"), legacy.to_pem)
 
+AreaConfiguration.ids.each do |area|
+  ConsulStore.save(area: area, certid: "demo-root", cert: root, key: nil, tags: ["CA"], actor: actor, client: "cci-ui")
+end
 issued = {}
 [
   ["portal.example.test", "zone_a", "portal.production", -5, "Production"],
@@ -39,11 +42,11 @@ issued = {}
   ["gateway.example.test", "zone_b", "gateway.production", -7, "Renewal"],
   ["staging.example.test", "zone_b", "portal.staging", 90, "Staging"],
   ["retired.example.test", "zone_b", "retired.service", 60, "Retired"]
-].each_with_index do |(name, area, lookup, days, tag), index|
+].each_with_index do |(name, area, certid, days, tag), index|
   cert, key = issue(name, serial: 10 + index, days: days, issuer: root, issuer_key: root_key)
-  id = ConsulStore.save(area: area, cert: cert, key: key, chain: [root], tags: [tag],
-    lookup: lookup, actor: actor, client: "cci-ui")
-  issued[lookup] = [cert, id, area]
+  id = ConsulStore.save(area: area, cert: cert, key: key, tags: [tag],
+    certid: certid, actor: actor, client: "cci-ui")
+  issued[certid] = [cert, id, area]
 end
 CatalogIndexer.new.filesystem
 CatalogIndexer.refresh_consul
@@ -54,18 +57,18 @@ identity = Identity.new(name: actor, roles: %w[zone_a_writer zone_a_key_exporter
 CertificateExport.call([portal], identity: identity, format: "pem", include_key: false,
   include_chain: true, password: "", source_password: "")
 
-[["gateway.production", "delete"], ["portal.staging", "norollout"]].each do |lookup, status|
-  _, id, area = issued.fetch(lookup)
+[["gateway.production", "delete"], ["portal.staging", "norollout"]].each do |certid, status|
+  _, id, area = issued.fetch(certid)
   ConsulStore.set_status(area, id, status: status, actor: actor,
-    expected_lookup_index: ConsulStore.lookup_snapshot(area, lookup).fetch(:index))
+    expected_certid_index: ConsulStore.certid_snapshot(area, certid).fetch(:index))
 end
 retired = Certificate.find_by!(source_id: issued.fetch("retired.service")[1])
 ConsulStore.archive(retired, actor: actor,
-  expected_lookup_index: ConsulStore.status_snapshot(retired).fetch(:index))
+  expected_certid_index: ConsulStore.status_snapshot(retired).fetch(:index))
 CatalogIndexer.refresh_consul
 
 # Feed a synthetic PuppetDB response through the production fingerprint mapper.
-host_lookups = {
+host_certids = {
   "web01.example.test" => %w[portal.production],
   "web02.example.test" => %w[portal.production],
   "proxy01.example.test" => %w[portal.production api.production],
@@ -74,8 +77,8 @@ host_lookups = {
   "stage01.example.test" => %w[portal.staging],
   "old01.example.test" => %w[retired.service]
 }
-rows = host_lookups.map do |host, lookups|
-  fingerprints = lookups.map { |lookup| Certificates::Codec.fingerprint(issued.fetch(lookup).first) }
+rows = host_certids.map do |host, certids|
+  fingerprints = certids.map { |certid| Certificates::Codec.fingerprint(issued.fetch(certid).first) }
   fingerprints << Certificates::Codec.fingerprint(root) if host.start_with?("web", "proxy")
   fingerprints << Certificates::Codec.fingerprint(legacy) if host.start_with?("web")
   { "certname" => host, "facts" => { "certificates" => fingerprints.map { |fp| { "fingerprint" => fp } } } }

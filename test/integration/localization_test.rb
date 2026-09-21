@@ -86,12 +86,12 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_language "en"
     assert_select "h1", text: "Archive certificate?"
     assert_select "code", text: "delete"
-    patch certificate_path(record), params: { rollout_status: "norollout", lookup_index: ConsulStore.status_snapshot(record).fetch(:index) }
+    patch certificate_path(record), params: { rollout_status: "norollout", certid_index: ConsulStore.status_snapshot(record).fetch(:index) }
     follow_redirect!
     assert_language "en"
     assert_select ".flash", text: "Puppet status saved."
     assert_equal "norollout", record.reload.rollout_status
-    assert_equal "1", ConsulStore.get(record.area, record.source_id).fetch("schema")
+    assert_equal true, ConsulStore.get(record.area, record.source_id).fetch("has_key")
   ensure
     PuppetdbConnection.define_singleton_method(:new, previous_connection)
     ENV["PUPPETDB_ENABLED"] = previous
@@ -198,7 +198,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     post imports_path, params: { areas: ["zone_a"], pem: "invalid-certificate" }
     assert_equal "PKCS#12 could not be read. Check the format, encryption and password.", flash[:alert]
     record = store(issue.first)
-    ConsulStore.archive(record, actor: "test", expected_lookup_index: ConsulStore.status_snapshot(record).fetch(:index))
+    ConsulStore.archive(record, actor: "test", expected_certid_index: ConsulStore.status_snapshot(record).fetch(:index))
     CatalogIndexer.refresh_consul
     post local_login_path, params: { identity: "zone_a_auditor" }
     get audit_events_path

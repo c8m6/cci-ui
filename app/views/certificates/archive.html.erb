@@ -4,7 +4,7 @@
   <h1><%= t("ui.archive_question") %></h1>
   <p><strong><%= @certificate.common_name %></strong> · <%= area_label(@certificate.area) %></p>
   <p class="mono break-word"><%= @certificate.fingerprint %></p>
-  <p><%= t("ui.archive_scope_html", lookup: @certificate.lookup) %></p>
+  <p><%= t("ui.archive_scope_html", certid: @certificate.certid) %></p>
   <ul>
     <li><%= t("ui.archive_delete_html") %></li>
     <li><%= t("ui.archive_visibility") %></li>
@@ -14,7 +14,7 @@
   <p class="muted"><%= t("ui.archive_puppet_pending") %></p>
   <%= form_with url: certificate_path(@certificate), method: :patch do |form| %>
     <%= form.hidden_field :archive, value: "1" %>
-    <%= form.hidden_field :lookup_index, value: @lookup_snapshot&.fetch(:index) || 0 %>
+    <%= form.hidden_field :certid_index, value: @certid_snapshot&.fetch(:index) || 0 %>
     <label class="check-label"><%= form.check_box :confirm_archive, { required: true }, "1", "0" %> <%= t("ui.archive_confirmation") %></label>
     <p><%= form.submit t("ui.archive_submit"), class: "button primary" %> <%= link_to t("ui.cancel"), certificate_path(@certificate), class: "button secondary" %></p>
   <% end %>

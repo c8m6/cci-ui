@@ -16,10 +16,10 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
   end
 
   def upload(pem: @cert.to_pem, **options)
-    post imports_path, params: { areas: ["zone_b"], pem: pem, lookup: "different-lookup" }.merge(options)
+    post imports_path, params: { areas: ["zone_b"], pem: pem, certid: "different-certid" }.merge(options)
   end
 
-  test "unindexed disk certificate blocks upload across areas and under another lookup" do
+  test "unindexed disk certificate blocks upload across areas and under another certid" do
     File.write(@path, @cert.to_pem.gsub("\n", "\r\n"))
     upload(pem: @cert.to_pem + @key.private_to_pem)
     assert_response :see_other
@@ -43,7 +43,7 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
   test "a duplicate in a bundle rejects the entire batch before saving" do
     File.write(@path, @cert.to_pem)
     fresh, = issue(serial: 2)
-    upload(pem: fresh.to_pem + @cert.to_pem, lookup: "")
+    upload(pem: fresh.to_pem + @cert.to_pem, certid: "")
     assert_response :see_other
     assert_empty ImportDraft.all
     assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/areas/")
@@ -51,7 +51,7 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
 
   test "certificate appearing after preview blocks the entire commit" do
     fresh, = issue(serial: 2)
-    upload(pem: fresh.to_pem + @cert.to_pem, lookup: "")
+    upload(pem: fresh.to_pem + @cert.to_pem, certid: "")
     assert_response :success
     token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
     File.write(@path, @cert.to_pem)

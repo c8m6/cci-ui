@@ -14,10 +14,10 @@ class CertificatesController < ApplicationController
   end
   def show
     @certificate = Certificate.visible_to(current_identity).find(params[:id])
-    @lookup_snapshot = ConsulStore.status_snapshot(@certificate)
-    @rollout_status = @lookup_snapshot ? ConsulStore.rollout_status(JSON.parse(@lookup_snapshot.fetch(:value))) : @certificate.rollout_status
-    @archived = @certificate.archived || (@lookup_snapshot && ConsulStore.catalog_status(JSON.parse(@lookup_snapshot.fetch(:value))).fetch(:archived))
-    @versions = @certificate.entry_id ? Certificate.visible_to(current_identity).where(area: @certificate.area, entry_id: @certificate.entry_id).order(not_before: :desc) : []
+    @certid_snapshot = ConsulStore.status_snapshot(@certificate)
+    @rollout_status = @certid_snapshot ? ConsulStore.rollout_status(JSON.parse(@certid_snapshot.fetch(:value))) : @certificate.rollout_status
+    @archived = @certificate.archived || (@certid_snapshot && ConsulStore.catalog_status(JSON.parse(@certid_snapshot.fetch(:value))).fetch(:archived))
+    @versions = @certificate.certid ? Certificate.visible_to(current_identity).where(area: @certificate.area, source: "consul", certid: @certificate.certid).order(certificate_version: :desc) : []
     begin
       @material = CertificateMaterial.with_chain(@certificate, CertificateMaterial.load(@certificate), current_identity)
       fingerprints = [@material[:certificate], *@material[:chain]].map { |cert| Certificates::Codec.fingerprint(cert) }
@@ -33,7 +33,7 @@ class CertificatesController < ApplicationController
     @certificate = Certificate.visible_to(current_identity).find(params[:id])
     require_writer!(@certificate.area)
     require_consul!(@certificate)
-    @lookup_snapshot = ConsulStore.status_snapshot(@certificate)
+    @certid_snapshot = ConsulStore.status_snapshot(@certificate)
   end
 
   def export
@@ -56,14 +56,14 @@ class CertificatesController < ApplicationController
     if params[:archive] == "1"
       unless params[:confirm_archive] == "1"
         @certificate = record
-        @lookup_snapshot = ConsulStore.status_snapshot(record)
+        @certid_snapshot = ConsulStore.status_snapshot(record)
         flash.now[:alert] = I18n.t("errors.app.archive_confirmation")
         return render :archive, status: :unprocessable_content
       end
-      ConsulStore.archive(record, actor: current_identity.name, expected_lookup_index: params[:lookup_index])
+      ConsulStore.archive(record, actor: current_identity.name, expected_certid_index: params[:certid_index])
       notice = I18n.t("notices.archived")
     elsif params.key?(:rollout_status)
-      options = { status: params[:rollout_status], actor: current_identity.name, expected_lookup_index: params[:lookup_index] }
+      options = { status: params[:rollout_status], actor: current_identity.name, expected_certid_index: params[:certid_index] }
       ConsulStore.set_status(record.area, record.source_id, **options)
       notice = I18n.t("notices.status_saved")
     else

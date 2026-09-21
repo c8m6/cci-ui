@@ -50,7 +50,7 @@ to reproduce the screenshots in an isolated demo environment.
 ### Certificate overview
 
 Search, validity and Puppet status filters, source information, host counts and
-Puppet lookups in the light theme. Filesystem entries have no Puppet status.
+Puppet certids in the light theme. Filesystem entries have no Puppet status.
 
 ![Certificate overview with synthetic certificates, Puppet status and host counts in Zone A and Zone B](docs/screenshots/overview.png)
 
@@ -84,18 +84,18 @@ PKCS#12 supports AES/PBES2 and 3DES; legacy RC2 is not supported.
 
 ## Overwrite confirmation and Puppet status
 
-Imports into an existing area/lookup require explicit confirmation in the preview.
-The server checks that the lookup has not changed since preview; older versions
+Imports into an existing area/certid require explicit confirmation in the preview.
+The server checks that the certid has not changed since preview; older versions
 remain available after renewal. Uploads containing a certificate already on disk
-are rejected by DER fingerprint, regardless of lookup or target area. The disk
+are rejected by DER fingerprint, regardless of certid or target area. The disk
 inventories in all configured areas are checked both before preview and before saving.
 
 Writers can set `active`, `norollout`, or `delete` in certificate details for
 Consul certificates only. Filesystem certificates remain read-only catalog
 entries without Puppet controls or archiving. The overview displays
 “Puppet-Status” and provides a matching filter independently of “Gültigkeit”.
-Status changes are audited. Consul stores lookup status, while local files stay
-unchanged. Renewals preserve the lookup status.
+Status changes are audited. Consul stores certid status, while local files stay
+unchanged. Renewals preserve the certid status.
 
 The UI and indexer never delete certificate entries, stored material, or status
 records. This also applies when files disappear, a mount becomes empty, or an
@@ -105,13 +105,14 @@ Writers can choose “Archivieren” next to “Status speichern” in Consul
 certificate details. A separate confirmation page explains the scope and
 potential service disruption from the Puppet `delete` request. The server also
 requires this confirmation. Archiving sets
-`archived: true` and `status: delete` atomically with an audit event in Consul.
-It covers all versions of a Consul lookup in that area. Archived entries are
+`archived: true` and `status: delete` atomically in Consul. The UI records the
+user, time, change and outcome in PostgreSQL.
+It covers all versions of a Consul certid in that area. Archived entries are
 excluded from the default overview and statistics. A text search automatically
 includes archived entries and their historical versions. “Archivierte
 einschließen” lists them without a search term.
 
-The UI does not reactivate archived entries. Renewals of an archived lookup stay
+The UI does not reactivate archived entries. Renewals of an archived certid stay
 archived. Details remain readable if the source material disappears, but exports
 still require the matching source material. Back up PostgreSQL to retain metadata
 for absent sources.

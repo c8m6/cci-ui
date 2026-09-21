@@ -22,7 +22,7 @@ form input is not retained across a language change.
 
 Interface labels, confirmation messages, application errors, dates, number
 formatting and dynamic selection counts are localized. Certificate contents,
-tags, configured area labels, user identities, lookups, stored status values
+tags, configured area labels, user identities, certids, stored status values
 (`active`, `norollout`, `delete`) and Consul's storage contract are unchanged.
 External audit comments remain as supplied. The application's fixed archive
 message is translated for display without rewriting the audit record. Operational

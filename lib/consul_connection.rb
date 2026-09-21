@@ -44,6 +44,14 @@ class ConsulConnection
       { key: entry.fetch("Key"), value: Base64.strict_decode64(entry.fetch("Value") || ""), index: entry.fetch("ModifyIndex") }
     end
   end
+  # Fetch known public/private paths together without an intermediate round trip.
+  def get_many(keys)
+    result = transaction(keys.map { |key| { "Verb" => "get", "Key" => key } })
+    result.fetch("Results").to_h do |item|
+      entry = item.fetch("KV")
+      [entry.fetch("Key"), { value: Base64.strict_decode64(entry.fetch("Value") || ""), index: entry.fetch("ModifyIndex") }]
+    end
+  end
   def transaction(operations)
     raise Error, "Zu viele Änderungen für eine Consul-Transaktion." if operations.size > 64
     request("put", "/v1/txn", body: JSON.generate(operations.map { |op| { "KV" => op } }))

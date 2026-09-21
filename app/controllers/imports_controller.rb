@@ -30,7 +30,7 @@ class ImportsController < ApplicationController
       areas = Array(params[:areas]).reject(&:blank?).uniq
       areas.each { |area| require_writer!(area) }
       @token, @preview = CertificateImport.preview(files: Array(params[:files]).reject(&:blank?), pem: params[:pem].to_s,
-        password: params[:password].to_s, areas: areas, tags: params[:tags].to_s, lookup: params[:lookup].to_s,
+        password: params[:password].to_s, areas: areas, tags: params[:tags].to_s, certid: params[:certid].to_s,
         owner: session[:import_owner])
       render :preview
     end

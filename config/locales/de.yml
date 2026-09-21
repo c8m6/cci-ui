@@ -56,7 +56,7 @@ de:
     certificate_issuer: Zertifikat / Aussteller
     hosts: Hosts
     valid_until: Gültig bis
-    puppet_lookup: Puppet-Lookup
+    puppet_certid: Puppet-CertID
     details: Details
     archived: Archiviert
     key_present: Schlüsseldatei vorhanden
@@ -106,13 +106,15 @@ de:
     source_unavailable_description: >-
       Die gespeicherten Zertifikatsdetails bleiben erhalten. Export und Zertifikatskette sind erst verfügbar, wenn
       die passende Quelle wieder lesbar ist.
-    status_scope: Der Status gilt für alle Versionen dieses Lookups und bleibt bei einer Erneuerung erhalten.
+    status_scope: Der Status gilt für alle Versionen dieses CertIDs und bleibt bei einer Erneuerung erhalten.
     status_pending: Der Status wird gespeichert. Die automatische Auswertung durch Puppet ist noch nicht umgesetzt.
     status_active: ": Puppet soll das Zertifikat normal ausrollen."
     status_norollout: ": Puppet soll das Zertifikat nicht ausrollen und vorhandene Dateien unverändert lassen."
     status_delete: ": Puppet soll das Zertifikat entfernen, auch ohne Hiera-Eintrag."
     save_status: Status speichern
     archive: Archivieren
+    version: Version
+    imported_at: Importiert am
     versions: Versionen
     current_version: Aktuelle Version
     activate: Aktivieren
@@ -167,11 +169,11 @@ de:
     choose_areas: Wählen Sie einen oder mehrere berechtigte Bereiche aus.
     tags_placeholder: z. B. Produktion, Webserver
     tags_help: Mehrere Tags durch Komma trennen.
-    optional_lookup: Puppet-Lookup (optional)
-    lookup_placeholder: z. B. portal.produktion
-    lookup_help: >-
-      Für ein einzelnes Zertifikat. Ein bestehender Lookup erhält nach ausdrücklicher Bestätigung eine neue aktive
-      Version. Sein Puppet-Status bleibt erhalten. Ohne Angabe wird der Fingerprint verwendet.
+    optional_certid: Puppet-CertID (optional)
+    certid_placeholder: z. B. portal.produktion
+    certid_help: >-
+      Für ein einzelnes Zertifikat. Eine bestehende CertID erhält nach ausdrücklicher Bestätigung eine neue aktive
+      Version. Ihr Puppet-Status bleibt erhalten. Ohne Angabe wird der Fingerprint verwendet.
     import_storage: >-
       Neue Zertifikate werden in Consul gespeichert. Zertifikate, die bereits im Dateibestand vorhanden sind, können
       nicht hochgeladen werden.
@@ -181,14 +183,14 @@ de:
     ready_to_save: Bereit zum Speichern
     matching_key: Passender privater Schlüssel
     public_certificate: Öffentliches Zertifikat
-    lookup_exists: >-
-      Dieser Lookup ist bereits vorhanden. Seine aktuelle Version wird durch den Import ersetzt. Die bisherige Version
+    certid_exists: >-
+      Diese CertID ist bereits vorhanden. Ihre aktuelle Version wird durch den Import ersetzt. Die bisherige Version
       bleibt als alte Version erhalten.
-    overwrite_confirmation: Ja, ich bin sicher und möchte die oben gekennzeichneten bestehenden Lookups überschreiben.
+    overwrite_confirmation: Ja, ich bin sicher und möchte die oben gekennzeichneten bestehenden CertIDs überschreiben.
     save_consul: In Consul speichern
     audit_eyebrow: ÄNDERUNGEN UND EXPORTE
     audit_description: Wer hat wann welche Zertifikate geändert oder exportiert?
-    audit_placeholder: Benutzer, Zertifikat, Lookup oder Fingerprint suchen …
+    audit_placeholder: Benutzer, Zertifikat, CertID oder Fingerprint suchen …
     search_audit: Auditlogs durchsuchen
     all_authorized_areas: Alle berechtigten Bereiche
     action: Aktion
@@ -202,16 +204,20 @@ de:
     affected_certificates: Betroffene Zertifikate
     identification: Identifikation
     audit_historical: 'Historischer Eintrag: nur Referenzen vorhanden; Zeit entspricht der damaligen Erfassung.'
-    scope_lookup: Alle Versionen des Lookups im Bereich
+    scope_certid: Alle Versionen der CertID im Bereich
     scope_fingerprint: Alle Kopien des Fingerprints im Bereich
     'yes': Ja
     'no': Nein
     previous_active: Vorherige aktive Version
     no_audit: Keine Auditereignisse gefunden
     no_audit_filters: Für diese Filter liegen keine Einträge vor.
-    audit_delivery: >-
-      Exporte werden vor der Auslieferung protokolliert. Der vollständige Empfang beim Benutzer kann nicht bestätigt
-      werden. Änderungen erscheinen nach der Indexierung, üblicherweise innerhalb von 60 Sekunden.
+    audit_outcome: Ergebnis
+    audit_outcomes:
+      pending: Ausstehend / bei Abbruch ungeklärt
+      succeeded: Erfolgreich
+      rejected: Abgelehnt
+      unknown: Ungeklärt
+    audit_delivery: UI-Änderungen werden mit Benutzer, Zeitpunkt und Ergebnis in PostgreSQL protokolliert. Direkte Puppet-Importe zeigen ihre Herkunft am Zertifikat.
     login: Anmelden
     welcome: WILLKOMMEN BEI CERTUI
     login_heading: Alles für Ihre Zertifikate.
@@ -235,7 +241,7 @@ de:
     upload_origin: CCI-UI (Upload)
     external_client: 'Externer Client: %{client}'
     archive_scope_html: >-
-      Die Archivierung betrifft <strong>alle Versionen des Lookups %{lookup}</strong> in diesem Bereich, einschließlich
+      Die Archivierung betrifft <strong>alle Versionen der CertID %{certid}</strong> in diesem Bereich, einschließlich
       der aktuell ausgewählten Version. Auch spätere Erneuerungen bleiben archiviert.
     archive_delete_html: >-
       Der Puppet-Status wird auf <code>delete</code> gesetzt. Dies ist ein Auftrag, verwaltete Zertifikats- und
@@ -245,9 +251,9 @@ de:
     puppetdb_checked: >-
       Zuletzt abgefragt: %{time}. Die Angaben beruhen auf den zuletzt an PuppetDB übermittelten Facts und dem konfigurierten
       Abfrageumfang; sie sind keine Live-Prüfung der Hosts.
-    lookup_status: 'Lookup: %{lookup} · Puppet-Status: %{status}'
+    certid_status: 'CertID: %{certid} · Puppet-Status: %{status}'
     previous_version: 'Bisherige Version: %{version}'
-    lookup: Lookup
+    certid: CertID
     serial: Seriennummer
     scope: Umfang
     format: Format
@@ -311,7 +317,7 @@ de:
         nur lesbar.
       sso_failed: SSO-Anmeldung fehlgeschlagen. Bitte erneut versuchen.
       invalid_dates: Bitte einen gültigen Zeitraum angeben.
-      overwrite_confirmation: Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden Lookups überschreiben
+      overwrite_confirmation: Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden CertIDs überschreiben
         möchten.
       choose_area: Bitte mindestens einen gültigen Bereich auswählen.
       choose_input: Bitte Dateien auswählen oder PEM eingeben.
@@ -319,30 +325,30 @@ de:
       no_certificates: Keine Zertifikate gefunden.
       import_count: Höchstens 100 Zertifikate pro Import.
       unmatched_key: Mindestens ein Schlüssel passt zu keinem Zertifikat.
-      single_lookup: Ein eigener Lookup ist nur beim Import eines einzelnen Zertifikats möglich.
+      single_certid: Eine eigene CertID ist nur beim Import eines einzelnen Zertifikats möglich.
       invalid_preview: Ungültige Importvorschau.
       expired_preview: Vorschau abgelaufen oder nicht für diese Sitzung vorhanden.
       write_areas: Keine Schreibberechtigung für alle gewählten Bereiche.
       old_preview: Diese Importvorschau ist veraltet. Bitte den Import erneut prüfen.
       stored_status: Ungültiger Puppet-Status im Zertifikatsspeicher.
-      lookup_format: Lookup darf nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich enthalten (max. 120).
+      certid_format: CertID darf nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich enthalten (max. 120).
       stored_archive: Ungültiger Archivstatus im Zertifikatsspeicher.
       archived_delete: Archivierte Zertifikate müssen den Puppet-Status delete behalten.
       archive_consul_only: Nur Consul-Zertifikate können archiviert werden. Der Dateibestand ist nur lesbar.
       archive_changed: Der Status wurde geändert. Bitte Archivierung erneut prüfen und bestätigen.
-      lookup_ownership: Lookup gehört nicht mehr zu diesem Zertifikat.
+      certid_ownership: CertID gehört nicht mehr zu diesem Zertifikat.
       unknown_area: Unbekannter Bereich.
       missing_consul_certificate: Zertifikat ist in Consul nicht mehr vorhanden.
       client_format: Client muss eine Kennung aus Buchstaben, Zahlen, Punkt, Unterstrich oder Bindestrich sein (max.
         120).
       actor_format: Urheber darf nicht leer sein (max. 255 Zeichen).
-      preview_changed: Der Lookup wurde seit der Vorschau geändert. Bitte Import erneut prüfen und bestätigen.
-      duplicate: Dieses Zertifikat ist unter diesem Lookup bereits vorhanden.
-      missing_lookup: Lookup ist nicht mehr vorhanden.
+      preview_changed: Die CertID wurde seit der Vorschau geändert. Bitte Import erneut prüfen und bestätigen.
+      duplicate: Dieses Zertifikat ist unter dieser CertID bereits vorhanden.
+      missing_certid: CertID ist nicht mehr vorhanden.
       archived_activation: Archivierte Zertifikate können nicht aktiviert werden.
       missing_version: Version wurde entfernt.
       invalid_status: Ungültiger Puppet-Status.
-      lookup_changed: Der Lookup wurde geändert. Bitte Seite neu laden.
+      certid_changed: Die CertID wurde geändert. Bitte Seite neu laden.
       no_inventory: Für diesen Bereich ist kein Dateibestand konfiguriert. Index aktualisieren.
       inventory_unavailable: Der Dateibestand ist nicht erreichbar. Bitte Einbindung und Zugriffsrechte prüfen.
       file_outside: Datei liegt außerhalb des Altbestands.

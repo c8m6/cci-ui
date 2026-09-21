@@ -5,17 +5,17 @@
     <div class="preview-entry">
       <h2><%= entry.fetch("name") %> <span class="area-pill"><%= area_label(entry.fetch("area")) %></span></h2>
       <p class="mono small break-word"><%= entry.fetch("fingerprint") %></p>
-      <p><span class="badge neutral"><%= entry["key"] ? t("ui.matching_key") : t("ui.public_certificate") %></span> <%= t("ui.chain_count", count: entry.fetch("chain").size) %></p>
-      <p class="muted small"><%= t("ui.lookup_status", lookup: entry.fetch("lookup"), status: entry.fetch("rollout_status")) %></p>
-      <% if entry.fetch("lookup_index") > 0 %>
-        <p class="flash flash-error"><%= t("ui.lookup_exists") %></p>
+      <p><span class="badge neutral"><%= entry["key"] ? t("ui.matching_key") : t("ui.public_certificate") %></span></p>
+      <p class="muted small"><%= t("ui.certid_status", certid: entry.fetch("certid"), status: entry.fetch("rollout_status")) %></p>
+      <% if entry.fetch("certid_index") > 0 %>
+        <p class="flash flash-error"><%= t("ui.certid_exists") %></p>
         <p class="mono small break-word"><%= t("ui.previous_version", version: entry.fetch("previous_version")) %></p>
       <% end %>
     </div>
   <% end %>
   <%= form_with url: imports_path, data: { turbo: false } do |form| %>
     <%= form.hidden_field :token, value: @token %>
-    <% if @preview.fetch("entries").any? { |entry| entry.fetch("lookup_index") > 0 } %>
+    <% if @preview.fetch("entries").any? { |entry| entry.fetch("certid_index") > 0 } %>
       <p><label class="check-label"><%= form.check_box :confirm_overwrite, { required: true }, "1", "0" %> <%= t("ui.overwrite_confirmation") %></label></p>
     <% end %>
     <%= form.submit t("ui.save_consul"), class: "button primary" %>

@@ -3,7 +3,7 @@ require_relative "../../examples/add_certificate"
 
 class RolloutStatusTest < ActiveSupport::TestCase
   def set_status(record, status, index: ConsulStore.status_snapshot(record)&.fetch(:index) || 0)
-    options = { status: status, actor: "status-writer", expected_lookup_index: index }
+    options = { status: status, actor: "status-writer", expected_certid_index: index }
     ConsulStore.set_status(record.area, record.source_id, **options)
     CatalogIndexer.refresh_consul
   end
@@ -30,27 +30,27 @@ class RolloutStatusTest < ActiveSupport::TestCase
     assert_equal newer.fingerprint, event.details["certificates"].first["fingerprint"]
     assert_not_includes event.details.to_json, "PRIVATE KEY"
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal "delete", reader.fetch(area: original.area, lookup: original.lookup, field: "metadata")["status"]
-    assert_equal public_data["pem"], reader.fetch(area: original.area, lookup: original.lookup)
+    assert_equal "delete", reader.fetch(area: original.area, certid: original.certid, field: "metadata")["status"]
+    assert_equal public_data["pem"], reader.fetch(area: original.area, certid: original.certid)
     set_status(original, "active")
     assert_equal "active", original.reload.rollout_status
   end
 
-  test "old lookups default to active and external renewals preserve status" do
+  test "old certids default to active and external renewals preserve status" do
     record = store(issue.first)
     snapshot = ConsulStore.status_snapshot(record)
-    path = "#{ConsulStore.prefix(record.area)}/lookups/#{record.lookup}"
+    path = "#{ConsulStore.prefix(record.area)}/certids/#{record.certid}"
     entry = JSON.parse(snapshot[:value]).except("status")
     ConsulStore.client.transaction([ConsulConnection.set(path, entry, index: snapshot[:index])])
     CatalogIndexer.refresh_consul
     assert_equal "active", record.reload.rollout_status
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal "active", reader.fetch(area: record.area, lookup: record.lookup, field: "metadata")["status"]
+    assert_equal "active", reader.fetch(area: record.area, certid: record.certid, field: "metadata")["status"]
     set_status(record, "delete")
-    newer = CertificateExample.add(area: record.area, lookup: record.lookup, cert: issue(serial: 3).first,
+    newer = CertificateExample.add(area: record.area, certid: record.certid, cert: issue(serial: 3).first,
       client: "external", actor: "service")
     CatalogIndexer.refresh_consul
-    assert_equal "delete", Certificate.find_by!(source_id: newer).rollout_status
+    assert_equal "delete", Certificate.find_by!(certid: record.certid, certificate_version: newer).rollout_status
   end
 
   test "invalid and stale status updates cannot change storage or audit" do
@@ -66,7 +66,7 @@ class RolloutStatusTest < ActiveSupport::TestCase
     assert_equal "norollout", record.reload.rollout_status
   end
 
-  test "historical filesystem status is ignored after reindex and file moves" do
+  test "filesystem entries have no status after reindex and file moves" do
     cert, key = issue
     previous = AreaConfiguration.configuration
     Dir.mktmpdir do |dir|
@@ -76,9 +76,6 @@ class RolloutStatusTest < ActiveSupport::TestCase
       File.write(path, content)
       CatalogIndexer.new.filesystem
       record = Certificate.find_by!(source: "filesystem")
-      status_path = "#{ConsulStore.prefix(record.area)}/filesystem-statuses/#{record.fingerprint}"
-      historical = { schema: "1", fingerprint: record.fingerprint, status: "delete", archived: true }
-      ConsulStore.client.transaction([ConsulConnection.set(status_path, historical, index: 0)])
       CatalogIndexer.run
       assert_equal "active", record.reload.rollout_status
       assert_not record.archived
@@ -87,7 +84,6 @@ class RolloutStatusTest < ActiveSupport::TestCase
       File.rename(path, File.join(dir, "new.pem"))
       CatalogIndexer.run
       assert_equal 2, Certificate.where(source: "filesystem", archived: false, rollout_status: "active").count
-      assert_equal historical.stringify_keys, JSON.parse(ConsulStore.client.get(status_path)[:value])
       assert_not_respond_to ConsulStore, :set_filesystem_status
       assert_empty AuditEvent.where(action: %w[archive status_change])
       other = store(cert, area: "zone_b")

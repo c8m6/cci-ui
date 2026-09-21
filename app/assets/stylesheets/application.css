@@ -837,7 +837,7 @@ border-color:var(--muted)}
 .dropzone.dragging{
 background:var(--hover);
 border-color:var(--accent)}
-.lookup-cell{
+.certid-cell{
 max-width:185px;
 overflow-wrap:anywhere;
 font-size:10px;

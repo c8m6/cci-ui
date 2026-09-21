@@ -52,7 +52,7 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
 
   test "upload checks all disk zones even when writer can access only one" do
     post local_login_path, params: { identity: "zone_a_writer" }
-    post imports_path, params: { areas: ["zone_a"], pem: @certificates.fetch("zone_b").to_pem, lookup: "new-name" }
+    post imports_path, params: { areas: ["zone_a"], pem: @certificates.fetch("zone_b").to_pem, certid: "new-name" }
     assert_response :see_other
     follow_redirect!
     assert_includes response.body, "bereits im Dateibestand vorhanden"
@@ -64,7 +64,7 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
   test "commit detects a certificate added to another zone after preview" do
     fresh, = issue(name: "new.example.test")
     post local_login_path, params: { identity: "zone_a_writer" }
-    post imports_path, params: { areas: ["zone_a"], pem: fresh.to_pem, lookup: "new-name" }
+    post imports_path, params: { areas: ["zone_a"], pem: fresh.to_pem, certid: "new-name" }
     assert_response :success
     token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
     File.write(File.join(@paths.fetch("zone_b"), "added.pem"), fresh.to_pem)

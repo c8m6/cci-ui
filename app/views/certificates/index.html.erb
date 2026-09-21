@@ -24,7 +24,7 @@
   <%= turbo_frame_tag "results" do %>
     <div class="results-heading"><h2><%= t("ui.certificate_count", count: @total) %></h2><span class="muted small"><%= t("ui.search_description") %></span></div>
     <%= form_with url: export_certificates_path, data: { turbo: false }, class: "export-form" do |form| %>
-      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="<%= t('ui.select_all') %>" data-action="selection#toggleAll"><% end %></th><th><%= t("ui.certificate_issuer") %></th><th><%= t("ui.area") %></th><th><%= t("ui.validity") %></th><th><%= t("ui.puppet_status") %></th><% if puppetdb_enabled? %><th><%= t("ui.hosts") %></th><% end %><th><%= t("ui.valid_until") %></th><th><%= t("ui.source") %></th><th><%= t("ui.puppet_lookup") %></th><th><span class="sr-only"><%= t("ui.details") %></span></th></tr></thead>
+      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="<%= t('ui.select_all') %>" data-action="selection#toggleAll"><% end %></th><th><%= t("ui.certificate_issuer") %></th><th><%= t("ui.area") %></th><th><%= t("ui.validity") %></th><th><%= t("ui.puppet_status") %></th><% if puppetdb_enabled? %><th><%= t("ui.hosts") %></th><% end %><th><%= t("ui.valid_until") %></th><th><%= t("ui.source") %></th><th><%= t("ui.puppet_certid") %></th><th><span class="sr-only"><%= t("ui.details") %></span></th></tr></thead>
       <tbody>
       <% @certificates.each do |cert| %>
         <tr><td><% if current_identity.export?(cert.area) %><%= check_box_tag "ids[]", cert.id, false, aria: { label: t("ui.select_certificate", name: cert.common_name) }, data: { selection_target: "checkbox", action: "selection#update" } %><% end %></td>
@@ -37,7 +37,7 @@
           <% if cert.puppetdb_refresh_failed? %><div class="muted small"><%= t("ui.query_failed") %></div><% end %>
           <% if puppetdb_fingerprint_missing?(cert) %><div class="muted small"><%= t("ui.fingerprint_missing") %></div><% end %>
         </td><% end %>
-        <td class="nowrap"><%= date_label(cert.not_after) %></td><td><span class="source-label"><%= cert.source_label %></span></td><td class="lookup-cell mono"><%= cert.lookup.presence || t("ui.issuer_subject") %></td>
+        <td class="nowrap"><%= date_label(cert.not_after) %></td><td><span class="source-label"><%= cert.source_label %></span></td><td class="certid-cell mono"><%= cert.certid.presence || t("ui.issuer_subject") %></td>
         <td><%= link_to certificate_path(cert), aria: { label: t("ui.details_for", name: cert.common_name) }, data: { turbo_frame: "_top" }, class: "row-link" do %><%= icon("arrow") %><% end %></td></tr>
       <% end %>
       </tbody></table></div>

@@ -20,8 +20,8 @@ class HieraSnippet
       tag = LegacyStore.root(area: record.area).join(tag_path).exist? ? LegacyStore.read(LegacyStore.safe_path(tag_path, area: record.area)).force_encoding("UTF-8").scrub : ""
       { "issuer" => legacy_dn(certificate.issuer), "subject" => legacy_dn(certificate.subject) + tag }.to_yaml
     else
-      { "cci::certificates" => { record.lookup => { "area" => record.area, "lookup" => record.lookup,
-        "path" => "/etc/ssl/certs/#{record.lookup}.pem" } } }.to_yaml
+      { "cci::certificates" => { record.certid => { "area" => record.area, "certid" => record.certid,
+        "path" => "/etc/ssl/certs/#{record.certid}.pem" } } }.to_yaml
     end
   end
 end
