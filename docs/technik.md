@@ -1,6 +1,6 @@
 # CCI-UI: technical architecture
 
-This architecture overview reflects the state on 16 September 2026. It covers
+This architecture overview reflects the state on 21 September 2026. It covers
 configurable areas, import confirmation, Consul-only status and archiving,
 retained filesystem inventory, audit logging and optional PuppetDB host
 associations.
@@ -17,7 +17,7 @@ flowchart LR
   Rails -->|Read only| Legacy[Legacy files / NFS]
   Indexer[Ruby indexer] -->|Read only| Legacy
   Indexer -->|Read KV| Consul
-  Indexer -->|Metadata / audit| PG
+  Indexer -->|Metadata| PG
   Indexer -->|Optional read-only inventory query| PuppetDB[(PuppetDB)]
   Indexer -->|Cached host associations| PG
   Compiler[Puppet compiler] -->|Consul HTTP API| Consul
@@ -42,9 +42,9 @@ requests. Existing NFS access is unchanged.
 
 | Table | Contents and responsibility |
 | --- | --- |
-| `certificates` | Area, source, source reference, originating `client`, `created_by` actor, lookup, SHA-256 identity, optional SHA-1 digest, subject, issuer, SANs, tags, validity, key availability, active version, `rollout_status`, `archived`, cached PuppetDB hosts/query timestamps and search text |
-| `audit_events` | Actor, action, area, event time in `occurred_at`, references and persistent certificate metadata/export options in `details`; `store_event_id` prevents duplicate ingestion of Consul events |
-| `import_drafts` | Session owner, random preview token, expiry after 15 minutes, parsed import data with private keys already encrypted, destination lookup indexes and previous version IDs |
+| `certificates` | Area, source, source reference, originating `client`, `created_by` actor, certid, SHA-256 identity, optional SHA-1 digest, subject, issuer, SANs, tags, validity, key availability, active version, `rollout_status`, `archived`, cached PuppetDB hosts/query timestamps and search text |
+| `audit_events` | Actor, action, area, event time in `occurred_at`, references and persistent certificate metadata/export options in `details` and mutation outcome |
+| `import_drafts` | Session owner, random preview token, expiry after 15 minutes, parsed import data with private keys already encrypted, destination certid indexes and previous version IDs |
 
 Certificate metadata contains neither private keys nor import passwords. Import
 previews contain public certificates and separately encrypted keys. A preview
@@ -52,71 +52,50 @@ is consumed once under a database lock; the indexer removes expired previews.
 Each preview is bound to its login session. Permissions for all selected areas
 are checked again before saving. Before preview and commit, a fresh disk scan
 rejects any upload containing certificate DER already in any configured legacy inventory,
-independent of lookup and destination area. The whole batch is rejected before
+independent of certid and destination area. The whole batch is rejected before
 writes; stale search metadata is not used to decide duplication. An incomplete
-or unavailable inventory blocks the upload. Existing destination lookups require explicit
-overwrite confirmation. A changed lookup index, including a new lookup created
+or unavailable inventory blocks the upload. Existing destination certids require explicit
+overwrite confirmation. A changed certid index, including a new certid created
 after preview, rejects that entry and requires a fresh preview.
 
 `pg_trgm` indexes search text. Multiple search terms are combined with AND.
-Subject, issuer, CN, SANs, tags and Puppet lookup are searchable; fingerprints
+Subject, issuer, CN, SANs, tags and Puppet certid are searchable; fingerprints
 and hexadecimal serial numbers also support normalized exact matching. SQL
 handles filtering and sorting, with 30 results per page. Weighted relevance
 ranking and typo correction are not currently implemented.
 
-## Consul data contract v1
+## Consul data contract
 
-Default prefix: `cci/v1`. `<area>` is a stable ID from `CCI_AREAS`.
+Default prefix: `cci`. `<area>` is a stable ID from `CCI_AREAS`.
 
 | KV path below the prefix | Value |
 | --- | --- |
-| `areas/<area>/lookups/<lookup>` | JSON containing `entry_id`, `active_version`, `status` and optional `archived`, `archived_at`, `archived_by` |
-| `areas/<area>/versions/<version_id>` | JSON containing `schema`, `entry_id`, `lookup`, `pem`, `chain`, `tags`, `fingerprint`, `public_key_fingerprint`, `has_key`, `created_at`, `client`, `created_by` |
-| `areas/<area>/private-keys/<version_id>` | JSON containing encryption version, IV, authentication tag and ciphertext |
-| `areas/<area>/filesystem-statuses/<fingerprint>` | Historical data only; ignored and retained without modification |
-| `events/<uuid>` | JSON containing `action`, `area`, `id`, `actor`, `at`, `details` (certificate metadata and change context) |
+| `areas/<area>/certids/<certid>` | Integer `active_version` and `latest_version`, status, last writer/time and optional archive fields |
+| `areas/<area>/keys/<certid>/<version>` | One PEM certificate, tag array, Boolean key availability and import provenance |
+| `areas/<area>/private_keys/<certid>/<version>` | AES-256-GCM envelope |
 
-`entry_id` is a UUID. The version ID is SHA-256 of
-`entry_id:certificate_fingerprint`. Certificate fingerprints refer to DER;
-public-key fingerprints refer to SubjectPublicKeyInfo DER. In the v1 contract,
-`chain` and `tags` are JSON-encoded strings inside the outer JSON object.
-The Consul HTTP API additionally Base64-encodes KV values for transport.
+Versions are positive integers per area/CertID pair. A renewal allocates
+`latest_version + 1`, even after activation of an older version. Every successful
+import creates a version, including repeated certificate material. Fingerprints
+and X.509 metadata are derived from the PEM. No chain is stored. Clients assemble
+chains from independently stored certificates when needed.
 
-Every new writer identifies itself using `client` and records the initiating
-user/service in `created_by`. CCI-UI uploads use `cci-ui`; historical versions
-without provenance remain readable and display an unknown client. This is an
-additive v1 extension. See the [complete schema and standalone Ruby example](consul-schema.md).
+A writer reads metadata once and publishes the metadata, certificate and optional
+key in one atomic Consul transaction. Metadata uses CAS against its `ModifyIndex`.
+New material uses `cas` with `Index: 0`. A reader uses one metadata request followed
+by one material request, optionally combining certificate and key in a read
+transaction. Chain discovery requires additional reads. A bulk import consists
+of separate certificate transactions and can partially succeed.
 
-An explicit lookup is a stable name such as `portal.production`. Without a
-custom name, the certificate fingerprint becomes the lookup. Renewing a stable
-lookup creates and activates an additional version. Stored versions are never
-overwritten or deleted by the application. Inactive versions of unarchived
-lookups can be activated. Writers can archive an entire lookup after confirmation. The independent Puppet status is `active`, `norollout`, or
-`delete`; setting `delete` retains material and the lookup. The status is shown
-in the “Puppet-Status” column and has a separate filter from “Gültigkeit”. Writers
-can change it only for Consul certificates. Filesystem entries have no mutable
-state, and Puppet status filters exclude them. Status updates use CAS
-and write audit metadata atomically. Renewals and version activation preserve
-lookup status; missing historical status values default to `active`.
+UI writes carry `client: "cci-ui"` and the authenticated actor. Direct Puppet
+imports carry `client: "puppet"` and the import timestamp. There are no Consul
+audit events. See the [complete contract and Ruby examples](consul-schema.md).
 
-Status processing in Puppet is deferred. The current manifests continue their
-existing file management; the Ruby metadata reader exposes the new value.
-See [the complete contract](consul-schema.md#lookup-and-puppet-status) for the
-planned rollout semantics; filesystem identity and retention are described in
-the [legacy certificate section](consul-schema.md#legacy-certificate-status).
-
-The version, active reference, optional key and audit event are written in one
-Consul transaction. CAS on the lookup and `Index=0` when creating a version
-prevent concurrent overwrites. Activation and archiving also check modification
-indexes. Consul limits values to 512 KiB and transactions to 64 operations; the
-application checks these limits. See [Consul KV](https://developer.hashicorp.com/consul/api-docs/kv)
-and [Consul transactions](https://developer.hashicorp.com/consul/api-docs/txn).
-
-A bulk import, including an import into multiple areas, consists of individual
-atomic certificate writes. There is no transaction covering the entire batch.
-Partial success is reported with a count and specific errors. Uploading the
-same material into multiple areas creates independently authorized and encrypted
-entries.
+Only Consul certificates have mutable status and archive state. Status applies
+to all versions of a CertID and survives renewals. The supplied Puppet manifests
+expose `active`, `norollout`, and `delete` but do not enforce these statuses yet.
+Archiving sets `archived: true` and `status: delete` while retaining material.
+This prototype has no compatibility reader or migration for the previous layout.
 
 ## Area configuration
 
@@ -147,7 +126,7 @@ are retained.
 Private keys are encrypted with AES-256-GCM. Each area requires its own
 Base64-encoded, 32-byte secret in `CCI_AREA_KEYS` or the fallback
 `<UPPERCASE_AREA_ID>_KEY` variable. The authenticated
-additional data is `cci:v1:<area>:<version_id>`, preventing successful decryption
+additional data is `cci:<area>:<certid>/<version>`, preventing successful decryption
 when areas or versions are swapped. Key material and source passwords are
 filtered from request logs. Exports use `Cache-Control: no-store`; private PEM
 exports are password-protected.
@@ -177,7 +156,7 @@ Keycloak backchannel logout are not yet implemented. Local mode uses test
 identities generated from configuration and is prohibited in production.
 
 Consul machine credentials are separate ACL tokens, independent of UI Reader
-roles. Compilers need read access to their area's lookups and versions, plus
+roles. Compilers need read access to their area's certids and public keys, plus
 its private-key path and decryption secret when distributing keys. Tokens are
 sent in headers, not URLs.
 
@@ -189,15 +168,18 @@ areas. These roles are independent of Reader, Writer and Key Exporter;
 those roles do not automatically grant audit access. Authorization occurs before
 querying and restricts search, filters, counts and pagination to permitted areas.
 
-All successful certificate writes through the application are recorded:
-import/new version, activation, archiving, and status changes for Consul
-certificates (including old and new status). Historical filesystem status events
-remain readable; new filesystem events only record exports.
-The audit event is written atomically with the change in Consul and ingested idempotently
-into PostgreSQL. `occurred_at` comes from the original event; `created_at` records
-ingestion time. CN, subject, issuer, serial number, SHA-256 fingerprint, source,
-version ID and lookup remain available after source material disappears. Import and activation
-also record the previously active version. Tags and key availability are retained.
+UI imports, activation, archiving and status changes persist an audit intent in
+PostgreSQL before contacting Consul. The record includes the authenticated actor,
+original timestamp, certificate identity, CertID, versions and before/after
+metadata. It becomes `succeeded` after acknowledgment, `rejected` after a CAS
+conflict, or `unknown` after a connection error. Process interruption can leave
+`pending`. These outcomes are visible in the UI. Failure to store the intent
+prevents the Consul write. A subsequent database failure cannot undo Consul and
+can leave the durable intent unresolved. Automatic reconciliation is not implemented.
+
+Direct Puppet imports do not create UI audit events. Their version metadata
+identifies the client as `puppet` with a timestamp. UI history cannot be rebuilt
+from Consul and requires PostgreSQL backups.
 
 All successful CCI-UI exports (legacy files and Consul; PEM, DER, PFX, JKS, ZIP
 and chains) are recorded in PostgreSQL after generation and before HTTP delivery.
@@ -214,10 +196,10 @@ It offers no way to modify or delete events. Passwords, private keys and PEM
 contents are excluded. Older entries without metadata remain visible as
 historical references; timestamps of previously ingested legacy entries reflect
 their original recording time. There is no automatic retention limit. Back up
-PostgreSQL, particularly export events, which are not stored in Consul.
+PostgreSQL for all UI audit events.
 
 The scope covers certificate changes and exports through CCI-UI. Temporary
-import previews, index updates, failed attempts, and direct Puppet/NFS/Consul
+import previews, index updates, failures before an audit intent, and direct Puppet/NFS/Consul
 access outside the application are not included. The log is not a tamper-proof
 archive against database or Consul administrators.
 
@@ -225,7 +207,7 @@ archive against database or Consul administrators.
 
 A PostgreSQL advisory lock serializes scheduled indexing and refreshes after
 upload, activation or status changes. The indexer reads legacy files and public
-Consul versions and ingests audit events idempotently. It never deletes
+Consul versions. It never deletes
 certificate catalog records or status metadata when a source entry disappears.
 Empty or unavailable mounts therefore cannot erase the catalog. ACL-filtered
 Consul responses are treated as errors. All public versions are scanned
@@ -245,21 +227,17 @@ assignment. The catalog key includes area, source, relative file/block ID and
 fingerprint, so replacing a file preserves the previous entry and
 matching filenames in different roots are distinct records. Material reads,
 private-key exports and Hiera tag reads explicitly select the record's area.
-Removing a mapping blocks material reads and retains catalog rows and Consul
-status metadata. Missing or unreadable roots and malformed certificates report
+Removing a mapping blocks material reads and retains catalog rows. Missing or unreadable roots and malformed certificates report
 indexing failures, while other areas and Consul indexing continue. Filesystem
-indexing does not access Consul status paths. Historical filesystem status keys
-are ignored and retained, while migration `20260916000400` resets their obsolete
-local projections and enforces unarchived read-only filesystem rows.
+indexing creates no Consul records.
 
-Archiving persists `archived: true` together with Puppet `status: delete` and an
-`archive` event in one Consul CAS transaction. Confirmation includes the scope:
-all versions of a Consul lookup in an area. Only Consul entries can be archived.
+Archiving persists `archived: true` together with Puppet `status: delete` in one Consul CAS transaction. The UI audit record is stored in PostgreSQL. Confirmation includes the scope:
+all versions of a Consul certid in an area. Only Consul entries can be archived.
 The PostgreSQL archive flag is projected from Consul and survives reindexing.
 The overview and counts exclude archived entries; text searches and the
 “Archivierte einschließen” option include them, even old versions. Material
 availability does not prevent viewing retained filesystem details. There is no UI action to reverse archiving. Renewals preserve a
-lookup's archive state. See the [schema lifecycle rules](consul-schema.md#archiving).
+certid's archive state. See the [schema lifecycle rules](consul-schema.md#status-and-archiving).
 
 ## Optional PuppetDB host enrichment
 
@@ -287,9 +265,9 @@ rollout status, Consul data or audit events. See [PuppetDB integration](puppetdb
 ## Operations and limitations
 
 Certificate metadata can be rebuilt after PostgreSQL loss only while its source
-material still exists. Retained catalog entries for absent sources, export audit
+material still exists. Retained catalog entries for absent sources, UI audit
 history and pending import previews require a PostgreSQL backup. Consul backups must include
-legacy status records as well as lookups, versions, encrypted keys and events.
+certids, public certificate versions and encrypted keys.
 Consul snapshots and area secrets are both needed to recover new private keys. Do not bake secrets into images.
 Rotation with multiple simultaneously active encryption keys is not implemented;
 existing secrets must not simply be replaced.

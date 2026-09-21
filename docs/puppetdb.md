@@ -40,7 +40,7 @@ certificate's DER encoding. Case and hyphens in the configured algorithm name
 are accepted. The catalog identity, archive scope and Consul keys continue using
 SHA-256. SHA-1 is an optional compatibility value for inventory matching only.
 Text search by fingerprint continues to use SHA-256, even in SHA-1 host matching mode.
-CN, subject, issuer, filename and Puppet lookup are not reliable identifiers of
+CN, subject, issuer, filename and Puppet certid are not reliable identifiers of
 a particular certificate version. A fingerprint that does not match the
 configured algorithm is rejected instead of silently clearing associations.
 

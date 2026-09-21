@@ -7,7 +7,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
   end
 
   def archive_params(record = @record)
-    { archive: "1", confirm_archive: "1", lookup_index: ConsulStore.status_snapshot(record)&.fetch(:index) || 0 }
+    { archive: "1", confirm_archive: "1", certid_index: ConsulStore.status_snapshot(record)&.fetch(:index) || 0 }
   end
 
   test "archive confirmation is enforced and result remains searchable and audited" do
@@ -20,7 +20,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
     get archive_certificate_path(@record)
     assert_response :success
     assert_select 'input[name="confirm_archive"][required]', count: 1
-    assert_includes response.body, "alle Versionen des Lookups"
+    assert_includes response.body, "alle Versionen der CertID"
     assert_includes response.body, "Dienste können dadurch ausfallen"
     params = archive_params
     patch certificate_path(@record), params: params.except(:confirm_archive)
@@ -34,7 +34,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
     follow_redirect!
     assert_response :success
     assert_select 'select[name="rollout_status"]', count: 0
-    patch certificate_path(@record), params: { rollout_status: "active", lookup_index: ConsulStore.status_snapshot(@record)[:index] }
+    patch certificate_path(@record), params: { rollout_status: "active", certid_index: ConsulStore.status_snapshot(@record)[:index] }
     assert_response :see_other
     assert @record.reload.archived
     assert_equal "delete", @record.rollout_status
@@ -51,7 +51,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
     assert_select 'tbody tr', count: 1
     assert_includes response.body, "Zertifikat archiviert"
     assert_includes response.body, "Archivierung bestätigt"
-    assert_includes response.body, "Alle Versionen des Lookups"
+    assert_includes response.body, "Alle Versionen der CertID"
   end
 
   test "reader and foreign area writer cannot archive and the delete route is removed" do
@@ -108,7 +108,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
       assert_not record.reload.archived
       assert_equal "active", record.rollout_status
       assert_empty AuditEvent.where(action: "archive")
-      assert_empty ConsulStore.client.all("#{ConsulStore.prefix(record.area)}/filesystem-statuses/")
+      assert_nil ConsulStore.status_snapshot(record)
     end
   ensure
     AreaConfiguration.instance_variable_set(:@configuration, previous)

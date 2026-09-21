@@ -18,10 +18,10 @@ class AreaSecretsTest < ActiveSupport::TestCase
     previous = ENV["CCI_AREA_KEYS"]
     ENV["CCI_AREA_KEYS"] = JSON.generate("zone_a" => Base64.strict_encode64("m" * 32))
     cert, key = issue
-    id = CertificateExample.add(area: "zone_a", lookup: "mapped-secret", cert: cert, key: key,
+    id = CertificateExample.add(area: "zone_a", certid: "mapped-secret", cert: cert, key: key,
       client: "external", actor: "test")
     CatalogIndexer.refresh_consul
-    record = Certificate.find_by!(source_id: id)
+    record = Certificate.find_by!(certid: "mapped-secret", certificate_version: id)
     assert CertificateMaterial.load(record, private_key: true)[:certificate].check_private_key(key)
     encrypted = Certificates::Vault.encrypt("secret material", area: "zone_a", id: "test")
     assert_equal "secret material", Certificates::Vault.decrypt(encrypted, area: "zone_a", id: "test")

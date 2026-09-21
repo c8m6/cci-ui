@@ -6,20 +6,20 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     post local_login_path, params: { identity: "zone_a_writer" }
   end
 
-  def preview(lookup: "test", serial: 2, areas: ["zone_a"])
-    post imports_path, params: { areas: areas, pem: issue(serial: serial).first.to_pem, lookup: lookup }
+  def preview(certid: "test", serial: 2, areas: ["zone_a"])
+    post imports_path, params: { areas: areas, pem: issue(serial: serial).first.to_pem, certid: certid }
     assert_response :success
     Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
   end
 
-  test "existing lookup requires explicit confirmation enforced by server" do
+  test "existing certid requires explicit confirmation enforced by server" do
     token = preview
     assert_select 'input[name="confirm_overwrite"][required]', count: 1
-    assert_includes response.body, @record.source_id
+    assert_includes response.body, "Bisherige Version: #{@record.certificate_version}"
     post imports_path, params: { token: token }
     assert_response :unprocessable_content
     assert ImportDraft.exists?(token: token)
-    assert_equal @record.source_id, JSON.parse(ConsulStore.status_snapshot(@record)[:value])["active_version"]
+    assert_equal @record.certificate_version, JSON.parse(ConsulStore.status_snapshot(@record)[:value])["active_version"]
     post imports_path, params: { token: token, confirm_overwrite: "1" }
     assert_redirected_to root_path
     assert_not @record.reload.active
@@ -27,8 +27,8 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert_not ImportDraft.exists?(token: token)
   end
 
-  test "invalid lookup is rejected before reading destination data" do
-    post imports_path, params: { areas: ["zone_a"], pem: issue(serial: 2).first.to_pem, lookup: "../zone_b/private-keys/secret" }
+  test "invalid certid is rejected before reading destination data" do
+    post imports_path, params: { areas: ["zone_a"], pem: issue(serial: 2).first.to_pem, certid: "../zone_b/private_keys/secret" }
     assert_response :see_other
     assert_equal 0, ImportDraft.count
   end
@@ -37,7 +37,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     token = preview
     draft = ImportDraft.find_by!(token: token)
     payload = JSON.parse(draft.payload)
-    payload["entries"].each { |entry| entry.delete("lookup_index") }
+    payload["entries"].each { |entry| entry.delete("certid_index") }
     draft.update!(payload: JSON.generate(payload))
     post imports_path, params: { token: token, confirm_overwrite: "1" }
     assert_response :see_other
@@ -45,12 +45,12 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert @record.reload.active
   end
 
-  test "new lookup has no overwrite prompt" do
-    token = preview(lookup: "new")
+  test "new certid has no overwrite prompt" do
+    token = preview(certid: "new")
     assert_select 'input[name="confirm_overwrite"][required]', count: 0
     post imports_path, params: { token: token }
     assert_redirected_to root_path
-    assert_equal "active", Certificate.find_by!(lookup: "new").rollout_status
+    assert_equal "active", Certificate.find_by!(certid: "new").rollout_status
   end
 
   test "concurrent renewal requires fresh preview even after confirmation" do
@@ -63,18 +63,18 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert concurrent.reload.active
   end
 
-  test "lookup created after preview cannot be silently overwritten" do
-    token = preview(lookup: "new")
-    concurrent = store(issue(serial: 3).first, lookup: "new")
+  test "certid created after preview cannot be silently overwritten" do
+    token = preview(certid: "new")
+    concurrent = store(issue(serial: 3).first, certid: "new")
     post imports_path, params: { token: token, confirm_overwrite: "1" }
     assert_response :unprocessable_content
     assert concurrent.reload.active
     assert_equal 2, Certificate.count
   end
 
-  test "multi area preview confirms only existing area lookup and preserves status" do
+  test "multi area preview confirms only existing area certid and preserves status" do
     ConsulStore.set_status(@record.area, @record.source_id, status: "norollout", actor: "test",
-      expected_lookup_index: ConsulStore.status_snapshot(@record)[:index])
+      expected_certid_index: ConsulStore.status_snapshot(@record)[:index])
     post local_login_path, params: { identity: "all:writer" }
     token = preview(areas: %w[zone_a zone_b])
     assert_select '.preview-entry .flash-error', count: 1
@@ -87,26 +87,26 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
   test "writer changes status and readers can filter but cannot edit" do
     get certificate_path(@record)
     assert_select 'select[name="rollout_status"]', count: 1
-    index = Nokogiri::HTML(response.body).at_css('input[name="lookup_index"]')["value"]
-    patch certificate_path(@record), params: { rollout_status: "delete", lookup_index: index }
+    index = Nokogiri::HTML(response.body).at_css('input[name="certid_index"]')["value"]
+    patch certificate_path(@record), params: { rollout_status: "delete", certid_index: index }
     assert_redirected_to certificate_path(@record)
     assert_equal "delete", @record.reload.rollout_status
     get root_path, params: { rollout_status: "delete", status: "valid", q: "portal" }
     assert_select 'tbody tr', count: 1
     get root_path, params: { rollout_status: "active" }
     assert_select 'tbody tr', count: 0
-    patch certificate_path(@record), params: { rollout_status: "active", lookup_index: index }
+    patch certificate_path(@record), params: { rollout_status: "active", certid_index: index }
     assert_response :see_other
     assert_equal "delete", @record.reload.rollout_status
     post local_login_path, params: { identity: "zone_a_reader" }
     get certificate_path(@record)
     assert_select 'select[name="rollout_status"]', count: 0
     assert_includes response.body, "delete"
-    patch certificate_path(@record), params: { rollout_status: "active", lookup_index: ConsulStore.status_snapshot(@record)[:index] }
+    patch certificate_path(@record), params: { rollout_status: "active", certid_index: ConsulStore.status_snapshot(@record)[:index] }
     assert_response :see_other
     assert_equal "delete", @record.reload.rollout_status
     hidden = store(issue(serial: 7).first, area: "zone_b")
-    patch certificate_path(hidden), params: { rollout_status: "delete", lookup_index: ConsulStore.status_snapshot(hidden)[:index] }
+    patch certificate_path(hidden), params: { rollout_status: "delete", certid_index: ConsulStore.status_snapshot(hidden)[:index] }
     assert_response :not_found
     assert_equal "active", hidden.reload.rollout_status
     post local_login_path, params: { identity: "zone_a_auditor" }
@@ -127,10 +127,10 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       record = Certificate.find_by!(source: "filesystem")
       get certificate_path(record)
       assert_response :success
-      assert_select 'input[name="lookup_index"]', count: 0
+      assert_select 'input[name="certid_index"]', count: 0
       assert_select 'select[name="rollout_status"]', count: 0
       assert_select 'a', text: "Archivieren", count: 0
-      patch certificate_path(record), params: { rollout_status: "norollout", lookup_index: "0" }
+      patch certificate_path(record), params: { rollout_status: "norollout", certid_index: "0" }
       assert_response :see_other
       assert_equal "active", record.reload.rollout_status
       assert_equal content, File.read(path)

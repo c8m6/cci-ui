@@ -47,8 +47,12 @@ module CertificateFixtures
     ConsulStore.client.request("delete", ConsulStore.client.path(prefix + "/") + "?recurse")
   end
 
-  def store(cert, key: nil, area: "zone_a", lookup: "test", chain: [], client: "test-client")
-    id = ConsulStore.save(area: area, cert: cert, key: key, chain: chain, tags: ["Produktion"], lookup: lookup, actor: "test", client: client)
+  def store(cert, key: nil, area: "zone_a", certid: "test", chain: [], client: "test-client")
+    chain.each do |issuer|
+      name = Certificates::Codec.fingerprint(issuer)
+      store(issuer, area: area, certid: name) unless Certificate.exists?(area: area, fingerprint: name)
+    end
+    id = ConsulStore.save(area: area, cert: cert, key: key, tags: ["Produktion"], certid: certid, actor: "test", client: client)
     CatalogIndexer.new.consul
     Certificate.find_by!(area: area, source_id: id)
   end

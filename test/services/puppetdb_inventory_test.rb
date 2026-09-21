@@ -75,7 +75,7 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
 
   test "fingerprints map exact certificates to sorted unique hosts across copies sources and archived versions" do
     duplicate = @record.dup
-    duplicate.assign_attributes(source: "filesystem", source_id: "copy.pem#0", entry_id: nil, lookup: nil,
+    duplicate.assign_attributes(source: "filesystem", source_id: "copy.pem#0", certid: nil,
       archived: false, rollout_status: "active")
     duplicate.save!
     other = store(issue(serial: 2).first)

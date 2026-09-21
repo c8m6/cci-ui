@@ -8,6 +8,24 @@ class AuditEvent < ApplicationRecord
   scope :visible_to, ->(identity) { where(area: identity.audit_areas) }
   before_validation { self.occurred_at ||= Time.current }
 
+  # Commit the intent before contacting Consul. A timeout or process crash must
+  # never erase who requested a change or pretend its result is known.
+  def self.record_mutation!(action:, area:, actor:, references:, details:)
+    event = create!(action: action, area: area, actor: actor, references: references,
+      details: details.merge(outcome: "pending"))
+    begin
+      result = yield
+    rescue ConsulConnection::Conflict
+      event.update!(details: event.details.merge("outcome" => "rejected", "finished_at" => Time.current.iso8601(6)))
+      raise
+    rescue StandardError
+      event.update!(details: event.details.merge("outcome" => "unknown", "finished_at" => Time.current.iso8601(6)))
+      raise
+    end
+    event.update!(details: event.details.merge("outcome" => "succeeded", "finished_at" => Time.current.iso8601(6)))
+    result
+  end
+
   def self.snapshot(cert)
     Certificates::Codec.metadata(cert).slice(:common_name, :subject, :issuer, :serial, :fingerprint)
   end
@@ -22,7 +40,7 @@ class AuditEvent < ApplicationRecord
           details: { format: format, filename: filename, include_key: include_key, include_chain: include_chain,
             certificates: pairs.flat_map do |record, entry|
               [snapshot(entry[:certificate]).merge(source: record.source, source_id: record.source_id,
-                lookup: record.lookup, kind: "selected"),
+                certid: record.certid, kind: "selected"),
                 *entry[:chain].map { |cert| snapshot(cert).merge(kind: "chain", parent_source_id: record.source_id) }]
             end })
       end

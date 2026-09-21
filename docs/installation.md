@@ -207,7 +207,7 @@ SECRET_KEY_BASE=<random secret of at least 64 bytes>
 ALLOWED_HOSTS=cci.example.internal
 CONSUL_URL=https://consul.example.internal:8501
 CONSUL_TOKEN=<application token>
-CONSUL_PREFIX=cci/v1
+CONSUL_PREFIX=cci
 CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
 CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
 CCI_AREA_KEYS='{"zone_a":"<32 bytes, Base64>","zone_b":"<another 32 bytes, Base64>"}'
@@ -228,18 +228,18 @@ The container runs as UID 10001. This UID needs read access to the NFS legacy
 collection, including key files if their export is permitted. Keep the mount
 read-only (`:ro`); do not grant CCI-UI write access on the NFS server.
 
-The application token needs read/write access to `cci/v1/`. Puppet receives
+The application token needs read/write access to `cci/`. Puppet receives
 separate area tokens. Example read policy for a compiler that must distribute
 certificates and keys from area `zone_a`:
 
 ```hcl
-key_prefix "cci/v1/areas/zone_a/lookups/" {
+key_prefix "cci/areas/zone_a/certids/" {
   policy = "read"
 }
-key_prefix "cci/v1/areas/zone_a/versions/" {
+key_prefix "cci/areas/zone_a/keys/" {
   policy = "read"
 }
-key_prefix "cci/v1/areas/zone_a/private-keys/" {
+key_prefix "cci/areas/zone_a/private_keys/" {
   policy = "read"
 }
 ```
@@ -267,7 +267,7 @@ actual Keycloak/Consul infrastructure because its configuration is unavailable.
 Back up PostgreSQL, Consul snapshots, area secrets, configuration and the existing
 NFS collection together. Search metadata is reconstructible only while the
 corresponding source material still exists. Retained entries for missing sources,
-export audit history and pending previews require a database backup. Test
+UI audit history and pending previews require a database backup. Test
 restoration on an isolated VM. Restore Consul using the same prefix and original
 area secrets.
 
@@ -296,63 +296,30 @@ rotated independently; doing so invalidates existing login sessions.
 | “Abfrage fehlgeschlagen” appears | Check indexer logs and PuppetDB connectivity or fact format; previous host associations are retained |
 | “Fingerprint fehlt” appears | In SHA-1 mode, rescan the readable certificate source to compute the missing digest; retained entries with missing sources keep their previous observations |
 
-## Upgrading for certificate status
+## Prototype schema reset
 
-Deploy the updated image for both web and indexer. Run `ruby bin/rails db:prepare`
-(or allow `bin/start` to run it) to add the indexed, constrained
-`certificates.rollout_status` column. Existing records default to `active`;
-the indexer then rebuilds the values from Consul. Consul needs no table migration.
-The historical audit migration IDs are retained and fresh databases create
-`store_event_id` directly; fully migrated installations keep their existing
-column and audit history.
+This release uses the simplified `cci` namespace with integer certificate versions.
+There is no migration or compatibility reader for the previous Consul layout.
+Use an empty PostgreSQL catalog and the new namespace for prototype testing.
+Old Consul keys are not changed or deleted by deployment.
 
-Puppet controls and archiving apply only to Consul certificates. Filesystem
-certificates stay indexed in the UI catalog without mutable state. Historical
-`filesystem-statuses/` keys are ignored; neither web nor indexer requires access
-to those paths. No data or audit history is removed from Consul.
-
-A full indexing pass after deployment
-can be triggered with `ruby bin/rails runner 'CatalogIndexer.run'`. Users should
-start new import previews after deployment; earlier drafts lack the destination
-indexes now required by the overwrite protection.
-
-Setting a status only updates metadata in this release. The Puppet module does
-not yet enforce `norollout` or `delete`; see [Puppet integration](puppet.md#prepared-status-contract)
-before relying on these values operationally.
+Run `ruby bin/rails db:prepare` (also run by `bin/start`) to prepare the current
+SQL structure. Discard old import previews and deploy matching Ruby/Puppet clients.
+The supplied Puppet module does not enforce `norollout` or `delete` yet.
+See [the storage contract](consul-schema.md) and [Puppet integration](puppet.md).
 
 ## Legacy inventory consistency
 
-The indexer never removes certificate catalog entries or Consul status metadata.
-An empty or unavailable mount cannot trigger deletion. Removing an inventory
-mapping also retains its catalog entries. Historical filesystem status keys
-remain untouched and are ignored. Missing source material
-prevents export, but its retained certificate details remain available.
+The indexer retains catalog entries when a file or mount disappears. Filesystem
+certificates remain read-only and create no Consul state. Missing material blocks
+export but retained metadata stays visible. Removing a directory mapping blocks
+material access through it.
 
-For Consul certificates, writers use “Archivieren” beside “Status speichern”
-and confirm the effects to hide certificates
-from the overview and set the Puppet `delete` request. A text search includes
-archived certificates; “Archivierte einschließen” lists them without a term.
-Archive metadata and the audit event are stored together in Consul.
+For Consul certificates, “Archivieren” sets archive state and `status: delete`
+without deleting versions or keys. UI actions are audited in PostgreSQL before
+the Consul write, with their outcome recorded afterward. Back up PostgreSQL for
+UI history and metadata whose original source is no longer available.
 
-Deploy migration `20260916000100` with `ruby bin/rails db:prepare` before starting
-indexers. It adds the archive flag and preserves separate fingerprints at the
-same filesystem path/block position. Migration `20260916000400` resets obsolete
-filesystem status/archive projections and enforces read-only defaults. Formerly
-archived filesystem records are visible again; Consul archive state is unchanged.
-Back up PostgreSQL as well as Consul: catalog records for vanished source files
-cannot be recreated from the remaining source inventory alone. This change does
-not restore records or statuses already deleted by an earlier release.
-
-UI imports scan all configured disk inventories before preview and again before
-saving.
-Identical certificate DER already on disk rejects the entire upload, regardless
-of lookup or destination area. A new certificate with different DER is allowed.
-Every configured root must be readable. An unavailable root in any area blocks
-uploads because the global duplicate check cannot be completed. Deployments
-without legacy files can set `CCI_LEGACY_PATHS='{}'`. Every listed path must
-refer to a readable directory inside both containers. Errors in inventory reads or certificate parsing block uploads
-until corrected. No new database migration or Consul schema version is needed
-for these checks.
 
 ## Optional PuppetDB connection
 

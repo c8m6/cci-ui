@@ -20,7 +20,7 @@ module Certificates
       cipher = OpenSSL::Cipher.new("aes-256-gcm").encrypt
       cipher.key = key(area)
       iv = cipher.random_iv
-      cipher.auth_data = "cci:v1:#{area}:#{id}"
+      cipher.auth_data = "cci:#{area}:#{id}"
       encrypted = cipher.update(pem) + cipher.final
       JSON.generate(version: 1, iv: Base64.strict_encode64(iv), tag: Base64.strict_encode64(cipher.auth_tag), data: Base64.strict_encode64(encrypted))
     end
@@ -32,7 +32,7 @@ module Certificates
       cipher.key = key(area)
       cipher.iv = Base64.strict_decode64(data.fetch("iv"))
       cipher.auth_tag = Base64.strict_decode64(data.fetch("tag"))
-      cipher.auth_data = "cci:v1:#{area}:#{id}"
+      cipher.auth_data = "cci:#{area}:#{id}"
       cipher.update(Base64.strict_decode64(data.fetch("data"))) + cipher.final
     rescue OpenSSL::OpenSSLError, JSON::ParserError, KeyError, ArgumentError
       raise Error, Error.translate("errors.app.key_decrypt", default: "Privater Schlüssel konnte nicht entschlüsselt werden.")

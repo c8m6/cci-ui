@@ -1,9 +1,9 @@
 define cci::certificate (
   Pattern[/^[a-z][a-z0-9_]{0,47}$/] $area,
   String[1] $path,
-  String[1] $lookup = $title,
+  String[1] $certid = $title,
   Optional[String] $key_path = undef,
-  Optional[String] $version = undef,
+  Optional[Integer[1]] $version = undef,
   Boolean $include_chain = false,
   String $owner = 'root',
   String $group = 'root',
@@ -11,7 +11,7 @@ define cci::certificate (
   $field = $include_chain ? { true => 'chain', false => 'certificate' }
   file { $path:
     ensure    => file,
-    content   => cci::lookup($area, $lookup, $field, $version),
+    content   => cci::certid($area, $certid, $field, $version),
     checksum  => 'sha256',
     owner     => $owner,
     group     => $group,
@@ -21,7 +21,7 @@ define cci::certificate (
   if $key_path {
     file { $key_path:
       ensure    => file,
-      content   => cci::lookup($area, $lookup, 'private_key', $version),
+      content   => cci::certid($area, $certid, 'private_key', $version),
       checksum  => 'sha256',
       owner     => $owner,
       group     => $group,

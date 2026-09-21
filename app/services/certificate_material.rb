@@ -1,15 +1,14 @@
 class CertificateMaterial
   def self.load(record, private_key: false, password: "")
     if record.source == "consul"
-      data = ConsulStore.get(record.area, record.source_id)
+      base = ConsulStore.prefix(record.area)
+      paths = ["#{base}/keys/#{record.source_id}"]
+      paths << "#{base}/private_keys/#{record.source_id}" if private_key
+      values = ConsulStore.client.get_many(paths)
+      data = JSON.parse(values.fetch(paths.first).fetch(:value))
       cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
-      chain = JSON.parse(data.fetch("chain")).map { |pem| OpenSSL::X509::Certificate.new(pem) }
-      key = nil
-      if private_key
-        envelope = ConsulStore.client.get("#{ConsulStore.prefix(record.area)}/private-keys/#{record.source_id}")&.fetch(:value)
-        raise Certificates::Error, I18n.t("errors.app.no_private_key") unless envelope
-        key = OpenSSL::PKey.read(Certificates::Vault.decrypt(envelope, area: record.area, id: record.source_id))
-      end
+      chain = []
+      key = private_key && OpenSSL::PKey.read(Certificates::Vault.decrypt(values.fetch(paths.last).fetch(:value), area: record.area, id: record.source_id))
     elsif record.source == "filesystem"
       relative, index = record.source_id.rpartition("#").values_at(0, 2)
       certificates = LegacyStore.certificates(relative, area: record.area)
@@ -22,7 +21,7 @@ class CertificateMaterial
     raise Certificates::Error, I18n.t("errors.app.source_changed") unless Certificates::Codec.fingerprint(cert) == record.fingerprint
     raise Certificates::Error, I18n.t("errors.app.key_mismatch") if key && !cert.check_private_key(key)
     { certificate: cert, key: key, chain: Certificates::Codec.chain(cert, chain) }
-  rescue IndexError, ArgumentError, OpenSSL::OpenSSLError
+  rescue ConsulConnection::Error, KeyError, JSON::ParserError, IndexError, ArgumentError, OpenSSL::OpenSSLError
     raise Certificates::Error, I18n.t("errors.app.invalid_material")
   end
 
@@ -37,7 +36,7 @@ class CertificateMaterial
         next if seen.include?(candidate.fingerprint)
         begin
           possible = load(candidate)[:certificate]
-          possible if current.verify(possible.public_key)
+          possible if possible.extensions.any? { |extension| extension.oid == "basicConstraints" && extension.value.include?("CA:TRUE") } && current.verify(possible.public_key)
         rescue Certificates::Error
           nil
         end

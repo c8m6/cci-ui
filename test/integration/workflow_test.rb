@@ -44,7 +44,7 @@ class WorkflowTest < ActionDispatch::IntegrationTest
   test "writer import preview and commit only to consul" do
     login("zone_a_writer")
     newer, newer_key = issue(name: "new.example.test", serial: 7)
-    post imports_path, params: { areas: ["zone_a"], pem: newer.to_pem + newer_key.private_to_pem, tags: "Test, Neu", lookup: "new.example.test" }
+    post imports_path, params: { areas: ["zone_a"], pem: newer.to_pem + newer_key.private_to_pem, tags: "Test, Neu", certid: "new.example.test" }
     assert_response :success
     assert_includes response.body, "Bereit zum Speichern"
     assert_not_includes response.body, "PRIVATE KEY"
@@ -78,27 +78,29 @@ class WorkflowTest < ActionDispatch::IntegrationTest
 
   test "upload to both areas requires both writer roles" do
     login("zone_a_writer")
-    post imports_path, params: { areas: %w[zone_a zone_b], pem: @cert.to_pem, lookup: "both" }
+    post imports_path, params: { areas: %w[zone_a zone_b], pem: @cert.to_pem, certid: "both" }
     assert_response :see_other
     assert_equal 0, ImportDraft.count
     login("all:writer")
-    post imports_path, params: { areas: %w[zone_a zone_b], pem: @cert.to_pem + @key.private_to_pem, lookup: "both" }
+    post imports_path, params: { areas: %w[zone_a zone_b], pem: @cert.to_pem + @key.private_to_pem, certid: "both" }
     assert_response :success
     token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
     post imports_path, params: { token: token }
     assert_redirected_to root_path
-    assert_equal %w[zone_a zone_b], Certificate.where(lookup: "both").order(:area).pluck(:area)
-    zone_a = Certificate.find_by!(lookup: "both", area: "zone_a")
-    zone_b = Certificate.find_by!(lookup: "both", area: "zone_b")
-    assert_not_equal zone_a.source_id, zone_b.source_id
+    assert_equal %w[zone_a zone_b], Certificate.where(certid: "both").order(:area).pluck(:area)
+    zone_a = Certificate.find_by!(certid: "both", area: "zone_a")
+    zone_b = Certificate.find_by!(certid: "both", area: "zone_b")
+    assert_equal "both/1", zone_a.source_id
+    assert_equal "both/1", zone_b.source_id
+    assert_not_equal zone_a.id, zone_b.id
     assert CertificateMaterial.load(zone_b, private_key: true)[:certificate].check_private_key(@key)
   end
 
   test "reader sees Hiera and linked chain but no export controls or raw PEM" do
     root, root_key = issue(name: "Root CA", ca: true)
-    parent = store(root, lookup: "root")
+    parent = store(root, certid: "root")
     leaf, = issue(issuer: root, issuer_key: root_key, name: "chain.example.test")
-    record = store(leaf, chain: [root], lookup: "chain")
+    record = store(leaf, chain: [root], certid: "chain")
     login("zone_a_reader")
     get certificate_path(record)
     assert_response :success
@@ -107,7 +109,7 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Zertifikat herunterladen"
     assert_not_includes response.body, "BEGIN CERTIFICATE"
     get root_path
-    assert_includes response.body, "Puppet-Lookup"
+    assert_includes response.body, "Puppet-CertID"
     assert_not_includes response.body, "Auswahl exportieren"
   end
 end

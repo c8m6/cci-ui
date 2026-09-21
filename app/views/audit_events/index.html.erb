@@ -22,14 +22,15 @@
           <% Array(event.details["certificates"]).each do |cert| %>
             <div class="audit-certificate"><strong><%= cert["common_name"].presence || cert["subject"] %></strong>
               <% if cert["kind"] == "chain" %><span class="badge neutral"><%= t("ui.chain") %></span><% end %>
-              <% if cert["lookup"].present? %><div><%= t("ui.lookup") %>: <code><%= cert["lookup"] %></code></div><% end %>
+              <% if cert["certid"].present? %><div><%= t("ui.certid") %>: <code><%= cert["certid"] %></code></div><% end %>
               <details><summary><%= t("ui.identification") %></summary><div><%= t("ui.subject") %>: <%= cert["subject"] %></div><div><%= t("ui.issuer") %>: <%= cert["issuer"] %></div><div><%= t("ui.serial") %>: <%= cert["serial"] %></div><div>SHA-256: <code><%= cert["fingerprint"] %></code></div><% if cert["source_id"] %><div><%= t("ui.source") %>: <%= cert["source"] %> · <code><%= cert["source_id"] %></code></div><% end %></details>
             </div>
           <% end %>
           <% if event.details["certificates"].blank? %><div class="muted small"><%= t("ui.audit_historical") %></div><% event.references.each do |reference| %><div class="mono"><%= reference %></div><% end %><% end %>
         </td>
         <td>
-          <% if event.action == "archive" %><div><%= audit_comment(event) %></div><div><%= t("ui.scope") %>: <%= event.details["scope"] == "lookup" ? t("ui.scope_lookup") : t("ui.scope_fingerprint") %></div><% end %>
+          <% if event.details["outcome"] %><div><%= t("ui.audit_outcome") %>: <%= t("ui.audit_outcomes.#{event.details.fetch("outcome")}") %></div><% end %>
+          <% if event.action == "archive" %><div><%= audit_comment(event) %></div><div><%= t("ui.scope") %>: <%= event.details["scope"] == "certid" ? t("ui.scope_certid") : t("ui.scope_fingerprint") %></div><% end %>
           <% if %w[status_change archive].include?(event.action) %><div><%= t("ui.puppet_status") %>: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>
           <% if event.details["format"] %><div><%= t("ui.format") %>: <%= event.details["format"].upcase %></div><div><%= t("ui.file") %>: <%= event.details["filename"] %></div><div><%= t("ui.private_keys") %>: <%= event.details["include_key"] ? t("ui.yes") : t("ui.no") %></div><div><%= t("ui.chain") %>: <%= event.details["include_chain"] ? t("ui.yes") : t("ui.no") %></div><% end %>
           <% if event.details["previous_version"] %><details><summary><%= t("ui.previous_active") %></summary><code><%= event.details["previous_version"] %></code></details><% end %>

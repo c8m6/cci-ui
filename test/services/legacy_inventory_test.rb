@@ -10,13 +10,6 @@ class LegacyInventoryTest < ActiveSupport::TestCase
     File.write(@path, @cert.to_pem)
     CatalogIndexer.new.filesystem
     @record = Certificate.find_by!(source: "filesystem")
-    ConsulStore.client.transaction([ConsulConnection.set("#{ConsulStore.prefix(@record.area)}/filesystem-statuses/#{@record.fingerprint}",
-      { schema: "1", fingerprint: @record.fingerprint, status: "norollout" }, index: 0)])
-    CatalogIndexer.refresh_consul
-  end
-
-  def legacy_snapshot(record)
-    ConsulStore.client.get("#{ConsulStore.prefix(record.area)}/filesystem-statuses/#{record.fingerprint}")
   end
 
   teardown do
@@ -24,29 +17,25 @@ class LegacyInventoryTest < ActiveSupport::TestCase
     FileUtils.remove_entry(@directory)
   end
 
-  test "removing last disk copy retains Consul status catalog entry and audit" do
+  test "removing last disk copy retains catalog entry without Consul state" do
     File.delete(@path)
     CatalogIndexer.new.filesystem
-    assert legacy_snapshot(@record)
     assert Certificate.exists?(@record.id)
     assert_equal 0, AuditEvent.where(action: "status_change").count
-    assert_equal 0, ConsulStore.client.all("#{ConsulStore.namespace}/events/").size
+    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/")
   end
 
-  test "copies renames and absent files preserve status and catalog records" do
+  test "copies renames and absent files preserve catalog records" do
     copy = File.join(@directory, "copy.pem")
     File.write(copy, @cert.to_pem)
     File.delete(@path)
     CatalogIndexer.new.filesystem
     assert_equal "active", Certificate.find_by!(source: "filesystem").rollout_status
     assert_nil ConsulStore.status_snapshot(@record)
-    assert legacy_snapshot(@record)
     File.rename(copy, @path)
     CatalogIndexer.new.filesystem
-    assert legacy_snapshot(@record)
     File.delete(@path)
     CatalogIndexer.new.filesystem
-    assert legacy_snapshot(@record)
   end
 
   test "replacing a certificate or removing a bundle block retains previous identities" do
@@ -57,8 +46,6 @@ class LegacyInventoryTest < ActiveSupport::TestCase
 
     File.write(@path, other.to_pem)
     CatalogIndexer.new.filesystem
-    assert legacy_snapshot(@record)
-    assert_nil legacy_snapshot(other_record)
     assert_equal [@record.fingerprint, other_record.fingerprint].sort, Certificate.where(source: "filesystem").distinct.pluck(:fingerprint).sort
     assert_equal @record.fingerprint, @record.reload.fingerprint
     assert_equal 3, Certificate.where(source: "filesystem").count
@@ -69,12 +56,10 @@ class LegacyInventoryTest < ActiveSupport::TestCase
     File.delete(@path)
     configure_legacy_paths("zone_a" => File.join(@directory, "missing"))
     assert_raises(Certificates::Error) { CatalogIndexer.new.filesystem }
-    assert legacy_snapshot(@record)
     assert Certificate.exists?(@record.id)
     configure_legacy_paths("zone_a" => @directory)
     File.write(@path, "-----BEGIN CERTIFICATE-----\nbroken\n")
     assert_raises(Certificates::Error) { CatalogIndexer.new.filesystem }
-    assert legacy_snapshot(@record)
     assert Certificate.exists?(@record.id)
   end
 
@@ -84,27 +69,9 @@ class LegacyInventoryTest < ActiveSupport::TestCase
     Dir.mkdir(blocked)
     File.chmod(0, blocked)
     assert_raises(Certificates::Error) { CatalogIndexer.new.filesystem }
-    assert legacy_snapshot(@record)
     assert Certificate.exists?(@record.id)
   ensure
     File.chmod(0700, blocked) if blocked
   end
 
-  test "indexing retains all orphaned statuses and unrelated entries" do
-    connection = ConsulStore.client
-    base = ConsulStore.prefix(@record.area)
-    65.times.each_slice(64) do |batch|
-      connection.transaction(batch.map do |number|
-        fingerprint = Digest::SHA256.hexdigest("orphan-#{number}")
-        ConsulConnection.set("#{base}/filesystem-statuses/#{fingerprint}", { schema: "1", fingerprint: fingerprint, status: "delete" }, index: 0)
-      end)
-    end
-    other_area = "#{ConsulStore.prefix('zone_b')}/filesystem-statuses/#{@record.fingerprint}"
-    connection.transaction([ConsulConnection.set(other_area, { schema: "1", fingerprint: @record.fingerprint, status: "delete" }, index: 0)])
-    imported = store(issue(serial: 3).first)
-    CatalogIndexer.new.filesystem
-    assert_equal 66, connection.all("#{base}/filesystem-statuses/").size
-    assert connection.get(other_area)
-    assert ConsulStore.get(imported.area, imported.source_id)
-  end
 end
