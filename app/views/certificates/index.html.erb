@@ -24,7 +24,7 @@
   <%= turbo_frame_tag "results" do %>
     <div class="results-heading"><h2><%= t("ui.certificate_count", count: @total) %></h2><span class="muted small"><%= t("ui.search_description") %></span></div>
     <%= form_with url: export_certificates_path, data: { turbo: false }, class: "export-form" do |form| %>
-      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_writer? %><input type="checkbox" aria-label="<%= t('ui.select_all') %>" data-action="selection#toggleAll"><% end %></th><th><%= t("ui.certificate_issuer") %></th><th><%= t("ui.area") %></th><th><%= t("ui.validity") %></th><th><%= t("ui.puppet_status") %></th><% if puppetdb_enabled? %><th><%= t("ui.hosts") %></th><% end %><th><%= t("ui.valid_until") %></th><th><%= t("ui.source") %></th><th><%= t("ui.puppet_certid") %></th><th><span class="sr-only"><%= t("ui.details") %></span></th></tr></thead>
+      <div class="table-scroll"><table><thead><tr><th class="checkbox-cell"><% if current_identity.any_export? %><input type="checkbox" aria-label="<%= t('ui.select_all') %>" data-action="selection#toggleAll"><% end %></th><th><%= t("ui.certificate_issuer") %></th><th><%= t("ui.area") %></th><th><%= t("ui.validity") %></th><th><%= t("ui.puppet_status") %></th><% if puppetdb_enabled? %><th><%= t("ui.hosts") %></th><% end %><th><%= t("ui.valid_until") %></th><th><%= t("ui.source") %></th><th><%= t("ui.puppet_certid") %></th><th><span class="sr-only"><%= t("ui.details") %></span></th></tr></thead>
       <tbody>
       <% @certificates.each do |cert| %>
         <tr><td><% if current_identity.export?(cert.area) %><%= check_box_tag "ids[]", cert.id, false, aria: { label: t("ui.select_certificate", name: cert.common_name) }, data: { selection_target: "checkbox", action: "selection#update" } %><% end %></td>
@@ -42,7 +42,7 @@
       <% end %>
       </tbody></table></div>
       <% if @total.zero? %><div class="empty-state"><%= icon("search") %><h2><%= t("ui.no_certificates") %></h2><p><%= t("ui.empty_filters") %><br><%= t("ui.empty_index") %></p></div><% end %>
-      <% if current_identity.any_writer? %><div class="batch-toolbar"><span data-selection-target="count"><%= t("ui.export_selection") %></span><%= render "export_fields", form: form, writer: current_identity.any_key_exporter? %><%= form.submit t("ui.export_button"), class: "button secondary" %></div><% end %>
+      <% if current_identity.any_export? %><div class="batch-toolbar"><span data-selection-target="count"><%= t("ui.export_selection") %></span><%= render "export_fields", form: form, writer: current_identity.any_exporter? %><%= form.submit t("ui.export_button"), class: "button secondary" %></div><% end %>
     <% end %>
     <div class="pagination"><span class="muted small"><%= t("ui.page", page: @page, pages: @pages) %></span><div><% if @page > 1 %><%= link_to t("ui.back"), certificates_path(filter_params.merge(page: @page - 1)), class: "button quiet" %><% end %><% if @page < @pages %><%= link_to t("ui.next"), certificates_path(filter_params.merge(page: @page + 1)), class: "button quiet" %><% end %></div></div>
   <% end %>

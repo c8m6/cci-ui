@@ -5,8 +5,9 @@ class AreaConfigurationTest < ActionDispatch::IntegrationTest
     get login_path
     assert_response :success
     assert_select "option[value=zone_b_writer]", text: "Zone B · Writer"
+    assert_select "option[value=zone_b_exporter]", text: "Zone B · Key Exporter"
     assert_select "option[value='all:auditor']", text: "Alle Bereiche · Auditor"
-    post local_login_path, params: { identity: "zone_b_keys" }
+    post local_login_path, params: { identity: "zone_b_writer" }
     get new_import_path
     assert_response :success
     assert_select 'input[name="areas[]"]', count: 1
@@ -23,6 +24,7 @@ class AreaConfigurationTest < ActionDispatch::IntegrationTest
     get certificate_path(record)
     assert_response :success
     assert_select ".area-pill", text: "Zone B"
+    post local_login_path, params: { identity: "zone_b_exporter" }
     post export_certificates_path, params: { ids: [record.id], format_name: "pem", include_key: "1", password: "new-area-password" }
     assert_response :success
     assert_includes response.body, "ENCRYPTED PRIVATE KEY"

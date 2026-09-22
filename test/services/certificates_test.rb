@@ -63,7 +63,7 @@ class CertificatesTest < ActiveSupport::TestCase
     assert_equal 1, CertificateSearch.call(visible, { q: fingerprint }).count
   end
 
-  test "writer without key role exports only certificates from mixed PEM" do
+  test "reader cannot export, writer exports public material, and neither can export private keys" do
     cert, key = issue
     Dir.mktmpdir do |dir|
       previous = AreaConfiguration.configuration
@@ -71,11 +71,13 @@ class CertificatesTest < ActiveSupport::TestCase
       File.write(File.join(dir, "mixed.pem"), cert.to_pem + key.private_to_pem)
       CatalogIndexer.new.filesystem
       record = Certificate.find_by!(source: "filesystem")
-      reader = Identity.new(name: "writer", roles: ["zone_a_writer"])
-      content, = CertificateExport.call([record], identity: reader, format: "pem", include_key: false, include_chain: false, password: "")
+      reader = Identity.new(name: "reader", roles: ["zone_a_reader"])
+      assert_raises(Certificates::Error) { CertificateExport.call([record], identity: reader, format: "pem", include_key: false, include_chain: false, password: "") }
+      writer = Identity.new(name: "writer", roles: ["zone_a_writer"])
+      content, = CertificateExport.call([record], identity: writer, format: "pem", include_key: false, include_chain: true, password: "")
       assert_includes content, "BEGIN CERTIFICATE"
       assert_not_includes content, "PRIVATE KEY"
-      assert_raises(Certificates::Error) { CertificateExport.call([record], identity: reader, format: "pem", include_key: true, include_chain: false, password: "long-password") }
+      assert_raises(Certificates::Error) { CertificateExport.call([record], identity: writer, format: "pem", include_key: true, include_chain: false, password: "long-password") }
       File.write(File.join(dir, "mixed.pem"), issue(serial: 9).first.to_pem)
       assert_raises(Certificates::Error) { CertificateMaterial.load(record) }
     ensure
@@ -86,12 +88,12 @@ class CertificatesTest < ActiveSupport::TestCase
   test "PFX and DER export round trip" do
     cert, key = issue
     record = store(cert, key: key)
-    writer = Identity.new(name: "writer", roles: ["zone_a_writer", "zone_a_key_exporter"])
-    data, = CertificateExport.call([record], identity: writer, format: "p12", include_key: true, include_chain: false, password: "long-password")
+    exporter = Identity.new(name: "exporter", roles: ["zone_a_key_exporter"])
+    data, = CertificateExport.call([record], identity: exporter, format: "p12", include_key: true, include_chain: false, password: "long-password")
     parsed = Certificates::Codec.parse(data, password: "long-password")
     assert_equal cert.to_der, parsed.certificates.first.to_der
     assert cert.check_private_key(parsed.keys.first)
-    der, = CertificateExport.call([record], identity: writer, format: "der", include_key: false, include_chain: false, password: "")
+    der, = CertificateExport.call([record], identity: exporter, format: "der", include_key: false, include_chain: false, password: "")
     assert_equal cert.to_der, der
   end
 
@@ -107,14 +109,16 @@ class CertificatesTest < ActiveSupport::TestCase
     end
   end
 
-  test "key export requires both writer and separate key exporter role" do
+  test "key exporter alone has read and private-key export access, while reader and writer roles do not" do
     cert, key = issue
     record = store(cert, key: key)
-    [%w[zone_a_reader], %w[zone_a_key_exporter], %w[zone_a_reader zone_a_key_exporter], %w[zone_a_writer]].each do |roles|
+    [%w[zone_a_reader], %w[zone_a_writer], %w[zone_a_reader zone_a_writer]].each do |roles|
       identity = Identity.new(name: "test", roles: roles)
       assert_raises(Certificates::Error) { CertificateExport.call([record], identity: identity, format: "pem", include_key: true, include_chain: false, password: "long-password") }
     end
-    identity = Identity.new(name: "keys", roles: %w[zone_a_writer zone_a_key_exporter])
+    identity = Identity.new(name: "keys", roles: %w[zone_a_key_exporter])
+    assert identity.reader?("zone_a")
+    assert_not identity.writer?("zone_a")
     data, = CertificateExport.call([record], identity: identity, format: "pem", include_key: true, include_chain: false, password: "long-password")
     assert_includes data, "BEGIN ENCRYPTED PRIVATE KEY"
     assert cert.check_private_key(Certificates::Codec.parse(data, password: "long-password").keys.first)

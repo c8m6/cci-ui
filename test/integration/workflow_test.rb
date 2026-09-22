@@ -41,6 +41,33 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "writer can export public material but cannot reveal or export private key material" do
+    login("zone_a_writer")
+    get certificate_path(@record)
+    assert_response :success
+    assert_not_includes response.body, "include_key"
+    assert_not_includes response.body, "BEGIN PRIVATE KEY"
+    assert_difference "AuditEvent.count", 1 do
+      post export_certificates_path, params: { ids: [@record.id], format_name: "pem", include_chain: "1" }
+      assert_response :success
+      assert_includes response.body, "BEGIN CERTIFICATE"
+      assert_not_includes response.body, "PRIVATE KEY"
+    end
+    assert_no_difference "AuditEvent.count" do
+      post export_certificates_path, params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
+      assert_response :see_other
+    end
+    login("zone_a_exporter")
+    get certificate_path(@record)
+    assert_response :success
+    assert_includes response.body, "include_key"
+    assert_difference "AuditEvent.count", 1 do
+      post export_certificates_path, params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
+      assert_response :success
+      assert_includes response.body, "BEGIN ENCRYPTED PRIVATE KEY"
+    end
+  end
+
   test "writer import preview and commit only to consul" do
     login("zone_a_writer")
     newer, newer_key = issue(name: "new.example.test", serial: 7)

@@ -39,7 +39,7 @@ Consul instance. Application startup prepares the database and runs migrations.
 The indexer runs every 60 seconds, so a newly connected collection may initially
 appear empty. Neither `quelle/` nor `data/` is copied into the application image.
 
-Local mode provides Reader, Writer, Writer with Key Exporter and Auditor
+Local mode provides Reader, Writer, Key Exporter and Auditor
 identities for each configured area, plus combined identities. This mode is
 for testing; the local Consul/PostgreSQL settings are not intended for network
 exposure.
@@ -171,10 +171,13 @@ zone_a_key_exporter
 zone_a_auditor
 ```
 
-Key Exporter additionally requires Writer in the same area. Independent Auditor
-roles allow reading audit logs within their area and grant no certificate or
-export permissions. Assign the Auditor roles of all desired areas for a combined
-view. Local Auditor identities land directly at `/auditlogs` after login.
+Writers can export public certificates and optional chains. Key Exporter is the
+only role that can export private keys. It includes read access but does not
+allow imports, version changes, status changes or archiving. Reader and Writer
+roles cannot export private keys. Independent Auditor roles allow reading audit
+logs within their area and grant no certificate or export permissions. Assign the
+Auditor roles of all desired areas for a combined view. Local Auditor identities
+land directly at `/auditlogs` after login.
 Readers cannot export. Without assigned roles, the certificate list is empty.
 Existing group names can be translated through JSON in `OIDC_ROLE_MAP`:
 
@@ -281,7 +284,7 @@ rotated independently; doing so invalidates existing login sessions.
 | An error page shows a request ID without technical details | Check the Rails application log. `CCI_SHOW_ERROR_DETAILS=true` enables exception messages and stack traces for all visitors after restarting web. See [error pages and diagnostics](environment.md#error-pages-and-diagnostics). |
 | Startup rejects area configuration | `CCI_AREAS` JSON, valid IDs/display names, and absolute `CCI_LEGACY_PATHS` |
 | Upload with a private key fails | Correct Base64 encoding and exactly 32 decoded bytes in the area's secret |
-| Reader sees no export action | Expected; Writer is required, plus Key Exporter for private keys |
+| Reader sees no export action | Expected; Writers export public certificates, while only Key Exporter exports private keys |
 | Consul returns HTTP 403 | Token and ACL prefix; do not copy secret values into tickets |
 | SSO fails | Issuer, callback URI, client secret and claim mapping |
 | JKS import fails | Use matching store and key passwords |
