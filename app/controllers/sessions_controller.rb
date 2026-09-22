@@ -3,7 +3,7 @@ class SessionsController < ApplicationController
   def self.local_identities
     groups = {
       "reader" => ["Reader", %w[reader]], "writer" => ["Writer", %w[writer]],
-      "keys" => ["Writer + Key Exporter", %w[writer key_exporter]], "auditor" => ["Auditor", %w[auditor]]
+      "exporter" => ["Key Exporter", %w[key_exporter]], "auditor" => ["Auditor", %w[auditor]]
     }
     identities = AreaConfiguration.ids.each_with_object({}) do |area, result|
       groups.each do |suffix, (label, roles)|

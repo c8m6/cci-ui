@@ -36,7 +36,7 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "_zone_a"
     get certificate_path(@records.fetch("zone_b"))
     assert_response :not_found
-    post local_login_path, params: { identity: "zone_b_keys" }
+    post local_login_path, params: { identity: "zone_b_exporter" }
     get certificate_path(@records.fetch("zone_b"))
     assert_response :success
     assert_includes response.body, "_zone_b"

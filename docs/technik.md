@@ -134,15 +134,15 @@ exports are password-protected.
 | --- | --- | --- | --- | --- |
 | Reader | Yes | No | No | No |
 | Writer | Yes | Yes | Yes | No |
-| Writer + Key Exporter | Yes | Yes | Yes | Yes |
-| Key Exporter alone | No | No | No | No |
+| Key Exporter | Yes | No | Yes | Yes |
 
 Version activation, status editing and archiving apply only to Consul
 certificates. Auditor is an independent role for reading audit logs, without
 certificate access or export permissions.
 
 Roles follow the patterns `<area_id>_writer` and `<area_id>_key_exporter`.
-Additional roles grant permissions only within their area. Bulk exports check
+Key Exporter is the sole authority for private-key export and is intentionally
+separate from Writer. Additional roles grant permissions only within their area. Bulk exports check
 every selected record, including selections spanning multiple areas. Any
 unauthorized record causes the entire export to fail.
 

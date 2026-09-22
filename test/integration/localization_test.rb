@@ -72,7 +72,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     previous = ENV["PUPPETDB_ENABLED"]
     ENV["PUPPETDB_ENABLED"] = "true"
     post locale_path, params: { locale: "en" }
-    post local_login_path, params: { identity: "zone_a_keys" }
+    post local_login_path, params: { identity: "zone_a_exporter" }
     get certificate_path(record)
     assert_language "en"
     assert_select "dt", text: "Created by"
@@ -82,6 +82,8 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_includes response.body, cert.not_after.strftime("%Y-%m-%d")
     assert_includes response.body, "External client: test-client"
     assert_not_includes response.body, "PRIVATE KEY"
+    post local_login_path, params: { identity: "zone_a_writer" }
+    post locale_path, params: { locale: "en" }
     get archive_certificate_path(record)
     assert_language "en"
     assert_select "h1", text: "Archive certificate?"

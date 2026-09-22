@@ -6,7 +6,7 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
     store(issue(name: "zone_b-audit.test").first, area: "zone_b")
     get audit_events_path
     assert_redirected_to login_path
-    %w[zone_a_reader zone_a_writer all:keys].each do |role|
+    %w[zone_a_reader zone_a_writer all:exporter].each do |role|
       post local_login_path, params: { identity: role }
       get audit_events_path
       assert_response :forbidden
@@ -41,7 +41,7 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
     root, root_key = issue(name: "Audit Root", ca: true)
     cert, key = issue(name: "audit-leaf.test", issuer: root, issuer_key: root_key)
     record = store(cert, key: key, chain: [root])
-    post local_login_path, params: { identity: "zone_a_keys" }
+    post local_login_path, params: { identity: "zone_a_exporter" }
     %w[pem der p12 jks].each do |format|
       private_export = format != "der"
       assert_difference "AuditEvent.count", 1 do
@@ -50,7 +50,7 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
         assert_response :success
       end
       event = AuditEvent.order(:id).last
-      assert_equal "Zone A · Writer + Key Exporter", event.actor
+      assert_equal "Zone A · Key Exporter", event.actor
       assert_equal private_export ? "export_private" : "export_public", event.action
       assert_in_delta Time.current.to_f, event.occurred_at.to_f, 5
       assert_equal format, event.details["format"]

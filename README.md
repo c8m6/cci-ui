@@ -70,9 +70,10 @@ change details, including an archive confirmation and a Puppet status change.
 
 ## Permissions and formats
 
-Readers can search and view details but cannot export. Writers can import,
-manage versions and export certificates. Exporting private keys additionally
-requires `<area_id>_key_exporter` in the same area.
+Readers can search and view details. Writers can import, manage versions and
+export certificates with an optional chain. Only `<area_id>_key_exporter` can
+export private keys in that area. This export role includes read access but does
+not grant write access.
 
 `<area_id>_auditor` grants access to that area's audit logs without granting
 certificate export rights. Logs record changes and exports with time, user and
