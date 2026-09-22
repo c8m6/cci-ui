@@ -76,8 +76,8 @@ class CatalogIndexer
       certids = connection.all("#{base}/certids/").to_h do |item|
         [item.fetch(:key).delete_prefix("#{base}/certids/"), JSON.parse(item.fetch(:value))]
       end
-      connection.all("#{base}/keys/").each do |item|
-        id = item.fetch(:key).delete_prefix("#{base}/keys/")
+      connection.all("#{base}/certs/").each do |item|
+        id = item.fetch(:key).delete_prefix("#{base}/certs/")
         certid, version = ConsulStore.split_id(id)
         data = JSON.parse(item.fetch(:value))
         cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))

@@ -40,7 +40,7 @@ class CertificatesTest < ActiveSupport::TestCase
     newer = store(renewed, key: renewed_key)
     assert_not original.reload.active
     assert newer.active
-    raw = ConsulStore.client.get("#{ConsulStore.prefix('zone_a')}/private_keys/#{original.source_id}")[:value]
+    raw = ConsulStore.client.get("#{ConsulStore.prefix('zone_a')}/keys/#{original.source_id}")[:value]
     assert_not_includes raw, "PRIVATE KEY"
     assert CertificateMaterial.load(original, private_key: true)[:certificate].check_private_key(key)
     assert_equal 3, store(cert, key: key).certificate_version

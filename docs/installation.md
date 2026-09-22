@@ -26,7 +26,7 @@ container restarts so existing private keys remain readable. The application
 also starts with variables supplied directly by the shell or your orchestrator;
 no `.env` or application configuration file is required. For a new installation,
 `ruby bin/setup-local --stdout` emits shell-safe `export` commands without writing
-a file. Do not regenerate keys when migrating an existing installation.
+a file. Keep these keys available for decrypting stored private keys.
 
 Open `http://localhost:3000`. For a remote VM, expose the local port through an
 SSH tunnel. The development service binds only to `127.0.0.1`; the databases
@@ -117,9 +117,9 @@ stay separate. Filesystem certificates have no editable Puppet status.
 `CCI_AREA_KEYS` maps area IDs to 32-byte keys encoded as Base64. The map lets
 Compose forward arbitrary area keys from the shell without editing its service
 definitions. Existing `<UPPERCASE_AREA_ID>_KEY` variables remain supported when
-injected into the process; map entries take precedence. Never change key bytes
-while migrating configuration, or existing private-key envelopes will no longer
-decrypt. Public-only operations do not require area keys.
+injected into the process; map entries take precedence. Keep key bytes stable
+so stored private-key envelopes remain decryptable. Public-only operations do
+not require area keys.
 
 The Compose `env_file` is optional: `.env` for development and `.env.production`
 for production. `CCI_ENV_FILE` selects another optional file. When using a file
@@ -134,8 +134,7 @@ docker compose -f compose.production.yml up -d --force-recreate web indexer
 ```
 
 See the [environment reference](environment.md) for all supported variables,
-a `docker run` example without configuration files, and migration instructions.
-No SQL or Consul schema migration is required for this configuration change.
+a `docker run` example without configuration files, and deployment settings.
 Preserve area IDs: they determine Consul paths, encryption, roles and audit ownership.
 Removed local mappings block material reads but retain their catalog rows.
 Certificate metadata and audit history are never removed by an indexing pass.
@@ -197,8 +196,7 @@ snapshot procedure, ACLs and TLS beforehand. Ensure it is reachable from the
 application containers.
 
 Supply these variables through your deployment environment or, optionally,
-a protected `.env.production` file excluded from Git and images. Preserve existing
-area IDs and key bytes when migrating:
+a protected `.env.production` file excluded from Git and images:
 
 ```dotenv
 POSTGRES_PASSWORD=<strong database password>
@@ -233,13 +231,13 @@ separate area tokens. Example read policy for a compiler that must distribute
 certificates and keys from area `zone_a`:
 
 ```hcl
-key_prefix "cci/areas/zone_a/certids/" {
+key_prefix "cci/zone_a/certids/" {
   policy = "read"
 }
-key_prefix "cci/areas/zone_a/keys/" {
+key_prefix "cci/zone_a/certs/" {
   policy = "read"
 }
-key_prefix "cci/areas/zone_a/private_keys/" {
+key_prefix "cci/zone_a/keys/" {
   policy = "read"
 }
 ```
@@ -296,15 +294,10 @@ rotated independently; doing so invalidates existing login sessions.
 | “Abfrage fehlgeschlagen” appears | Check indexer logs and PuppetDB connectivity or fact format; previous host associations are retained |
 | “Fingerprint fehlt” appears | In SHA-1 mode, rescan the readable certificate source to compute the missing digest; retained entries with missing sources keep their previous observations |
 
-## Prototype schema reset
-
-This release uses the simplified `cci` namespace with integer certificate versions.
-There is no migration or compatibility reader for the previous Consul layout.
-Use an empty PostgreSQL catalog and the new namespace for prototype testing.
-Old Consul keys are not changed or deleted by deployment.
+## Initial database setup
 
 Run `ruby bin/rails db:prepare` (also run by `bin/start`) to prepare the current
-SQL structure. Discard old import previews and deploy matching Ruby/Puppet clients.
+SQL structure. Deploy the supplied Ruby/Puppet clients with the application.
 The supplied Puppet module does not enforce `norollout` or `delete` yet.
 See [the storage contract](consul-schema.md) and [Puppet integration](puppet.md).
 
@@ -323,8 +316,7 @@ UI history and metadata whose original source is no longer available.
 
 ## Optional PuppetDB connection
 
-PuppetDB integration is off by default. Deploy migrations `20260916000200` and
-`20260916000300` with
+PuppetDB integration is off by default. Prepare the database with
 `ruby bin/rails db:prepare` before starting the indexer, then configure the
 [optional PuppetDB settings](environment.md#optional-puppetdb-host-inventory)
 and mount TLS credentials into the indexer if required. The provided custom fact

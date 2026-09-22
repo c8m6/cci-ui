@@ -88,7 +88,7 @@ class CertificateArchivingTest < ActiveSupport::TestCase
     archive(record)
     base = ConsulStore.prefix(record.area)
     ConsulStore.client.transaction([
-      { "Verb" => "delete", "Key" => "#{base}/keys/#{record.source_id}" },
+      { "Verb" => "delete", "Key" => "#{base}/certs/#{record.source_id}" },
       { "Verb" => "delete", "Key" => "#{base}/certids/#{record.certid}" }
     ])
     CatalogIndexer.run

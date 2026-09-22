@@ -27,7 +27,7 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "bereits im Dateibestand vorhanden"
     assert_not_includes response.body, @path
     assert_empty ImportDraft.all
-    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/areas/")
+    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/")
   end
 
   test "DER file upload is checked by certificate identity" do
@@ -46,7 +46,7 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
     upload(pem: fresh.to_pem + @cert.to_pem, certid: "")
     assert_response :see_other
     assert_empty ImportDraft.all
-    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/areas/")
+    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/")
   end
 
   test "certificate appearing after preview blocks the entire commit" do
@@ -58,7 +58,7 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
     post imports_path, params: { token: token, confirm_overwrite: "1" }
     assert_response :see_other
     assert_empty Certificate.where(source: "consul")
-    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/areas/")
+    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/")
     assert ImportDraft.exists?(token: token)
   end
 

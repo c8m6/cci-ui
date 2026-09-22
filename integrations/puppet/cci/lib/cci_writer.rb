@@ -19,7 +19,7 @@ class CciWriter
     raise ArgumentError, "Invalid actor" if actor && (!actor.is_a?(String) || actor.strip.empty? || actor.length > 255)
     raise ArgumentError, "Invalid tags" unless tags.is_a?(Array) && tags.all? { |tag| tag.is_a?(String) }
     raise ArgumentError, "Certificate and key do not match" if key && !cert.check_private_key(key)
-    base = "#{prefix}/areas/#{area}"
+    base = "#{prefix}/#{area}"
     path = "#{base}/certids/#{certid}"
     snapshot = connection.get(path)
     index = snapshot ? snapshot.fetch(:index) : 0
@@ -41,7 +41,7 @@ class CciWriter
     updated.delete("updated_by")
     updated["updated_by"] = actor if actor
     operations = [ConsulConnection.set(path, updated, index: index),
-      ConsulConnection.set("#{base}/keys/#{certid}/#{version}", data, index: 0)]
+      ConsulConnection.set("#{base}/certs/#{certid}/#{version}", data, index: 0)]
     if key
       secret = Base64.strict_decode64(encryption_key || AreaSecrets.fetch(area))
       raise ArgumentError, "Area key must contain 32 bytes" unless secret.bytesize == 32
@@ -52,7 +52,7 @@ class CciWriter
       ciphertext = cipher.update(key.private_to_pem) + cipher.final
       envelope = { version: 1, iv: Base64.strict_encode64(iv),
         tag: Base64.strict_encode64(cipher.auth_tag), data: Base64.strict_encode64(ciphertext) }
-      operations << ConsulConnection.set("#{base}/private_keys/#{certid}/#{version}", envelope, index: 0)
+      operations << ConsulConnection.set("#{base}/keys/#{certid}/#{version}", envelope, index: 0)
     end
     { version: version, data: data, previous: entry, updated: updated, operations: operations }
   end

@@ -2,8 +2,8 @@ class CertificateMaterial
   def self.load(record, private_key: false, password: "")
     if record.source == "consul"
       base = ConsulStore.prefix(record.area)
-      paths = ["#{base}/keys/#{record.source_id}"]
-      paths << "#{base}/private_keys/#{record.source_id}" if private_key
+      paths = ["#{base}/certs/#{record.source_id}"]
+      paths << "#{base}/keys/#{record.source_id}" if private_key
       values = ConsulStore.client.get_many(paths)
       data = JSON.parse(values.fetch(paths.first).fetch(:value))
       cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
