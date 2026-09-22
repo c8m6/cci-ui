@@ -46,7 +46,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `DATABASE_URL` | PostgreSQL connection URL. Set explicitly for deployment. The development fallback is `postgresql://certui:certui@127.0.0.1:55432/certui_development`; development Compose supplies its internal `db` connection. |
 | `CONSUL_URL` | Consul HTTP(S) endpoint. Application default: `http://127.0.0.1:8500`; development Compose uses `http://consul:8500`. |
 | `CONSUL_TOKEN` | Consul ACL token. Default: empty for local evaluation. Production Compose requires it. |
-| `CONSUL_PREFIX` | Consul KV namespace. Default: `cci`. Preserve it when migrating. |
+| `CONSUL_PREFIX` | Consul KV namespace. Default: `cci`. |
 | `CONSUL_CA_FILE` | Optional CA certificate path inside the container for HTTPS Consul. Empty or omitted uses system trust. Mount the certificate into both services if needed. |
 | `AUTH_MODE` | `oidc` (application default) or `local`. Development Compose defaults to `local`; production Compose sets `oidc`. Production rejects local authentication. |
 | `OIDC_ISSUER` | Keycloak realm URL, required in OIDC mode; production requires HTTPS. |
@@ -64,7 +64,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 
 Consul tokens, OIDC secrets and encryption keys are supplied directly through
 the environment. Optional PuppetDB TLS credentials use the file paths below.
-Keep existing area key bytes during migration.
+Keep area key bytes stable so stored private keys remain decryptable.
 
 ### Error pages and diagnostics
 
@@ -186,7 +186,7 @@ docker compose -f compose.yml up --build -d --wait
 ```
 
 Store those generated keys for future starts. Running the helper again generates
-different keys; it is not a migration or restart command. Without `--stdout`,
+different keys, so use the stored values for subsequent starts. Without `--stdout`,
 the helper creates an optional `.env` with mode `0600`, leaving existing files
 untouched.
 
@@ -237,23 +237,6 @@ read-only into the indexer command, for example
 `--mount type=bind,src=/srv/cci/puppetdb-tls,dst=/run/puppetdb,readonly`, and set
 the `PUPPETDB_*_FILE` paths to the corresponding container paths. Forwarding a
 file path in an environment variable does not mount the file itself.
-
-## Migrating existing installations
-
-1. Copy the former YAML `areas` mapping into `CCI_AREAS` as JSON, preserving IDs.
-2. Copy the former `legacy_paths` mapping into `CCI_LEGACY_PATHS`. For an older
-   single `legacy_area`, map that ID to the former application `LEGACY_PATH`
-   (the path inside the container). Set `{}` if there is no local inventory.
-3. Retain the exact existing per-area secrets. Either keep injecting their
-   individual variables or place the same values in `CCI_AREA_KEYS`.
-4. Remove the area YAML bind mount and `CCI_AREAS_FILE` / `CCI_AREAS_CONFIG`.
-   These settings and files are no longer read; there is no YAML fallback.
-5. Recreate web and indexer with identical environment and inventory mounts.
-
-No SQL or Consul schema migration is needed for this configuration change.
-Preserve area IDs, Consul prefix and key bytes so existing certids, encrypted
-material, roles and audit ownership remain accessible. The complete storage
-contract is in the [Consul schema](consul-schema.md).
 
 ## Test and standalone writer variables
 

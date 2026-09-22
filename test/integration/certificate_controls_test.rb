@@ -28,7 +28,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
   end
 
   test "invalid certid is rejected before reading destination data" do
-    post imports_path, params: { areas: ["zone_a"], pem: issue(serial: 2).first.to_pem, certid: "../zone_b/private_keys/secret" }
+    post imports_path, params: { areas: ["zone_a"], pem: issue(serial: 2).first.to_pem, certid: "../zone_b/keys/secret" }
     assert_response :see_other
     assert_equal 0, ImportDraft.count
   end

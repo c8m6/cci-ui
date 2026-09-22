@@ -70,9 +70,9 @@ Default prefix: `cci`. `<area>` is a stable ID from `CCI_AREAS`.
 
 | KV path below the prefix | Value |
 | --- | --- |
-| `areas/<area>/certids/<certid>` | Integer `active_version` and `latest_version`, status, last writer/time and optional archive fields |
-| `areas/<area>/keys/<certid>/<version>` | One PEM certificate, tag array, Boolean key availability and import provenance |
-| `areas/<area>/private_keys/<certid>/<version>` | AES-256-GCM envelope |
+| `<area>/certids/<certid>` | Integer `active_version` and `latest_version`, status, last writer/time and optional archive fields |
+| `<area>/certs/<certid>/<version>` | One PEM certificate, tag array, Boolean key availability and import provenance |
+| `<area>/keys/<certid>/<version>` | AES-256-GCM envelope |
 
 Versions are positive integers per area/CertID pair. A renewal allocates
 `latest_version + 1`, even after activation of an older version. Every successful
@@ -95,7 +95,6 @@ Only Consul certificates have mutable status and archive state. Status applies
 to all versions of a CertID and survives renewals. The supplied Puppet manifests
 expose `active`, `norollout`, and `delete` but do not enforce these statuses yet.
 Archiving sets `archived: true` and `status: delete` while retaining material.
-This prototype has no compatibility reader or migration for the previous layout.
 
 ## Area configuration
 
@@ -156,7 +155,7 @@ Keycloak backchannel logout are not yet implemented. Local mode uses test
 identities generated from configuration and is prohibited in production.
 
 Consul machine credentials are separate ACL tokens, independent of UI Reader
-roles. Compilers need read access to their area's certids and public keys, plus
+roles. Compilers need read access to their area's CertID metadata and certificates, plus
 its private-key path and decryption secret when distributing keys. Tokens are
 sent in headers, not URLs.
 

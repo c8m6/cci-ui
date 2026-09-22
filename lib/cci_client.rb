@@ -15,15 +15,15 @@ class CciClient
     raise Error, "Invalid certid" unless certid.is_a?(String) && certid.match?(/\A[a-zA-Z0-9_.-]{1,120}\z/)
     raise Error, "Unknown field" unless %w[certificate chain private_key metadata].include?(field)
     raise Error, "Invalid version" if version && (!version.is_a?(Integer) || version < 1)
-    base = "#{@prefix}/areas/#{area}"
+    base = "#{@prefix}/#{area}"
     material = @cache[[area, certid, version]] ||= begin
       entry = JSON.parse((@connection.get("#{base}/certids/#{certid}") || raise(Error, "CertID not found"))[:value])
       selected = version || entry.fetch("active_version")
       raise Error, "Invalid active version" unless selected.is_a?(Integer) && selected.positive?
       status = entry.fetch("status", "active")
       raise Error, "Invalid rollout status" unless %w[active norollout delete].include?(status)
-      public_path = "#{base}/keys/#{certid}/#{selected}"
-      private_path = "#{base}/private_keys/#{certid}/#{selected}"
+      public_path = "#{base}/certs/#{certid}/#{selected}"
+      private_path = "#{base}/keys/#{certid}/#{selected}"
       # get-or-empty keeps a public-only version readable with key access enabled.
       if @keys.key?(area)
         result = @connection.transaction([
@@ -69,7 +69,7 @@ class CciClient
   # stored certificate is independent; only public material in this area is read.
   def build_chain(area, leaf)
     return [leaf] if leaf.subject == leaf.issuer && leaf.verify(leaf.public_key)
-    candidates = @candidates[area] ||= @connection.all("#{@prefix}/areas/#{area}/keys/").map do |item|
+    candidates = @candidates[area] ||= @connection.all("#{@prefix}/#{area}/certs/").map do |item|
       OpenSSL::X509::Certificate.new(JSON.parse(item.fetch(:value)).fetch("pem"))
     end
     chain = [leaf]

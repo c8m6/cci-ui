@@ -65,6 +65,49 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     assert_equal 2, JSON.parse(output).fetch("metadata").fetch("version")
   end
 
+  test "flat area paths isolate identical certids and encrypted keys" do
+    certificates = {}
+    %w[zone_a zone_b].each_with_index do |area, index|
+      cert, key = issue(serial: index + 1)
+      certificates[area] = cert
+      assert_equal 1, CertificateExample.add(area: area, certid: "shared", cert: cert, key: key)
+      base = "#{ConsulStore.namespace}/#{area}"
+      entries = ConsulStore.client.all("#{base}/").to_h { |item| [item.fetch(:key), JSON.parse(item.fetch(:value))] }
+      assert_equal ["#{base}/certids/shared", "#{base}/certs/shared/1", "#{base}/keys/shared/1"].sort, entries.keys.sort
+      assert_equal cert.to_pem, entries.fetch("#{base}/certs/shared/1").fetch("pem")
+      assert_equal %w[data iv tag version], entries.fetch("#{base}/keys/shared/1").keys.sort
+      assert_not_includes entries.fetch("#{base}/keys/shared/1").to_json, "PRIVATE KEY"
+    end
+    assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/areas/")
+    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
+      keys: { "zone_a" => ENV.fetch("ZONE_A_KEY"), "zone_b" => ENV.fetch("ZONE_B_KEY") })
+    certificates.each do |area, cert|
+      assert_equal cert.to_pem, reader.fetch(area: area, certid: "shared")
+      assert cert.check_private_key(OpenSSL::PKey.read(reader.fetch(area: area, certid: "shared", field: "private_key")))
+    end
+    CatalogIndexer.refresh_consul
+    assert_equal 2, Certificate.where(certid: "shared", active: true).count
+  end
+
+  test "concurrent creation uses index zero and rejects the losing transaction" do
+    writer = CciWriter.new(prefix: ConsulStore.namespace)
+    cert, key = issue
+    first = writer.prepare(area: "zone_a", certid: "new", cert: cert, key: key)
+    second = writer.prepare(area: "zone_a", certid: "new", cert: issue(serial: 2).first)
+    assert first.fetch(:operations).all? { |operation| operation.fetch("Verb") == "cas" && operation.fetch("Index") == 0 }
+    writer.commit(first)
+    assert_raises(ConsulConnection::Conflict) { writer.commit(second) }
+    assert_equal cert.to_pem, ConsulStore.get("zone_a", "new/1").fetch("pem")
+    assert_equal 3, ConsulStore.client.all("#{ConsulStore.namespace}/").size
+  end
+
+  test "packaged Puppet libraries match application libraries" do
+    %w[cci_client.rb cci_writer.rb consul_connection.rb area_secrets.rb].each do |file|
+      assert_equal File.read(Rails.root.join("lib", file)),
+        File.read(Rails.root.join("integrations/puppet/cci/lib", file)), file
+    end
+  end
+
   test "external renewals preserve archive status and unknown fields" do
     publish(issue.first)
     path = "#{ConsulStore.prefix('zone_a')}/certids/external"
@@ -95,8 +138,8 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     assert_raises(ConsulConnection::Conflict) { publish(cert, key: key, connection: connection) }
     assert_equal 1, read.fetch("metadata").fetch("version")
     assert_equal "norollout", read.fetch("metadata").fetch("status")
-    assert_equal 1, ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/keys/").size
-    assert_empty ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/private_keys/")
+    assert_equal 1, ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/certs/").size
+    assert_empty ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/keys/")
   end
 
   test "client builds chain from independent public certificates and caches candidates" do
@@ -115,7 +158,7 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     assert_equal 3, calls.size
     reader.fetch(area: "zone_a", certid: "external", field: "chain")
     assert_equal 3, calls.size
-    ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/keys/").each do |item|
+    ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/certs/").each do |item|
       assert_not JSON.parse(item[:value]).key?("chain")
     end
   end

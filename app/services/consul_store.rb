@@ -6,7 +6,7 @@ class ConsulStore
   def self.client = ConsulConnection.new
   def self.prefix(area)
     raise Certificates::Error, I18n.t("errors.app.unknown_area") unless AreaConfiguration.ids.include?(area)
-    "#{namespace}/areas/#{area}"
+    "#{namespace}/#{area}"
   end
 
   def self.validate_certid!(certid)
@@ -44,7 +44,7 @@ class ConsulStore
 
   def self.get(area, id)
     split_id(id)
-    raw = client.get("#{prefix(area)}/keys/#{id}")
+    raw = client.get("#{prefix(area)}/certs/#{id}")
     raise Certificates::Error, I18n.t("errors.app.missing_consul_certificate") unless raw
     JSON.parse(raw.fetch(:value))
   end

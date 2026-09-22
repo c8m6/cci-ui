@@ -1,9 +1,8 @@
 # Consul schema and Ruby integrations
 
-The default prefix is `cci`. This prototype contract replaces the previous
-layout without migration or compatibility readers. Start with an empty catalog
-and the new namespace when testing it. Existing Consul data is not rewritten or
-deleted. Consul's `/v1/` HTTP API path is unrelated to the storage prefix.
+The default prefix is `cci`. This document describes the storage contract for
+an initial deployment. Consul's `/v1/` HTTP API path is unrelated to the storage
+prefix.
 
 Consul holds certificate material and the current selection. PostgreSQL holds
 UI audit history and the searchable catalog. Filesystem certificates remain
@@ -11,13 +10,16 @@ read-only and have no Consul records.
 
 ## KV structure
 
-Let `<base>` be `cci/areas/<area>`. Keys have no leading slash.
+Let `<base>` be `cci/<area>`. Keys have no leading slash.
+
+The area ID separates inventories, ACL scopes and encryption secrets. The same
+CertID can exist independently in multiple areas.
 
 | Path | Value |
 | --- | --- |
 | `<base>/certids/<certid>` | Selection, version counter, status and last writer |
-| `<base>/keys/<certid>/<version>` | One public certificate and its import metadata |
-| `<base>/private_keys/<certid>/<version>` | Optional encrypted private key |
+| `<base>/certs/<certid>/<version>` | One public certificate and its import metadata |
+| `<base>/keys/<certid>/<version>` | Optional encrypted private key |
 
 There are no separate chain, provenance, fingerprint or event keys. A CertID
 contains 1–120 characters from `a-z`, `A-Z`, `0-9`, `.`, `_`, `-`. An area matches
@@ -49,6 +51,10 @@ remain in effect.
 writes also set `updated_by` to the authenticated identity. Direct Puppet writes
 set `client: "puppet"` and a UTC timestamp, without requiring a human actor.
 Writers preserve status, archive metadata and unknown fields during renewal.
+`updated_by` identifies the actor responsible for the most recent metadata
+change, including imports, activation and status changes. When a machine writer
+omits its actor, it must remove any previous `updated_by` value so an earlier
+UI user is not credited with the machine's update.
 
 ### Certificate version
 
@@ -74,7 +80,25 @@ imported this immutable version and remain unchanged when another version is
 activated. They are supplied by the writer, not cryptographic proof of identity.
 Consul ACLs determine who may write.
 
+For machine writers, `client` identifies the software, for example `puppet`.
+The optional `created_by` and `updated_by` identify its service account or
+machine, for example `svc:puppet-prod` or `puppet:node.example.org`. Use a stable,
+non-secret identifier. Do not put ACL tokens, passwords or private keys in these
+fields. If no reliable actor is available, omit the fields rather than inventing
+a human identity. An actor is a nonblank string of at most 255 characters.
+
+The Ruby writer accepts `actor: "svc:puppet-prod"` and applies it to both fields
+on import. The command-line example accepts `CCI_ACTOR`. A machine import with
+an actor therefore has `client: "puppet"` and `created_by: "svc:puppet-prod"` in
+the certificate version, and `client: "puppet"` and
+`updated_by: "svc:puppet-prod"` in the CertID metadata. Later updates leave the
+version's `created_by` unchanged.
+
 ### Private key
+
+`<base>/keys/<certid>/<version>` contains only an encrypted private key envelope.
+The corresponding certificate and its public key are in `certs/`. Plaintext
+private keys are never stored in either subtree.
 
 ```json
 {"version":1,"iv":"<base64>","tag":"<base64>","data":"<base64>"}
@@ -91,7 +115,8 @@ version. A key must match its certificate. Configure shared secrets through
 
 For one certificate import:
 
-1. Read `<base>/certids/<certid>` once, retaining its `ModifyIndex` (zero if absent).
+1. Read `<base>/certids/<certid>` once, retaining the KV response's `ModifyIndex`.
+   If Consul returns HTTP 404, use `0` as the expected index for creation.
 2. Submit one `/v1/txn` request: CAS the metadata against that index and create
    the public version and optional private key with `cas`, `Index: 0`.
 
@@ -100,6 +125,21 @@ write. The transaction contains two or three KV operations. There is no extra
 version-existence read, audit write or version-counter request. A conflict
 rejects all writes. A retry is a new attempt and must reread metadata. Never
 replace CAS with unconditional writes.
+
+`ModifyIndex` is Consul's modification index for the KV entry. It is returned
+alongside the Base64-encoded `Value`, outside the stored certificate JSON.
+Consul assigns it automatically. It is independent of `active_version` and
+`latest_version`, and writers must not increment it themselves.
+
+For example, after reading `ModifyIndex: 4711`, submit the metadata operation
+with `Verb: "cas"` and `Index: 4711`. Consul accepts it only if the entry still
+has that index. If another writer has changed it, the transaction returns HTTP
+409 and none of its writes are committed. Reread metadata and recalculate the
+next version before retrying. `Index: 0` requires that the target key does not
+exist, protecting both new CertIDs and immutable material versions.
+
+See Consul's [KV API](https://developer.hashicorp.com/consul/api-docs/kv)
+and [transaction API](https://developer.hashicorp.com/consul/api-docs/txn).
 
 For a current or explicitly pinned certificate read:
 
@@ -211,8 +251,9 @@ Runnable example:
 CCI_CLIENT_ID=puppet ruby examples/add_certificate.rb zone_a portal.production portal.pem portal.key
 ```
 
-Writing tokens need read/write access to the area's `certids/`, `keys/` and,
-when applicable, `private_keys/`. No other prefix is needed.
+Writing tokens need read/write access to the area's `certids/`, `certs/` and,
+when applicable, `keys/`. No other prefix is needed. Certificate-only readers
+need no access to `keys/`.
 
 ## Ruby reader and Puppet
 

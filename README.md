@@ -31,7 +31,7 @@ export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base
 
 No area YAML or configuration mount is required. `.env` files are optional;
 `ruby bin/setup-local --stdout` emits exports without writing a file for a new
-installation. Preserve existing keys when migrating. See the
+installation. Keep the generated keys available for decryption. See the
 [environment reference](docs/environment.md) and
 [production mount examples](docs/installation.md#configuring-areas).
 

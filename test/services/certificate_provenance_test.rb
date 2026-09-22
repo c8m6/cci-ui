@@ -2,6 +2,25 @@ require "test_helper"
 require_relative "../../examples/add_certificate"
 
 class CertificateProvenanceTest < ActiveSupport::TestCase
+  test "machine actors identify imports and omitted actors clear the last writer" do
+    cert, = issue
+    args = { area: "zone_a", certid: "machine", cert: cert, client: "puppet" }
+    CertificateExample.add(**args, actor: "svc:puppet-prod")
+    first = ConsulStore.get("zone_a", "machine/1")
+    assert_equal "svc:puppet-prod", first.fetch("created_by")
+    snapshot = ConsulStore.certid_snapshot("zone_a", "machine")
+    assert_equal "svc:puppet-prod", JSON.parse(snapshot.fetch(:value)).fetch("updated_by")
+    ConsulStore.set_status("zone_a", "machine/1", status: "norollout", actor: "ui-user",
+      expected_certid_index: snapshot.fetch(:index))
+    CertificateExample.add(**args)
+    metadata = JSON.parse(ConsulStore.certid_snapshot("zone_a", "machine").fetch(:value))
+    assert_equal "puppet", metadata.fetch("client")
+    assert_equal "norollout", metadata.fetch("status")
+    assert_not metadata.key?("updated_by")
+    assert_not ConsulStore.get("zone_a", "machine/2").key?("created_by")
+    assert_equal first, ConsulStore.get("zone_a", "machine/1")
+  end
+
   test "provenance belongs to each version and survives activation" do
     first = store(issue.first, client: "cci-ui")
     second = store(issue(serial: 2).first, client: "acme-renewer")
@@ -19,7 +38,7 @@ class CertificateProvenanceTest < ActiveSupport::TestCase
 
   test "historical versions without provenance remain readable and clear stale metadata" do
     record = store(issue.first)
-    path = "#{ConsulStore.prefix(record.area)}/keys/#{record.source_id}"
+    path = "#{ConsulStore.prefix(record.area)}/certs/#{record.source_id}"
     data = ConsulStore.get(record.area, record.source_id).except("client", "created_by")
     ConsulStore.client.transaction([ConsulConnection.set(path, data)])
     CatalogIndexer.refresh_consul
