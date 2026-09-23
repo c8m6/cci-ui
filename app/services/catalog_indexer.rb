@@ -1,14 +1,15 @@
+# frozen_string_literal: true
+
+# Refreshes source projections under a shared lock, preserving data on failed scans.
 class CatalogIndexer
   def self.run
     synchronize do
       indexer = new
       failures = []
       %i[filesystem consul puppetdb].each do |source|
-        begin
-          indexer.public_send(source)
-        rescue Certificates::Error, ConsulConnection::Error, PuppetdbConnection::Error => error
-          failures << error
-        end
+        indexer.public_send(source)
+      rescue Certificates::Error, ConsulConnection::Error, PuppetdbConnection::Error => e
+        failures << e
       end
       raise failures.first if failures.any?
     end
@@ -35,21 +36,22 @@ class CatalogIndexer
 
   def upsert(cert, attrs)
     metadata = Certificates::Codec.metadata(cert)
-    text = [metadata[:subject], metadata[:issuer], metadata[:common_name], *metadata[:sans], *attrs[:tags], attrs[:certid]].compact.join(" ")
-    record = Certificate.find_or_initialize_by(attrs.slice(:area, :source, :source_id).merge(fingerprint: metadata.fetch(:fingerprint)))
-    record.update!(metadata.merge(attrs).merge(sha1_fingerprint: Digest::SHA1.hexdigest(cert.to_der), search_text: text, indexed_at: Time.current))
+    text = [metadata[:subject], metadata[:issuer], metadata[:common_name], *metadata[:sans], *attrs[:tags],
+      attrs[:certid]].compact.join(" ")
+    record = Certificate.find_or_initialize_by(attrs.slice(:area, :source,
+      :source_id).merge(fingerprint: metadata.fetch(:fingerprint)))
+    record.update!(metadata.merge(attrs).merge(sha1_fingerprint: Digest::SHA1.hexdigest(cert.to_der),
+      search_text: text, indexed_at: Time.current))
     record
   end
 
   def filesystem
     failures = []
     LegacyStore.areas.each do |area|
-      begin
-        filesystem_area(area)
-      rescue Certificates::Error, ConsulConnection::Error => error
-        Rails.logger.warn("Dateibestand #{area}: Indexierung fehlgeschlagen (#{error.class})")
-        failures << error
-      end
+      filesystem_area(area)
+    rescue Certificates::Error, ConsulConnection::Error => e
+      Rails.logger.warn("Filesystem inventory #{area}: indexing failed (#{e.class})")
+      failures << e
     end
     raise failures.first if failures.any?
   end
@@ -60,8 +62,15 @@ class CatalogIndexer
     inventory.each do |entry|
       relative = entry.fetch(:relative)
       tag_path = relative.sub(/\.pem\z/i, ".tag")
-      tags = root.join(tag_path).exist? ? [LegacyStore.read(LegacyStore.safe_path(tag_path, area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?) : []
-      has_key = root.join(relative.sub(/\.pem\z/i, ".key")).exist? || LegacyStore.read(LegacyStore.safe_path(relative, area: area)).include?("PRIVATE KEY-----")
+      tags = if root.join(tag_path).exist?
+               [LegacyStore.read(LegacyStore.safe_path(tag_path,
+                 area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?)
+             else
+               []
+             end
+      has_key = root.join(relative.sub(/\.pem\z/i,
+        ".key")).exist? || LegacyStore.read(LegacyStore.safe_path(relative,
+          area: area)).include?("PRIVATE KEY-----")
       entry.fetch(:certificates).each_with_index do |cert, index|
         upsert(cert, area: area, source: "filesystem", source_id: "#{relative}##{index}", tags: tags, has_key: has_key, active: true,
           rollout_status: "active", archived: false)
@@ -83,6 +92,7 @@ class CatalogIndexer
         cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
         entry = certids[certid]
         next unless entry
+
         state = ConsulStore.catalog_status(entry).merge(active: entry.fetch("active_version") == version)
         upsert(cert, area: area, source: "consul", source_id: id,
           certid: certid, certificate_version: version, tags: data.fetch("tags"), has_key: data.fetch("has_key"),

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require_relative "../../examples/add_certificate"
 
@@ -47,7 +49,7 @@ class CertificateProvenanceTest < ActiveSupport::TestCase
     assert_equal "Unbekannt (keine Client-Angabe)", record.origin_label
     assert_equal "Dateibestand", Certificate.new(source: "filesystem").origin_label
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal data["pem"], reader.fetch(area: record.area, certid: record.certid)
+    assert_equal data["pem"], reader.read_certificate(area: record.area, certid: record.certid)
   end
 
   test "writers must explicitly identify themselves before any write" do
@@ -57,15 +59,15 @@ class CertificateProvenanceTest < ActiveSupport::TestCase
     [nil, "", " ", "a" * 121, "bad/client"].each do |client|
       assert_raises(Certificates::Error) { ConsulStore.save(**args, client: client) }
     end
-    assert_raises(Certificates::Error) { ConsulStore.save(**args.merge(actor: " "), client: "test") }
+    assert_raises(Certificates::Error) { ConsulStore.save(**args, actor: " ", client: "test") }
     assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/")
   end
 
   test "standalone Ruby example writes compatible individual versions keys and provenance without audit events" do
     cert, key = issue
     args = { area: "zone_a", certid: "ruby-example", cert: cert, key: key,
-      client: "acme-renewer", actor: "service-account", tags: ["Example"],
-      prefix: ConsulStore.namespace }
+             client: "acme-renewer", actor: "service-account", tags: ["Example"],
+             prefix: ConsulStore.namespace }
     id = CertificateExample.add(**args)
     CatalogIndexer.refresh_consul
     record = Certificate.find_by!(certid: "ruby-example", certificate_version: id)
@@ -75,10 +77,12 @@ class CertificateProvenanceTest < ActiveSupport::TestCase
     assert CertificateMaterial.load(record, private_key: true)[:certificate].check_private_key(key)
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
       keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
-    assert_equal "acme-renewer", reader.fetch(area: "zone_a", certid: "ruby-example", field: "metadata")["client"]
-    assert cert.check_private_key(OpenSSL::PKey.read(reader.fetch(area: "zone_a", certid: "ruby-example", field: "private_key")))
+    assert_equal "acme-renewer",
+      reader.read_certificate(area: "zone_a", certid: "ruby-example", field: "metadata")["client"]
+    assert cert.check_private_key(OpenSSL::PKey.read(reader.read_certificate(area: "zone_a", certid: "ruby-example",
+      field: "private_key")))
     assert_empty AuditEvent.all
-    renewed = CertificateExample.add(**args.merge(cert: issue(serial: 2).first, key: nil, client: "other-client"))
+    renewed = CertificateExample.add(**args, cert: issue(serial: 2).first, key: nil, client: "other-client")
     CatalogIndexer.refresh_consul
     assert_not record.reload.active
     assert Certificate.find_by!(certid: "ruby-example", certificate_version: renewed).active

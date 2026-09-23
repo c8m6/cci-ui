@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This controller must work without authentication or database access, including
 # when the failed request never reached an application controller.
 class ErrorsController < ActionController::Base

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class AreaConfigurationTest < ActionDispatch::IntegrationTest
@@ -25,12 +27,15 @@ class AreaConfigurationTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".area-pill", text: "Zone B"
     post local_login_path, params: { identity: "zone_b_exporter" }
-    post export_certificates_path, params: { ids: [record.id], format_name: "pem", include_key: "1", password: "new-area-password" }
+    post export_certificates_path,
+      params: { ids: [record.id], format_name: "pem", include_key: "1", password: "new-area-password" }
     assert_response :success
     assert_includes response.body, "ENCRYPTED PRIVATE KEY"
-    client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace, keys: { "zone_b" => ENV.fetch("ZONE_B_KEY") })
-    assert_equal cert.to_pem, client.fetch(area: "zone_b", certid: "new-area")
-    assert cert.check_private_key(OpenSSL::PKey.read(client.fetch(area: "zone_b", certid: "new-area", field: "private_key")))
+    client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
+      keys: { "zone_b" => ENV.fetch("ZONE_B_KEY") })
+    assert_equal cert.to_pem, client.read_certificate(area: "zone_b", certid: "new-area")
+    assert cert.check_private_key(OpenSSL::PKey.read(client.read_certificate(area: "zone_b", certid: "new-area",
+      field: "private_key")))
     post local_login_path, params: { identity: "zone_b_auditor" }
     get audit_events_path
     assert_response :success

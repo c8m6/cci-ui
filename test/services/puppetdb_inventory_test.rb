@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class PuppetdbInventoryTest < ActiveSupport::TestCase
@@ -21,7 +23,8 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     @record.update!(puppetdb_hosts: ["old.example.test"], puppetdb_checked_at: 1.hour.ago)
     connection = Object.new
     connection.define_singleton_method(:inventory) { |_| raise "Unexpected PuppetDB request" }
-    PuppetdbInventory.refresh(environment: { "PUPPETDB_ENABLED" => "false", "PUPPETDB_URL" => "invalid" }, connection: connection)
+    PuppetdbInventory.refresh(environment: { "PUPPETDB_ENABLED" => "false", "PUPPETDB_URL" => "invalid" },
+      connection: connection)
     assert_equal ["old.example.test"], @record.reload.puppetdb_hosts
     assert_not PuppetdbConfiguration.enabled?({})
     assert PuppetdbConfiguration.enabled?({ "PUPPETDB_ENABLED" => "1" })
@@ -29,11 +32,16 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
   end
 
   test "default query uses the configured anonymous fact name and custom query is passed unchanged" do
-    assert_equal 'inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }', @configuration.query
-    environment = @environment.merge("PUPPETDB_FACT_NAME" => "example_certificates", "PUPPETDB_QUERY" => 'inventory[certname,facts] { certname = "web.example.test" }')
+    assert_equal 'inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }',
+      @configuration.query
+    environment = @environment.merge("PUPPETDB_FACT_NAME" => "example_certificates",
+      "PUPPETDB_QUERY" => 'inventory[certname,facts] { certname = "web.example.test" }')
     connection = Object.new
     received = []
-    connection.define_singleton_method(:inventory) { |query| received << query; [] }
+    connection.define_singleton_method(:inventory) do |query|
+      received << query
+      []
+    end
     PuppetdbInventory.refresh(environment: environment, connection: connection)
     assert_equal [environment.fetch("PUPPETDB_QUERY")], received
     generated = PuppetdbConfiguration.new(environment.except("PUPPETDB_QUERY"))
@@ -82,7 +90,9 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     @record.update!(archived: true, rollout_status: "delete")
     grouped = @record.fingerprint.upcase.scan(/../).join(":")
     refresh([
-      row("z.example.test", [{ "fingerprint" => grouped, "subject" => "ignored", "file" => "/etc/ssl/cert.pem" }, { "fingerprint" => @record.fingerprint }]),
+      row("z.example.test",
+        [{ "fingerprint" => grouped, "subject" => "ignored", "file" => "/etc/ssl/cert.pem" },
+          { "fingerprint" => @record.fingerprint }]),
       row("a.example.test", { "/etc/ssl/cert.pem" => { "fingerprint" => "SHA256 Fingerprint=#{grouped}" } }),
       row("z.example.test", @record.fingerprint),
       row("other.example.test", ["a" * 64])
@@ -140,16 +150,23 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
   end
 
   test "fact name and fingerprint field can be configured without examining unrelated facts" do
-    configuration = PuppetdbConfiguration.new("PUPPETDB_FACT_NAME" => "example_inventory", "PUPPETDB_FINGERPRINT_FIELD" => "sha256")
-    rows = [{ "certname" => "web.example.test", "facts" => { "example_inventory" => { "cert.pem" => { "sha256" => @record.fingerprint } }, "certificates" => nil } }]
-    assert_equal ["web.example.test"], PuppetdbInventory.new(configuration).hosts_by_fingerprint(rows).fetch(@record.fingerprint).to_a
+    configuration = PuppetdbConfiguration.new("PUPPETDB_FACT_NAME" => "example_inventory",
+      "PUPPETDB_FINGERPRINT_FIELD" => "sha256")
+    rows = [{ "certname" => "web.example.test",
+              "facts" => { "example_inventory" => { "cert.pem" => { "sha256" => @record.fingerprint } },
+                           "certificates" => nil } }]
+    assert_equal ["web.example.test"],
+      PuppetdbInventory.new(configuration).hosts_by_fingerprint(rows).fetch(@record.fingerprint).to_a
   end
 
   test "scheduled indexing runs PuppetDB even after a source failure and refresh_consul skips it" do
     called = []
     original = CatalogIndexer.method(:new)
     indexer = CatalogIndexer.new
-    indexer.define_singleton_method(:filesystem) { called << :filesystem; raise Certificates::Error, "Unavailable" }
+    indexer.define_singleton_method(:filesystem) do
+      called << :filesystem
+      raise Certificates::Error, "Unavailable"
+    end
     indexer.define_singleton_method(:consul) { called << :consul }
     indexer.define_singleton_method(:puppetdb) { called << :puppetdb }
     CatalogIndexer.define_singleton_method(:new) { indexer }

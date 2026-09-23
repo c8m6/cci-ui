@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class CertificatesTest < ActiveSupport::TestCase
@@ -15,7 +17,10 @@ class CertificatesTest < ActiveSupport::TestCase
   test "JKS handles multiple keys trust certificates integrity and wrong passwords" do
     first, key = issue
     second, other = issue(name: "other.test", serial: 2)
-    jks = Certificates::Jks.dump([{ certificate: first, key: key, chain: [] }, { certificate: second, key: other, chain: [] }, { certificate: second, key: nil, chain: [] }], password: "pässword-long")
+    jks = Certificates::Jks.dump(
+      [{ certificate: first, key: key, chain: [] }, { certificate: second, key: other, chain: [] },
+        { certificate: second, key: nil, chain: [] }], password: "pässword-long"
+    )
     parsed = Certificates::Codec.parse(jks, password: "pässword-long")
     assert_equal 2, parsed.certificates.size
     assert_equal 2, parsed.keys.size
@@ -40,7 +45,7 @@ class CertificatesTest < ActiveSupport::TestCase
     newer = store(renewed, key: renewed_key)
     assert_not original.reload.active
     assert newer.active
-    raw = ConsulStore.client.get("#{ConsulStore.prefix('zone_a')}/keys/#{original.source_id}")[:value]
+    raw = ConsulStore.client.get("#{ConsulStore.prefix("zone_a")}/keys/#{original.source_id}")[:value]
     assert_not_includes raw, "PRIVATE KEY"
     assert CertificateMaterial.load(original, private_key: true)[:certificate].check_private_key(key)
     assert_equal 3, store(cert, key: key).certificate_version
@@ -74,7 +79,8 @@ class CertificatesTest < ActiveSupport::TestCase
       reader = Identity.new(name: "reader", roles: ["zone_a_reader"])
       assert_raises(Certificates::Error) { CertificateExport.call([record], identity: reader, format: "pem", include_key: false, include_chain: false, password: "") }
       writer = Identity.new(name: "writer", roles: ["zone_a_writer"])
-      content, = CertificateExport.call([record], identity: writer, format: "pem", include_key: false, include_chain: true, password: "")
+      content, = CertificateExport.call([record], identity: writer, format: "pem", include_key: false,
+        include_chain: true, password: "")
       assert_includes content, "BEGIN CERTIFICATE"
       assert_not_includes content, "PRIVATE KEY"
       assert_raises(Certificates::Error) { CertificateExport.call([record], identity: writer, format: "pem", include_key: true, include_chain: false, password: "long-password") }
@@ -89,11 +95,13 @@ class CertificatesTest < ActiveSupport::TestCase
     cert, key = issue
     record = store(cert, key: key)
     exporter = Identity.new(name: "exporter", roles: ["zone_a_key_exporter"])
-    data, = CertificateExport.call([record], identity: exporter, format: "p12", include_key: true, include_chain: false, password: "long-password")
+    data, = CertificateExport.call([record], identity: exporter, format: "p12", include_key: true,
+      include_chain: false, password: "long-password")
     parsed = Certificates::Codec.parse(data, password: "long-password")
     assert_equal cert.to_der, parsed.certificates.first.to_der
     assert cert.check_private_key(parsed.keys.first)
-    der, = CertificateExport.call([record], identity: exporter, format: "der", include_key: false, include_chain: false, password: "")
+    der, = CertificateExport.call([record], identity: exporter, format: "der", include_key: false,
+      include_chain: false, password: "")
     assert_equal cert.to_der, der
   end
 
@@ -119,7 +127,8 @@ class CertificatesTest < ActiveSupport::TestCase
     identity = Identity.new(name: "keys", roles: %w[zone_a_key_exporter])
     assert identity.reader?("zone_a")
     assert_not identity.writer?("zone_a")
-    data, = CertificateExport.call([record], identity: identity, format: "pem", include_key: true, include_chain: false, password: "long-password")
+    data, = CertificateExport.call([record], identity: identity, format: "pem", include_key: true,
+      include_chain: false, password: "long-password")
     assert_includes data, "BEGIN ENCRYPTED PRIVATE KEY"
     assert cert.check_private_key(Certificates::Codec.parse(data, password: "long-password").keys.first)
   end
@@ -145,24 +154,28 @@ class CertificatesTest < ActiveSupport::TestCase
     path = "#{ConsulStore.namespace}/conflict"
     connection.transaction([ConsulConnection.set(path, "first", index: 0)])
     assert_raises(ConsulConnection::Conflict) do
-      connection.transaction([ConsulConnection.set(path, "wrong", index: 0), ConsulConnection.set(path + "-side", "unwanted")])
+      connection.transaction([ConsulConnection.set(path, "wrong", index: 0),
+        ConsulConnection.set("#{path}-side", "unwanted")])
     end
     assert_equal "first", connection.get(path)[:value]
-    assert_nil connection.get(path + "-side")
+    assert_nil connection.get("#{path}-side")
   end
 
   test "Puppet client pins version within compile and returns stable content" do
     cert, key = issue
     original = store(cert, key: key)
-    client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace, keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
-    pem = client.fetch(area: "zone_a", certid: "test")
+    client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
+      keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
+    pem = client.read_certificate(area: "zone_a", certid: "test")
     assert_equal cert.to_pem, pem
     renewed, new_key = issue(serial: 99)
     store(renewed, key: new_key)
-    assert_equal pem, client.fetch(area: "zone_a", certid: "test")
-    assert cert.check_private_key(OpenSSL::PKey.read(client.fetch(area: "zone_a", certid: "test", field: "private_key")))
+    assert_equal pem, client.read_certificate(area: "zone_a", certid: "test")
+    assert cert.check_private_key(OpenSSL::PKey.read(client.read_certificate(area: "zone_a", certid: "test",
+      field: "private_key")))
     next_compile = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal renewed.to_pem, next_compile.fetch(area: "zone_a", certid: "test")
-    assert_equal original.fingerprint, client.fetch(area: "zone_a", certid: "test", field: "metadata")["fingerprint"]
+    assert_equal renewed.to_pem, next_compile.read_certificate(area: "zone_a", certid: "test")
+    assert_equal original.fingerprint,
+      client.read_certificate(area: "zone_a", certid: "test", field: "metadata")["fingerprint"]
   end
 end

@@ -177,7 +177,7 @@ allow imports, version changes, status changes or archiving. Reader and Writer
 roles cannot export private keys. Independent Auditor roles allow reading audit
 logs within their area and grant no certificate or export permissions. Assign the
 Auditor roles of all desired areas for a combined view. Local Auditor identities
-land directly at `/auditlogs` after login.
+land directly at `/audit_events` after login.
 Readers cannot export. Without assigned roles, the certificate list is empty.
 Existing group names can be translated through JSON in `OIDC_ROLE_MAP`:
 

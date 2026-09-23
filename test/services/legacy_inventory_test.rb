@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class LegacyInventoryTest < ActiveSupport::TestCase
@@ -46,7 +48,8 @@ class LegacyInventoryTest < ActiveSupport::TestCase
 
     File.write(@path, other.to_pem)
     CatalogIndexer.new.filesystem
-    assert_equal [@record.fingerprint, other_record.fingerprint].sort, Certificate.where(source: "filesystem").distinct.pluck(:fingerprint).sort
+    assert_equal [@record.fingerprint, other_record.fingerprint].sort,
+      Certificate.where(source: "filesystem").distinct.pluck(:fingerprint).sort
     assert_equal @record.fingerprint, @record.reload.fingerprint
     assert_equal 3, Certificate.where(source: "filesystem").count
     assert_raises(Certificates::Error) { CertificateMaterial.load(@record) }
@@ -71,7 +74,6 @@ class LegacyInventoryTest < ActiveSupport::TestCase
     assert_raises(Certificates::Error) { CatalogIndexer.new.filesystem }
     assert Certificate.exists?(@record.id)
   ensure
-    File.chmod(0700, blocked) if blocked
+    File.chmod(0o700, blocked) if blocked
   end
-
 end

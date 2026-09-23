@@ -265,12 +265,12 @@ reader = CciClient.new(
   keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") }, prefix: "cci"
 )
 selection = { area: "zone_a", certid: "portal.production" }
-pem = reader.fetch(**selection)
-key = reader.fetch(**selection, field: "private_key")
-metadata = reader.fetch(**selection, field: "metadata")
+pem = reader.read_certificate(**selection)
+key = reader.read_certificate(**selection, field: "private_key")
+metadata = reader.read_certificate(**selection, field: "metadata")
 # These three calls together use two HTTP requests.
-pinned = reader.fetch(**selection, version: 1)
-fullchain = reader.fetch(**selection, field: "chain")
+pinned = reader.read_certificate(**selection, version: 1)
+fullchain = reader.read_certificate(**selection, field: "chain")
 ```
 
 Metadata exposes integer `version`, `certid`, `status`, fingerprints, tags,

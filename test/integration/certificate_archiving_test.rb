@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
@@ -12,11 +14,11 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
 
   test "archive confirmation is enforced and result remains searchable and audited" do
     get certificate_path(@record)
-    assert_select '.status-actions' do
+    assert_select ".status-actions" do
       assert_select 'input[type="submit"][value="Status speichern"]'
-      assert_select 'a', text: "Archivieren"
+      assert_select "a", text: "Archivieren"
     end
-    assert_select 'button', text: "Löschen", count: 0
+    assert_select "button", text: "Löschen", count: 0
     get archive_certificate_path(@record)
     assert_response :success
     assert_select 'input[name="confirm_archive"][required]', count: 1
@@ -34,21 +36,22 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
     follow_redirect!
     assert_response :success
     assert_select 'select[name="rollout_status"]', count: 0
-    patch certificate_path(@record), params: { rollout_status: "active", certid_index: ConsulStore.status_snapshot(@record)[:index] }
+    patch certificate_path(@record),
+      params: { rollout_status: "active", certid_index: ConsulStore.status_snapshot(@record)[:index] }
     assert_response :see_other
     assert @record.reload.archived
     assert_equal "delete", @record.rollout_status
     get root_path
-    assert_select 'tbody tr', count: 0
-    assert_select '.stat-card strong', text: "0", count: 3
+    assert_select "tbody tr", count: 0
+    assert_select ".stat-card strong", text: "0", count: 3
     get root_path, params: { q: "portal" }
-    assert_select 'tbody tr', count: 1
-    assert_select '.badge', text: "Archiviert"
+    assert_select "tbody tr", count: 1
+    assert_select ".badge", text: "Archiviert"
     get root_path, params: { archived: "1" }
-    assert_select 'tbody tr', count: 1
+    assert_select "tbody tr", count: 1
     post local_login_path, params: { identity: "zone_a_auditor" }
     get audit_events_path, params: { event_action: "archive" }
-    assert_select 'tbody tr', count: 1
+    assert_select "tbody tr", count: 1
     assert_includes response.body, "Zertifikat archiviert"
     assert_includes response.body, "Archivierung bestätigt"
     assert_includes response.body, "Alle Versionen der CertID"
@@ -57,7 +60,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
   test "reader and foreign area writer cannot archive and the delete route is removed" do
     post local_login_path, params: { identity: "zone_a_reader" }
     get certificate_path(@record)
-    assert_select 'a', text: "Archivieren", count: 0
+    assert_select "a", text: "Archivieren", count: 0
     get archive_certificate_path(@record)
     assert_response :see_other
     patch certificate_path(@record), params: archive_params
@@ -100,7 +103,7 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_includes response.body, "Quelldaten nicht verfügbar"
       assert_includes response.body, record.fingerprint
-      assert_select 'a', text: "Archivieren", count: 0
+      assert_select "a", text: "Archivieren", count: 0
       get archive_certificate_path(record)
       assert_response :see_other
       patch certificate_path(record), params: archive_params(record)

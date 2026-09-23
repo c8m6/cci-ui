@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 require "securerandom"
 require "base64"
 require "json"
@@ -8,18 +10,22 @@ require_relative "../lib/area_configuration"
 abort "Usage: ruby bin/setup-local [--stdout]" unless ARGV.empty? || ARGV == ["--stdout"]
 path = File.expand_path("../.env", __dir__)
 if ARGV.empty? && File.exist?(path)
-  puts ".env ist vorhanden und bleibt erhalten."
+  puts ".env already exists and will be preserved."
   exit
 end
 configuration = AreaConfiguration.load_env({
-  "CCI_AREAS" => ENV.fetch("CCI_AREAS", '{"zone_a":"Zone A","zone_b":"Zone B"}'),
-  "CCI_LEGACY_PATHS" => ENV.fetch("CCI_LEGACY_PATHS", ENV.key?("CCI_AREAS") ? "{}" : '{"zone_a":"/legacy"}')
+  "CCI_AREAS" => ENV.fetch("CCI_AREAS",
+    '{"zone_a":"Zone A","zone_b":"Zone B"}'),
+  "CCI_LEGACY_PATHS" => ENV.fetch("CCI_LEGACY_PATHS",
+    ENV.key?("CCI_AREAS") ? "{}" : '{"zone_a":"/legacy"}')
 })
 settings = {
   "AUTH_MODE" => "local",
   "CCI_AREAS" => JSON.generate(configuration.fetch("areas")),
   "CCI_LEGACY_PATHS" => JSON.generate(configuration.fetch("legacy_paths")),
-  "CCI_AREA_KEYS" => JSON.generate(configuration.fetch("areas").keys.to_h { |area| [area, Base64.strict_encode64(SecureRandom.random_bytes(32))] })
+  "CCI_AREA_KEYS" => JSON.generate(configuration.fetch("areas").keys.to_h do |area|
+    [area, Base64.strict_encode64(SecureRandom.random_bytes(32))]
+  end)
 }
 if ARGV == ["--stdout"]
   settings.each { |key, value| puts "export #{key}=#{Shellwords.escape(value)}" }
@@ -27,5 +33,5 @@ else
   File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
     settings.each { |key, value| file.puts "#{key}='#{value.gsub("'") { "\\'" }}'" }
   end
-  puts "Lokale .env mit getrennten Bereichsschlüsseln erstellt."
+  puts "Created local .env with separate area keys."
 end

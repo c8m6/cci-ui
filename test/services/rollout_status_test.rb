@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require_relative "../../examples/add_certificate"
 
@@ -30,8 +32,9 @@ class RolloutStatusTest < ActiveSupport::TestCase
     assert_equal newer.fingerprint, event.details["certificates"].first["fingerprint"]
     assert_not_includes event.details.to_json, "PRIVATE KEY"
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal "delete", reader.fetch(area: original.area, certid: original.certid, field: "metadata")["status"]
-    assert_equal public_data["pem"], reader.fetch(area: original.area, certid: original.certid)
+    assert_equal "delete",
+      reader.read_certificate(area: original.area, certid: original.certid, field: "metadata")["status"]
+    assert_equal public_data["pem"], reader.read_certificate(area: original.area, certid: original.certid)
     set_status(original, "active")
     assert_equal "active", original.reload.rollout_status
   end
@@ -45,7 +48,8 @@ class RolloutStatusTest < ActiveSupport::TestCase
     CatalogIndexer.refresh_consul
     assert_equal "active", record.reload.rollout_status
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
-    assert_equal "active", reader.fetch(area: record.area, certid: record.certid, field: "metadata")["status"]
+    assert_equal "active",
+      reader.read_certificate(area: record.area, certid: record.certid, field: "metadata")["status"]
     set_status(record, "delete")
     newer = CertificateExample.add(area: record.area, certid: record.certid, cert: issue(serial: 3).first,
       client: "external", actor: "service")

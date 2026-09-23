@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ENV["RAILS_ENV"] = "test"
 ENV["AUTH_MODE"] = "local"
 require "securerandom"
@@ -31,20 +33,21 @@ module CertificateFixtures
     cert.issuer = issuer ? issuer.subject : cert.subject
     cert.public_key = key.public_key
     cert.not_before = Time.now - 86_400
-    cert.not_after = expired ? Time.now - 3600 : Time.now + 90 * 86_400
+    cert.not_after = expired ? Time.now - 3600 : Time.now + (90 * 86_400)
     factory = OpenSSL::X509::ExtensionFactory.new
     factory.subject_certificate = cert
     factory.issuer_certificate = issuer || cert
     cert.add_extension(factory.create_extension("basicConstraints", ca ? "CA:TRUE" : "CA:FALSE", true))
     cert.add_extension(factory.create_extension("subjectAltName", "DNS:#{name},IP:192.0.2.7"))
-    cert.sign(issuer_key || key, OpenSSL::Digest::SHA256.new)
+    cert.sign(issuer_key || key, OpenSSL::Digest.new("SHA256"))
     [cert, key]
   end
 
   def clear_consul
     prefix = ConsulStore.namespace
     raise "Unsafe test prefix" unless prefix.start_with?("cci-test/")
-    ConsulStore.client.request("delete", ConsulStore.client.path(prefix + "/") + "?recurse")
+
+    ConsulStore.client.request("delete", "#{ConsulStore.client.path("#{prefix}/")}?recurse")
   end
 
   def store(cert, key: nil, area: "zone_a", certid: "test", chain: [], client: "test-client")
@@ -52,23 +55,27 @@ module CertificateFixtures
       name = Certificates::Codec.fingerprint(issuer)
       store(issuer, area: area, certid: name) unless Certificate.exists?(area: area, fingerprint: name)
     end
-    id = ConsulStore.save(area: area, cert: cert, key: key, tags: ["Produktion"], certid: certid, actor: "test", client: client)
+    id = ConsulStore.save(area: area, cert: cert, key: key, tags: ["Produktion"], certid: certid, actor: "test",
+      client: client)
     CatalogIndexer.new.consul
     Certificate.find_by!(area: area, source_id: id)
   end
 end
 
-class ActiveSupport::TestCase
-  include CertificateFixtures
-  setup do
-    ENV["ZONE_A_KEY"] = Base64.strict_encode64("r" * 32)
-    ENV["ZONE_B_KEY"] = Base64.strict_encode64("s" * 32)
-    clear_consul
+module ActiveSupport
+  class TestCase
+    include CertificateFixtures
+
+    setup do
+      ENV["ZONE_A_KEY"] = Base64.strict_encode64("r" * 32)
+      ENV["ZONE_B_KEY"] = Base64.strict_encode64("s" * 32)
+      clear_consul
+    end
   end
 end
 
 Minitest.after_run do
   FileUtils.remove_entry(TEST_LEGACY_ROOT)
   connection = ConsulStore.client
-  connection.request("delete", connection.path(ConsulStore.namespace + "/") + "?recurse")
+  connection.request("delete", "#{connection.path("#{ConsulStore.namespace}/")}?recurse")
 end

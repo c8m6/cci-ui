@@ -162,7 +162,7 @@ sent in headers, not URLs.
 ## Audit logs
 
 `<area_id>_auditor` grants read access only to that area's audit logs at
-`/auditlogs`. Multiple Auditor roles allow a combined view of the corresponding
+`/audit_events`. Multiple Auditor roles allow a combined view of the corresponding
 areas. These roles are independent of Reader, Writer and Key Exporter;
 those roles do not automatically grant audit access. Authorization occurs before
 querying and restricts search, filters, counts and pagination to permitted areas.

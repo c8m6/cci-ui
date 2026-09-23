@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
+# Shares session identity, locale selection and private-response headers.
 module WebContext
   extend ActiveSupport::Concern
 
@@ -10,6 +13,7 @@ module WebContext
   def current_identity
     data = session[:identity]
     return unless data && session[:authenticated_at].to_i > 1.hour.ago.to_i
+
     @current_identity ||= Identity.new(name: data["name"], roles: data["roles"])
   end
 

@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
+# Searchable projection of source material, never the authority for private keys.
 class Certificate < ApplicationRecord
   validates :area, inclusion: { in: ->(_) { AreaConfiguration.ids } }
   validates :source, inclusion: { in: %w[filesystem consul] }
@@ -14,6 +17,7 @@ class Certificate < ApplicationRecord
     return "future" if not_before > Time.current
     return "expired" if not_after <= Time.current
     return "expiring" if not_after < 30.days.from_now
+
     "valid"
   end
 
@@ -26,6 +30,7 @@ class Certificate < ApplicationRecord
   def origin_label
     return I18n.t("ui.filesystem") if source == "filesystem"
     return I18n.t("ui.unknown_client") if client.blank?
+
     client == "cci-ui" ? I18n.t("ui.upload_origin") : I18n.t("ui.external_client", client: client)
   end
 end

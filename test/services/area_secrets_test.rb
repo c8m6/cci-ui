@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require "open3"
 require_relative "../../examples/add_certificate"
@@ -15,7 +17,7 @@ class AreaSecretsTest < ActiveSupport::TestCase
   end
 
   test "UI and external writers share keys supplied only through the JSON environment map" do
-    previous = ENV["CCI_AREA_KEYS"]
+    previous = ENV.fetch("CCI_AREA_KEYS", nil)
     ENV["CCI_AREA_KEYS"] = JSON.generate("zone_a" => Base64.strict_encode64("m" * 32))
     cert, key = issue
     id = CertificateExample.add(area: "zone_a", certid: "mapped-secret", cert: cert, key: key,
@@ -36,7 +38,7 @@ class AreaSecretsTest < ActiveSupport::TestCase
     output, error, result = Open3.capture3(env, "ruby", Rails.root.join("bin/setup-local").to_s, "--stdout")
     assert result.success?, error
     # Evaluate only shell assignments generated from synthetic data in this test.
-    command = output + "\n" + %q{ruby -rjson -e 'puts JSON.generate(ENV.to_h.slice("CCI_AREAS", "CCI_LEGACY_PATHS", "CCI_AREA_KEYS"))'}
+    command = "#{output}\nruby -rjson -e 'puts JSON.generate(ENV.to_h.slice(\"CCI_AREAS\", \"CCI_LEGACY_PATHS\", \"CCI_AREA_KEYS\"))'"
     parsed, error, result = Open3.capture3("bash", "-c", command)
     assert result.success?, error
     settings = JSON.parse(parsed)

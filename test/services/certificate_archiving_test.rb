@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require_relative "../../examples/add_certificate"
 
@@ -37,7 +39,7 @@ class CertificateArchivingTest < ActiveSupport::TestCase
     assert_equal "certid", event.details["scope"]
     assert_equal "active", event.details["previous_status"]
     assert_equal true, event.details["archived"]
-    assert_includes event.details["comment"], "Puppet-Löschauftrag"
+    assert_includes event.details["comment"], "Puppet deletion"
   end
 
   test "stale and missing confirmation indexes leave archive status and audit untouched" do

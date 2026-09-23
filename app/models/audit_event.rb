@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
+# Persists mutation intent and outcome separately so uncertain writes stay auditable.
 class AuditEvent < ApplicationRecord
   ACTIONS = %w[archive status_change import activate delete export_public export_private].freeze
 
@@ -38,11 +41,13 @@ class AuditEvent < ApplicationRecord
         create!(actor: identity.name, action: include_key ? "export_private" : "export_public", area: area,
           occurred_at: occurred_at, references: pairs.map { |record, _| record.source_id },
           details: { format: format, filename: filename, include_key: include_key, include_chain: include_chain,
-            certificates: pairs.flat_map do |record, entry|
-              [snapshot(entry[:certificate]).merge(source: record.source, source_id: record.source_id,
-                certid: record.certid, kind: "selected"),
-                *entry[:chain].map { |cert| snapshot(cert).merge(kind: "chain", parent_source_id: record.source_id) }]
-            end })
+                     certificates: pairs.flat_map do |record, entry|
+                       [snapshot(entry[:certificate]).merge(source: record.source, source_id: record.source_id,
+                         certid: record.certid, kind: "selected"),
+                         *entry[:chain].map do |cert|
+                           snapshot(cert).merge(kind: "chain", parent_source_id: record.source_id)
+                         end]
+                     end })
       end
     end
   end

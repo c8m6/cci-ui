@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "json"
 
 # A synthetic health response for the disposable screenshot stack only.
@@ -5,7 +7,7 @@ require "json"
 run lambda { |env|
   request = Rack::Request.new(env)
   if request.post? && request.path_info == "/pdb/query/v4" &&
-      JSON.parse(request.body.read).fetch("query") == "nodes[certname] { limit 1 }"
+     JSON.parse(request.body.read).fetch("query") == "nodes[certname] { limit 1 }"
     [200, { "content-type" => "application/json", "x-records" => "1" },
       [JSON.generate([{ certname: "web01.example.test" }])]]
   else

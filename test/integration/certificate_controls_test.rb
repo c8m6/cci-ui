@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class CertificateControlsTest < ActionDispatch::IntegrationTest
@@ -28,7 +30,8 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
   end
 
   test "invalid certid is rejected before reading destination data" do
-    post imports_path, params: { areas: ["zone_a"], pem: issue(serial: 2).first.to_pem, certid: "../zone_b/keys/secret" }
+    post imports_path,
+      params: { areas: ["zone_a"], pem: issue(serial: 2).first.to_pem, certid: "../zone_b/keys/secret" }
     assert_response :see_other
     assert_equal 0, ImportDraft.count
   end
@@ -77,7 +80,7 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       expected_certid_index: ConsulStore.status_snapshot(@record)[:index])
     post local_login_path, params: { identity: "all:writer" }
     token = preview(areas: %w[zone_a zone_b])
-    assert_select '.preview-entry .flash-error', count: 1
+    assert_select ".preview-entry .flash-error", count: 1
     post imports_path, params: { token: token, confirm_overwrite: "1" }
     assert_redirected_to root_path
     assert_equal "norollout", Certificate.find_by!(area: "zone_a", active: true).rollout_status
@@ -92,9 +95,9 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert_redirected_to certificate_path(@record)
     assert_equal "delete", @record.reload.rollout_status
     get root_path, params: { rollout_status: "delete", status: "valid", q: "portal" }
-    assert_select 'tbody tr', count: 1
+    assert_select "tbody tr", count: 1
     get root_path, params: { rollout_status: "active" }
-    assert_select 'tbody tr', count: 0
+    assert_select "tbody tr", count: 0
     patch certificate_path(@record), params: { rollout_status: "active", certid_index: index }
     assert_response :see_other
     assert_equal "delete", @record.reload.rollout_status
@@ -102,16 +105,18 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     get certificate_path(@record)
     assert_select 'select[name="rollout_status"]', count: 0
     assert_includes response.body, "delete"
-    patch certificate_path(@record), params: { rollout_status: "active", certid_index: ConsulStore.status_snapshot(@record)[:index] }
+    patch certificate_path(@record),
+      params: { rollout_status: "active", certid_index: ConsulStore.status_snapshot(@record)[:index] }
     assert_response :see_other
     assert_equal "delete", @record.reload.rollout_status
     hidden = store(issue(serial: 7).first, area: "zone_b")
-    patch certificate_path(hidden), params: { rollout_status: "delete", certid_index: ConsulStore.status_snapshot(hidden)[:index] }
+    patch certificate_path(hidden),
+      params: { rollout_status: "delete", certid_index: ConsulStore.status_snapshot(hidden)[:index] }
     assert_response :not_found
     assert_equal "active", hidden.reload.rollout_status
     post local_login_path, params: { identity: "zone_a_auditor" }
     get audit_events_path, params: { event_action: "status_change" }
-    assert_select 'tbody tr', count: 1
+    assert_select "tbody tr", count: 1
     assert_includes response.body, "Puppet-Status geändert"
     assert_includes response.body, "delete"
   end
@@ -129,15 +134,15 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_select 'input[name="certid_index"]', count: 0
       assert_select 'select[name="rollout_status"]', count: 0
-      assert_select 'a', text: "Archivieren", count: 0
+      assert_select "a", text: "Archivieren", count: 0
       patch certificate_path(record), params: { rollout_status: "norollout", certid_index: "0" }
       assert_response :see_other
       assert_equal "active", record.reload.rollout_status
       assert_equal content, File.read(path)
       get root_path, params: { rollout_status: "norollout", source: "filesystem" }
-      assert_select 'tbody tr', count: 0
+      assert_select "tbody tr", count: 0
       get root_path, params: { rollout_status: "active", source: "filesystem" }
-      assert_select 'tbody tr', count: 0
+      assert_select "tbody tr", count: 0
       patch certificate_path(record)
       assert_response :see_other
       assert_equal content, File.read(path)

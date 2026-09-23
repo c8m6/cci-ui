@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
@@ -41,7 +43,9 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "_zone_b"
     assert_not_includes response.body, "_zone_a"
-    post export_certificates_path, params: { ids: [@records.fetch("zone_b").id], format_name: "pem", include_key: "1", password: "zone-password-long" }
+    post export_certificates_path,
+      params: { ids: [@records.fetch("zone_b").id], format_name: "pem", include_key: "1",
+                password: "zone-password-long" }
     assert_response :success
     parsed = Certificates::Codec.parse(response.body, password: "zone-password-long")
     assert_equal @certificates.fetch("zone_b").to_der, parsed.certificates.first.to_der

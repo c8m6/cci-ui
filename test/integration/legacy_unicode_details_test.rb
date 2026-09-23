@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
@@ -9,10 +11,10 @@ class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
       issuer, issuer_key = issue(name: "issuer.example.test", ca: true)
       issuer.subject = OpenSSL::X509::Name.new([["CN", "Müller CA"], ["O", "Test"]])
       issuer.issuer = issuer.subject
-      issuer.sign(issuer_key, OpenSSL::Digest::SHA256.new)
+      issuer.sign(issuer_key, OpenSSL::Digest.new("SHA256"))
       cert, = issue(name: "portal.example.test", issuer: issuer, issuer_key: issuer_key)
       cert.subject = OpenSSL::X509::Name.new([["CN", "Büro 東京"], ["O", "Test"]])
-      cert.sign(issuer_key, OpenSSL::Digest::SHA256.new)
+      cert.sign(issuer_key, OpenSSL::Digest.new("SHA256"))
       File.write(File.join(directory, "unicode.pem"), cert.to_pem)
       File.write(File.join(directory, "unicode.tag"), "_Prüfung")
       CatalogIndexer.new.filesystem

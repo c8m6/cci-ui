@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class DisableFilesystemControlState < ActiveRecord::Migration[8.1]
   def up
     # Only reset the obsolete local projection. Keep certificates, historical
