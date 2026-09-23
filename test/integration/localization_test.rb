@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class LocalizationTest < ActionDispatch::IntegrationTest
@@ -27,7 +29,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_redirected_to login_path
     get login_path, headers: { "Accept-Language" => "de" }
     assert_language "en"
-    assert_select '.language-menu button[value=en][aria-pressed=true]'
+    assert_select ".language-menu button[value=en][aria-pressed=true]"
     post local_login_path, params: { identity: "zone_a_writer" }
     get root_path, headers: { "Accept-Language" => "de" }
     assert_language "en"
@@ -53,12 +55,12 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     post local_login_path, params: { identity: "zone_a_writer" }
     destination = certificates_path(q: "example", area: "zone_a", history: "1")
     get destination
-    assert_select '.language-menu input[name=return_to][value=?]', destination
+    assert_select ".language-menu input[name=return_to][value=?]", destination
     post locale_path, params: { locale: "en", return_to: destination }
     assert_redirected_to destination
     follow_redirect!
     assert_language "en"
-    assert_select 'input[name=q][value=example]'
+    assert_select "input[name=q][value=example]"
   end
 
   test "English certificate details archive and PuppetDB presentation retain stored values" do
@@ -69,7 +71,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     cert, key = issue
     record = store(cert, key: key)
     record.update!(puppetdb_hosts: ["host.example.test"], puppetdb_checked_at: Time.current)
-    previous = ENV["PUPPETDB_ENABLED"]
+    previous = ENV.fetch("PUPPETDB_ENABLED", nil)
     ENV["PUPPETDB_ENABLED"] = "true"
     post locale_path, params: { locale: "en" }
     post local_login_path, params: { identity: "zone_a_exporter" }
@@ -88,7 +90,8 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_language "en"
     assert_select "h1", text: "Archive certificate?"
     assert_select "code", text: "delete"
-    patch certificate_path(record), params: { rollout_status: "norollout", certid_index: ConsulStore.status_snapshot(record).fetch(:index) }
+    patch certificate_path(record),
+      params: { rollout_status: "norollout", certid_index: ConsulStore.status_snapshot(record).fetch(:index) }
     follow_redirect!
     assert_language "en"
     assert_select ".flash", text: "Puppet status saved."
@@ -147,9 +150,9 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     preview_path = import_preview_path(token: token)
     draft = ImportDraft.find_by!(token: token)
 
-    [:expired, :consumed].each do |state|
+    %i[expired consumed].each do |state|
       state == :expired ? draft.update!(expires_at: 1.minute.ago) : draft.destroy!
-      [:get, :post].each do |method|
+      %i[get post].each do |method|
         assert_no_difference "Certificate.count" do
           headers = { "HTTP_REFERER" => "http://www.example.com#{preview_path}" }
           if method == :get
@@ -184,7 +187,8 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     get certificate_path(record), headers: { "Accept-Language" => "en" }
     assert_response :service_unavailable
     assert_equal "en", response.headers["Content-Language"]
-    assert_select ".error-page p", text: "A required service or data source is currently unavailable. Please try again later."
+    assert_select ".error-page p",
+      text: "A required service or data source is currently unavailable. Please try again later."
     assert_equal :de, I18n.locale
   ensure
     ConsulStore.define_singleton_method(:status_snapshot, original) if original
@@ -206,9 +210,9 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     get audit_events_path
     assert_language "en"
     assert_select "h1", text: "Audit logs"
-    assert_select 'option[value=archive]', text: "Certificate archived"
+    assert_select "option[value=archive]", text: "Certificate archived"
     assert_includes response.body, "Archiving confirmed: hidden from the overview"
     assert_includes response.body, "Import / new version"
-    assert_select 'form input[type=hidden][name=return_to][value=?]', audit_events_path
+    assert_select "form input[type=hidden][name=return_to][value=?]", audit_events_path
   end
 end

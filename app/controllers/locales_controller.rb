@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
+# Stores or clears a locale preference and returns to a validated local URL.
 class LocalesController < ApplicationController
   skip_before_action :require_identity
 
@@ -9,7 +12,7 @@ class LocalesController < ApplicationController
       cookies.delete(:locale)
     else
       cookies.permanent.signed[:locale] = { value: locale, httponly: true,
-        secure: request.ssl?, same_site: :lax }
+                                            secure: request.ssl?, same_site: :lax }
     end
     # Return only to local paths. Never redirect to a supplied host.
     target = params[:return_to].to_s

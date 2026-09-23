@@ -1,6 +1,14 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 require "fileutils"
 root = File.expand_path("..", __dir__)
 target = File.join(root, "integrations/puppet/cci/lib")
-%w[cci_client.rb cci_writer.rb consul_connection.rb area_secrets.rb].each { |file| FileUtils.cp(File.join(root, "lib", file), target) }
-puts "Puppet-Modul unter integrations/puppet/cci vorbereitet."
+%w[cci_client.rb cci_writer.rb consul_connection.rb area_secrets.rb area_configuration.rb].each do |file|
+  FileUtils.cp(File.join(root, "lib", file), target)
+end
+FileUtils.mkdir_p(File.join(target, "certificates"))
+%w[error.rb vault.rb].each do |file|
+  FileUtils.cp(File.join(root, "lib/certificates", file), File.join(target, "certificates", file))
+end
+puts "Puppet module prepared in integrations/puppet/cci."

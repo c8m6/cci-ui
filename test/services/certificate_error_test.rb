@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require "open3"
 
@@ -27,11 +29,11 @@ class CertificateErrorTest < ActiveSupport::TestCase
   end
 
   test "standalone errors work without I18n" do
-    assert_equal "JKS-Datei ist unvollständig.", standalone_error
+    assert_equal "The JKS file is incomplete.", standalone_error
   end
 
   test "standalone errors work when I18n is loaded but has no locales" do
-    assert_equal "JKS-Datei ist unvollständig.", standalone_error('require "i18n"')
+    assert_equal "The JKS file is incomplete.", standalone_error('require "i18n"')
   end
 
   test "standalone errors use translations when the locale is configured" do

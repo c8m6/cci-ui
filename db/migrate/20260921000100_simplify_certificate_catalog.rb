@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SimplifyCertificateCatalog < ActiveRecord::Migration[8.1]
   def change
     rename_column :certificates, :lookup, :certid

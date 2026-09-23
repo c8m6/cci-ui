@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class HieraSnippetTest < ActiveSupport::TestCase
@@ -28,7 +30,7 @@ class HieraSnippetTest < ActiveSupport::TestCase
       assert_equal original, name.to_der
       assert HieraSnippet.legacy_dn(name).ascii_only?
     end
-    assert_equal "Ohne Common Name", Certificates::Codec.common_name(OpenSSL::X509::Name.new([["O", "Example"]]))
+    assert_equal "No common name", Certificates::Codec.common_name(OpenSSL::X509::Name.new([%w[O Example]]))
   end
 
   test "ASCII separators and URI punctuation retain legacy formatting" do

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class AreaConfigurationValidationTest < ActiveSupport::TestCase
@@ -22,7 +24,8 @@ class AreaConfigurationValidationTest < ActiveSupport::TestCase
       "LEGACY_PATH" => "/not-an-application-setting"
     }
     assert_equal({ "areas" => { "one" => "Ein frei gewählter Name", "two" => "Two" },
-      "legacy_paths" => { "one" => "/legacy/one", "two" => "/legacy/two" } }, AreaConfiguration.load_env(settings))
+                   "legacy_paths" => { "one" => "/legacy/one",
+                                       "two" => "/legacy/two" } }, AreaConfiguration.load_env(settings))
     assert_equal({}, AreaConfiguration.load_env(settings.except("CCI_LEGACY_PATHS")).fetch("legacy_paths"))
   end
 

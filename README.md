@@ -144,11 +144,31 @@ and [fact formats and synchronization](docs/puppetdb.md).
 - [PuppetDB host inventory](docs/puppetdb.md)
 - [Documentation screenshot capture script](script/screenshots/capture.cjs)
 
-## Tests
+## Code checks and tests
+
+Every application image build runs RuboCop, including the `rubocop-rake` plugin,
+before assets are compiled. A lint failure stops local and CI builds. The rules
+in `.rubocop.yml` cover application code, standalone libraries, Puppet copies,
+scripts and tests. Generated schema, dependencies and local runtime data are excluded.
 
 ```console
-docker compose run --rm -e RAILS_ENV=test web ruby bin/rails db:prepare test
+bundle exec rake rubocop
+# Refresh the shipped Puppet libraries after changing shared Ruby code.
+ruby bin/package-puppet
+
+docker build -t cci-ui:ci .
+docker compose -f compose.ci.yml up --wait db consul
+docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
+docker compose -f compose.ci.yml down --volumes
+
+docker compose -f compose.yml up --build -d --wait
 ```
+
+The standalone reader exposes `CciClient#read_certificate`. Routes use English
+paths, including `/login`, `/local-login`, `/logout`, `/locale`, `/certificates`,
+`/imports/preview` and `/audit_events`, independently of the selected UI language.
+Update external callers of the former `fetch` method and bookmarks to the former
+German paths when upgrading.
 
 Tests generate their own certificates and use a separate PostgreSQL database
 and Consul namespace. Private keys from `data/` are not copied into test fixtures

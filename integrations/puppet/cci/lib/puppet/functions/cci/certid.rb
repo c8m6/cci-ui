@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "cci_client"
 require "area_secrets"
 
@@ -14,10 +16,11 @@ Puppet::Functions.create_function(:"cci::certid") do
     secret = AreaSecrets.fetch(area)
     client = clients[area] ||= CciClient.new(
       url: ENV.fetch("CCI_CONSUL_URL"), token: ENV.fetch("CCI_#{area.upcase}_CONSUL_TOKEN", ""),
-      prefix: ENV.fetch("CCI_CONSUL_PREFIX", "cci"), keys: secret.empty? ? {} : { area => secret })
-    value = client.fetch(area: area, certid: name, field: field, version: version)
+      prefix: ENV.fetch("CCI_CONSUL_PREFIX", "cci"), keys: secret.empty? ? {} : { area => secret }
+    )
+    value = client.read_certificate(area: area, certid: name, field: field, version: version)
     field == "private_key" ? Puppet::Pops::Types::PSensitiveType::Sensitive.new(value) : value
   rescue CciClient::Error, KeyError, ArgumentError
-    raise Puppet::Error, "CCI-UI: Zertifikat konnte nicht aus dem berechtigten Bereich gelesen werden."
+    raise Puppet::Error, "CCI-UI: Certificate could not be read from the authorised area."
   end
 end

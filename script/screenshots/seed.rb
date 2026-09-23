@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Run only in the disposable screenshot stack, never against a real inventory.
 require "fileutils"
 abort "Screenshot namespace required" unless ConsulStore.namespace == "cci-screenshots/v1"
@@ -19,7 +21,7 @@ def issue(name, serial:, days:, issuer: nil, issuer_key: nil, ca: false)
   factory.issuer_certificate = issuer || cert
   cert.add_extension(factory.create_extension("basicConstraints", ca ? "CA:TRUE" : "CA:FALSE", true))
   cert.add_extension(factory.create_extension("subjectAltName", "DNS:#{name}")) unless ca
-  cert.sign(issuer_key || key, OpenSSL::Digest::SHA256.new)
+  cert.sign(issuer_key || key, OpenSSL::Digest.new("SHA256"))
   [cert, key]
 end
 

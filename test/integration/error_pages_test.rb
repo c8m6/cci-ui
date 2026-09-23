@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require "stringio"
 
@@ -57,7 +59,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     end
     assert_error_page :internal_server_error, "en", "An internal error occurred"
     assert_select ".error-details pre", text: /NameError/
-    assert_select ".error-details pre", text: /sensitive diagnostic <script>alert\(1\)<\/script>/
+    assert_select ".error-details pre", text: %r{sensitive diagnostic <script>alert\(1\)</script>}
     assert_select ".error-details pre", text: /error_pages_test.rb/
     assert_select ".error-details script", count: 0
     assert_includes @log_output.string, "sensitive diagnostic"
@@ -76,10 +78,11 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
   end
 
   test "invalid JSON and malformed queries render bad request pages without leaking input" do
-    post local_login_path, params: '{"password":"private-value",'.dup, headers: { "Content-Type" => "application/json", "Accept-Language" => "en" }
+    post local_login_path, params: '{"password":"private-value",'.dup,
+      headers: { "Content-Type" => "application/json", "Accept-Language" => "en" }
     assert_error_page :bad_request, "en", "Invalid request"
     assert_not_includes response.body, "private-value"
-    get "/anmelden?identity[x]=a&identity[]=b", headers: { "Accept-Language" => "en" }
+    get "/login?identity[x]=a&identity[]=b", headers: { "Accept-Language" => "en" }
     assert_error_page :bad_request, "en", "Invalid request"
   end
 

@@ -15,7 +15,7 @@
       <label><%= t("ui.puppet_status") %><%= form.select :rollout_status, [[t("ui.all_puppet_statuses"), ""], *ConsulStore::ROLLOUT_STATUSES.map { |status| [status, status] }], { selected: params[:rollout_status] }, data: { action: "change->search#submit" } %></label>
       <label><%= t("ui.source") %><%= form.select :source, [[t("ui.all_sources"), ""], [t("ui.filesystem"), "filesystem"], ["Consul", "consul"]], { selected: params[:source] }, data: { action: "change->search#submit" } %></label>
       <label><%= t("ui.key") %><%= form.select :key, [[t("ui.all"), ""], [t("ui.present"), "1"], [t("ui.absent"), "0"]], { selected: params[:key] }, data: { action: "change->search#submit" } %></label>
-      <label><%= t("ui.sorting") %><%= form.select :sort, [[t("ui.expiry_date"), "ablauf"], [t("ui.name"), "name"], [t("ui.newest_first"), "neueste"]], { selected: params[:sort] }, data: { action: "change->search#submit" } %></label>
+      <label><%= t("ui.sorting") %><%= form.select :sort, [[t("ui.expiry_date"), "expiry"], [t("ui.name"), "name"], [t("ui.newest_first"), "newest"]], { selected: params[:sort] }, data: { action: "change->search#submit" } %></label>
       <label class="check-label"><%= form.check_box :archived, { checked: params[:archived] == "1", data: { action: "change->search#submit" } }, "1", "0" %> <%= t("ui.include_archived") %></label>
       <label class="check-label"><%= form.check_box :history, { checked: params[:history] == "1", data: { action: "change->search#submit" } }, "1", "0" %> <%= t("ui.old_versions") %></label>
       <%= form.submit t("ui.search"), class: "button secondary" %>

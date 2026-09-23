@@ -1,5 +1,6 @@
-require "set"
+# frozen_string_literal: true
 
+# Validates complete host inventories before replacing fingerprint-to-host associations.
 class PuppetdbInventory
   def self.refresh(environment: ENV, connection: nil)
     return unless PuppetdbConfiguration.enabled?(environment)
@@ -19,12 +20,13 @@ class PuppetdbInventory
       records.update_all(puppetdb_hosts: [], puppetdb_checked_at: checked_at, puppetdb_error_at: nil)
       records.distinct.pluck(column).each do |fingerprint|
         next unless hosts.key?(fingerprint)
+
         records.where(column => fingerprint).update_all(puppetdb_hosts: hosts.fetch(fingerprint).to_a.sort)
       end
     end
-  rescue PuppetdbConnection::Error => error
+  rescue PuppetdbConnection::Error => e
     Certificate.where(area: AreaConfiguration.ids).update_all(puppetdb_error_at: Time.current)
-    Rails.logger.warn("PuppetDB-Hostabgleich fehlgeschlagen: #{error.message}")
+    Rails.logger.warn("PuppetDB host synchronisation failed: #{e.message}")
     raise
   end
 
@@ -33,16 +35,21 @@ class PuppetdbInventory
   end
 
   def hosts_by_fingerprint(rows)
-    raise PuppetdbConnection::Error, "PuppetDB muss ein Array mit Host-Inventaren liefern." unless rows.is_a?(Array)
+    raise PuppetdbConnection::Error, "PuppetDB must return an array of host inventories." unless rows.is_a?(Array)
+
     hosts = Hash.new { |hash, key| hash[key] = Set.new }
     rows.each do |row|
-      unless row.is_a?(Hash) && row["certname"].is_a?(String) && row["certname"].match?(/\A[^\s\p{Cntrl}]{1,1024}\z/) && row["facts"].is_a?(Hash)
-        raise PuppetdbConnection::Error, "PuppetDB-Inventar benötigt certname und facts pro Host."
+      unless row.is_a?(Hash) && row["certname"].is_a?(String) && row["certname"].match?(/\A[^\s\p{Cntrl}]{1,1024}\z/) &&
+             row["facts"].is_a?(Hash)
+        raise PuppetdbConnection::Error, "PuppetDB inventory requires certname and facts for each host."
       end
+
       facts = row.fetch("facts")
       unless facts.key?(@configuration.fact_name)
-        raise PuppetdbConnection::Error, "Das konfigurierte Zertifikats-Fact fehlt im PuppetDB-Inventar. Query und PUPPETDB_FACT_NAME prüfen."
+        raise PuppetdbConnection::Error,
+          "The configured certificate fact is missing from the PuppetDB inventory. Check the query and PUPPETDB_FACT_NAME."
       end
+
       fingerprints(facts.fetch(@configuration.fact_name)).each do |fingerprint|
         hosts[fingerprint] << row.fetch("certname")
       end
@@ -68,19 +75,21 @@ class PuppetdbInventory
         value.values.flat_map { |entry| fingerprints(entry) }
       end
     else
-      raise PuppetdbConnection::Error, "Ungültiges Zertifikats-Fact: Fingerprints, Listen oder Zertifikatsobjekte erwartet."
+      raise PuppetdbConnection::Error, "Invalid certificate fact: expected fingerprints, lists or certificate objects."
     end
   end
 
   def normalize_fingerprint(value)
-    unless value.is_a?(String)
-      raise PuppetdbConnection::Error, "Der Zertifikats-Fingerprint muss eine Zeichenkette sein."
-    end
+    raise PuppetdbConnection::Error, "The certificate fingerprint must be a string." unless value.is_a?(String)
+
     prefix = @configuration.fingerprint_algorithm == "sha1" ? "SHA-?1" : "SHA-?256"
     fingerprint = value.strip.sub(/\A#{prefix}(?:\s+Fingerprint)?\s*[=:]\s*/i, "").delete(":").downcase
     unless fingerprint.match?(/\A[0-9a-f]{#{@configuration.fingerprint_length}}\z/)
-      raise PuppetdbConnection::Error, "Das Zertifikats-Fact benötigt #{@configuration.fingerprint_label}-Fingerprints mit #{@configuration.fingerprint_length} Hex-Zeichen."
+      raise PuppetdbConnection::Error,
+        "The certificate fact requires #{@configuration.fingerprint_label} fingerprints " \
+        "with #{@configuration.fingerprint_length} hexadecimal characters."
     end
+
     fingerprint
   end
 end

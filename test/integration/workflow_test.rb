@@ -1,7 +1,10 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class WorkflowTest < ActionDispatch::IntegrationTest
   include CertificateFixtures
+
   setup do
     clear_consul
     ENV["ZONE_A_KEY"] = Base64.strict_encode64("r" * 32)
@@ -33,7 +36,8 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     post export_certificates_path, params: { ids: [@record.id], format_name: "pem" }
     assert_response :see_other
     assert_not_includes response.body, "PRIVATE KEY"
-    post export_certificates_path, params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
+    post export_certificates_path,
+      params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
     assert_response :see_other
     post export_certificates_path, params: { ids: [@record.id, @hidden.id], format_name: "pem" }
     assert_response :not_found
@@ -54,7 +58,8 @@ class WorkflowTest < ActionDispatch::IntegrationTest
       assert_not_includes response.body, "PRIVATE KEY"
     end
     assert_no_difference "AuditEvent.count" do
-      post export_certificates_path, params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
+      post export_certificates_path,
+        params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
       assert_response :see_other
     end
     login("zone_a_exporter")
@@ -62,7 +67,8 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "include_key"
     assert_difference "AuditEvent.count", 1 do
-      post export_certificates_path, params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
+      post export_certificates_path,
+        params: { ids: [@record.id], format_name: "pem", include_key: "1", password: "long-password" }
       assert_response :success
       assert_includes response.body, "BEGIN ENCRYPTED PRIVATE KEY"
     end
@@ -71,7 +77,9 @@ class WorkflowTest < ActionDispatch::IntegrationTest
   test "writer import preview and commit only to consul" do
     login("zone_a_writer")
     newer, newer_key = issue(name: "new.example.test", serial: 7)
-    post imports_path, params: { areas: ["zone_a"], pem: newer.to_pem + newer_key.private_to_pem, tags: "Test, Neu", certid: "new.example.test" }
+    post imports_path,
+      params: { areas: ["zone_a"], pem: newer.to_pem + newer_key.private_to_pem, tags: "Test, Neu",
+                certid: "new.example.test" }
     assert_response :success
     assert_includes response.body, "Bereit zum Speichern"
     assert_not_includes response.body, "PRIVATE KEY"

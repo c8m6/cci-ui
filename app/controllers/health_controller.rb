@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
+# Exposes dependency readiness without requiring a signed-in session.
 class HealthController < ActionController::Base
   def show
     failures = ApplicationHealth.check

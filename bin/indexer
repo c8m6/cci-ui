@@ -1,10 +1,12 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 require_relative "../config/environment"
 loop do
   begin
     CatalogIndexer.run
-  rescue StandardError => error
-    Rails.logger.error("Indexierung fehlgeschlagen: #{error.class}")
+  rescue StandardError => e
+    Rails.logger.error("Indexing failed: #{e.class}")
   end
   sleep Integer(ENV.fetch("INDEX_INTERVAL", "60"))
 end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class AuditEventsTest < ActionDispatch::IntegrationTest
@@ -46,7 +48,8 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
       private_export = format != "der"
       assert_difference "AuditEvent.count", 1 do
         post export_certificates_path, params: { ids: [record.id], format_name: format,
-          include_chain: private_export ? "1" : "0", include_key: private_export ? "1" : "0", password: "audit-password-long" }
+                                                 include_chain: private_export ? "1" : "0",
+                                                 include_key: private_export ? "1" : "0", password: "audit-password-long" }
         assert_response :success
       end
       event = AuditEvent.order(:id).last
@@ -55,8 +58,8 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
       assert_in_delta Time.current.to_f, event.occurred_at.to_f, 5
       assert_equal format, event.details["format"]
       assert_equal [record.source_id], event.references
-      assert_equal private_export ? [record.fingerprint, Certificates::Codec.fingerprint(root)] : [record.fingerprint],
-        event.details["certificates"].map { |item| item["fingerprint"] }
+      assert_equal(private_export ? [record.fingerprint, Certificates::Codec.fingerprint(root)] : [record.fingerprint],
+        event.details["certificates"].map { |item| item["fingerprint"] })
       assert_not_includes event.details.to_json, "PRIVATE KEY"
       assert_not_includes event.details.to_json, "audit-password-long"
     end
@@ -71,7 +74,8 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
       AuditEvent.create!(area: "zone_a", action: "export_public", actor: "user-#{index}",
         occurred_at: Time.zone.parse("2026-09-10 23:30:00") + index.seconds, references: ["old-reference"])
     end
-    AuditEvent.create!(area: "zone_a", action: "delete", actor: "excluded", occurred_at: Time.zone.parse("2026-09-11 00:01:00"))
+    AuditEvent.create!(area: "zone_a", action: "delete", actor: "excluded",
+      occurred_at: Time.zone.parse("2026-09-11 00:01:00"))
     post local_login_path, params: { identity: "zone_a_auditor" }
     filters = { event_action: "export_public", from: "2026-09-10", to: "2026-09-10", q: "user-" }
     get audit_events_path, params: filters

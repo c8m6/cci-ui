@@ -77,3 +77,7 @@ docker compose -f compose.ci.yml up --wait db consul
 docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
 docker compose -f compose.ci.yml down --volumes
 ```
+
+The Dockerfile runs `bundle exec rubocop --force-exclusion` before asset compilation.
+This includes the `rubocop-rake` plugin and blocks image builds on lint failures.
+The same check runs in local Compose builds.

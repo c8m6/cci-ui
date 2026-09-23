@@ -1,15 +1,17 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require "open3"
 require_relative "../../examples/add_certificate"
 require_relative "../../examples/read_certificate"
 
 class RubyIntegrationExamplesTest < ActiveSupport::TestCase
-  def publish(cert, key: nil, **options)
-    CertificateExample.add(area: "zone_a", certid: "external", cert: cert, key: key, **options)
+  def publish(cert, key: nil, **)
+    CertificateExample.add(area: "zone_a", certid: "external", cert: cert, key: key, **)
   end
 
-  def read(**options)
-    CertificateReadExample.read(area: "zone_a", certid: "external", **options)
+  def read(**)
+    CertificateReadExample.read(area: "zone_a", certid: "external", **)
   end
 
   def counting_connection
@@ -33,9 +35,10 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     calls.clear
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
       connection: connection, keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
-    assert_equal cert.to_pem, reader.fetch(area: "zone_a", certid: "external")
-    assert cert.check_private_key(OpenSSL::PKey.read(reader.fetch(area: "zone_a", certid: "external", field: "private_key")))
-    metadata = reader.fetch(area: "zone_a", certid: "external", field: "metadata")
+    assert_equal cert.to_pem, reader.read_certificate(area: "zone_a", certid: "external")
+    assert cert.check_private_key(OpenSSL::PKey.read(reader.read_certificate(area: "zone_a", certid: "external",
+      field: "private_key")))
+    metadata = reader.read_certificate(area: "zone_a", certid: "external", field: "metadata")
     assert_equal "puppet", metadata.fetch("client")
     assert Time.iso8601(metadata.fetch("created_at"))
     assert_equal 1, metadata.fetch("version")
@@ -49,18 +52,20 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     first = publish(first_cert, key: first_key)
     cached = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
       keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
-    assert_equal first_cert.to_pem, cached.fetch(area: "zone_a", certid: "external")
+    assert_equal first_cert.to_pem, cached.read_certificate(area: "zone_a", certid: "external")
     second_cert, second_key = issue(serial: 2)
     second = publish(second_cert, key: second_key)
     assert_equal [1, 2], [first, second]
     assert_equal second_cert.to_pem, read.fetch("certificate")
-    assert first_cert.check_private_key(OpenSSL::PKey.read(cached.fetch(area: "zone_a", certid: "external", field: "private_key")))
+    assert first_cert.check_private_key(OpenSSL::PKey.read(cached.read_certificate(area: "zone_a", certid: "external",
+      field: "private_key")))
     assert_equal first_cert.to_pem, read(version: 1).fetch("certificate")
     ConsulStore.activate("zone_a", "external/1", actor: "rollback-user")
     assert_equal 1, read.fetch("metadata").fetch("version")
     assert_equal 3, publish(first_cert)
     assert_equal 3, read.fetch("metadata").fetch("version")
-    output, error, status = Open3.capture3(RbConfig.ruby, Rails.root.join("examples/read_certificate.rb").to_s, "zone_a", "external", "2")
+    output, error, status = Open3.capture3(RbConfig.ruby, Rails.root.join("examples/read_certificate.rb").to_s,
+      "zone_a", "external", "2")
     assert status.success?, error
     assert_equal 2, JSON.parse(output).fetch("metadata").fetch("version")
   end
@@ -82,8 +87,9 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
       keys: { "zone_a" => ENV.fetch("ZONE_A_KEY"), "zone_b" => ENV.fetch("ZONE_B_KEY") })
     certificates.each do |area, cert|
-      assert_equal cert.to_pem, reader.fetch(area: area, certid: "shared")
-      assert cert.check_private_key(OpenSSL::PKey.read(reader.fetch(area: area, certid: "shared", field: "private_key")))
+      assert_equal cert.to_pem, reader.read_certificate(area: area, certid: "shared")
+      assert cert.check_private_key(OpenSSL::PKey.read(reader.read_certificate(area: area, certid: "shared",
+        field: "private_key")))
     end
     CatalogIndexer.refresh_consul
     assert_equal 2, Certificate.where(certid: "shared", active: true).count
@@ -94,7 +100,9 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     cert, key = issue
     first = writer.prepare(area: "zone_a", certid: "new", cert: cert, key: key)
     second = writer.prepare(area: "zone_a", certid: "new", cert: issue(serial: 2).first)
-    assert first.fetch(:operations).all? { |operation| operation.fetch("Verb") == "cas" && operation.fetch("Index") == 0 }
+    assert(first.fetch(:operations).all? do |operation|
+      operation.fetch("Verb") == "cas" && operation.fetch("Index").zero?
+    end)
     writer.commit(first)
     assert_raises(ConsulConnection::Conflict) { writer.commit(second) }
     assert_equal cert.to_pem, ConsulStore.get("zone_a", "new/1").fetch("pem")
@@ -110,21 +118,22 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
 
   test "external renewals preserve archive status and unknown fields" do
     publish(issue.first)
-    path = "#{ConsulStore.prefix('zone_a')}/certids/external"
+    path = "#{ConsulStore.prefix("zone_a")}/certids/external"
     snapshot = ConsulStore.client.get(path)
     state = JSON.parse(snapshot.fetch(:value)).merge("status" => "delete", "archived" => true,
       "archived_at" => Time.now.utc.iso8601, "archived_by" => "writer", "custom" => "retained")
     ConsulStore.client.transaction([ConsulConnection.set(path, state, index: snapshot.fetch(:index))])
     assert_equal 2, publish(issue(serial: 2).first)
     updated = JSON.parse(ConsulStore.client.get(path).fetch(:value))
-    assert_equal state.except("active_version", "latest_version", "updated_at"), updated.except("active_version", "latest_version", "updated_at")
+    assert_equal state.except("active_version", "latest_version", "updated_at"),
+      updated.except("active_version", "latest_version", "updated_at")
     assert_equal "delete", read.fetch("metadata").fetch("status")
   end
 
   test "concurrent metadata updates reject all material writes" do
     publish(issue.first)
     connection = ConsulStore.client
-    path = "#{ConsulStore.prefix('zone_a')}/certids/external"
+    path = "#{ConsulStore.prefix("zone_a")}/certids/external"
     original_get = connection.method(:get)
     connection.define_singleton_method(:get) do |key|
       snapshot = original_get.call(key)
@@ -138,8 +147,8 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     assert_raises(ConsulConnection::Conflict) { publish(cert, key: key, connection: connection) }
     assert_equal 1, read.fetch("metadata").fetch("version")
     assert_equal "norollout", read.fetch("metadata").fetch("status")
-    assert_equal 1, ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/certs/").size
-    assert_empty ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/keys/")
+    assert_equal 1, ConsulStore.client.all("#{ConsulStore.prefix("zone_a")}/certs/").size
+    assert_empty ConsulStore.client.all("#{ConsulStore.prefix("zone_a")}/keys/")
   end
 
   test "client builds chain from independent public certificates and caches candidates" do
@@ -152,13 +161,14 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     end
     connection, calls = counting_connection
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace, connection: connection)
-    assert_equal leaf.to_pem, reader.fetch(area: "zone_a", certid: "external")
+    assert_equal leaf.to_pem, reader.read_certificate(area: "zone_a", certid: "external")
     assert_equal 2, calls.size
-    assert_equal [leaf, intermediate, root].map(&:to_pem).join, reader.fetch(area: "zone_a", certid: "external", field: "chain")
+    assert_equal [leaf, intermediate, root].map(&:to_pem).join,
+      reader.read_certificate(area: "zone_a", certid: "external", field: "chain")
     assert_equal 3, calls.size
-    reader.fetch(area: "zone_a", certid: "external", field: "chain")
+    reader.read_certificate(area: "zone_a", certid: "external", field: "chain")
     assert_equal 3, calls.size
-    ConsulStore.client.all("#{ConsulStore.prefix('zone_a')}/certs/").each do |item|
+    ConsulStore.client.all("#{ConsulStore.prefix("zone_a")}/certs/").each do |item|
       assert_not JSON.parse(item[:value]).key?("chain")
     end
   end
@@ -168,10 +178,9 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     connection, calls = counting_connection
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
       connection: connection, keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
-    assert_equal cert.to_pem, reader.fetch(area: "zone_a", certid: "external")
+    assert_equal cert.to_pem, reader.read_certificate(area: "zone_a", certid: "external")
     assert_equal 2, calls.size
-    assert_raises(CciClient::Error) { reader.fetch(area: "zone_a", certid: "external", field: "private_key") }
+    assert_raises(CciClient::Error) { reader.read_certificate(area: "zone_a", certid: "external", field: "private_key") }
     assert_equal 2, calls.size
   end
-
 end

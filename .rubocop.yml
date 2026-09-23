@@ -1,0 +1,68 @@
+plugins:
+  - rubocop-rake
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.2
+  Exclude:
+    - db/schema.rb
+    - tmp/**/*
+    - log/**/*
+    - vendor/**/*
+    - data/**/*
+    - quelle/**/*
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
+# Rails tests, migrations and configuration use framework DSL blocks.
+Metrics/BlockLength:
+  Exclude:
+    - test/**/*
+    - config/**/*
+    - db/migrate/**/*
+
+Style/Documentation:
+  Exclude:
+    - test/**/*
+    - db/migrate/**/*
+
+# Service orchestration includes validation and explicit error boundaries. Keep
+# bounded metrics without applying the ten-line default to transaction workflows.
+Metrics/MethodLength:
+  Max: 35
+  CountAsOne: [array, hash, heredoc]
+  Exclude:
+    - test/**/*
+Metrics/AbcSize:
+  Max: 50
+  Exclude:
+    - test/**/*
+Metrics/CyclomaticComplexity:
+  Max: 12
+Metrics/PerceivedComplexity:
+  Max: 12
+Metrics/ClassLength:
+  Max: 250
+  CountAsOne: [array, hash, heredoc]
+  Exclude:
+    - test/**/*
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+Style/FormatStringToken:
+  EnforcedStyle: template
+Naming/MethodParameterName:
+  AllowedNames: [id, io, iv, ca]
+
+# Fixed indentation avoids large alignment gaps in nested keyword arguments.
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation
+Layout/ArrayAlignment:
+  EnforcedStyle: with_fixed_indentation
+Layout/LineLength:
+  Max: 140
+Layout/FirstArrayElementIndentation:
+  EnforcedStyle: consistent
