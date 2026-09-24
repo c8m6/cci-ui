@@ -43,7 +43,8 @@
    values after timeouts so retries cannot silently allocate duplicate versions.
    Require explicit confirmation for an existing destination.
 6. Keep authenticated CSR pages usable when unrelated dependencies or Consul are
-   unavailable. Leave existing application dependency checks unchanged.
+   unavailable. Global page-level dependency checks have since been removed.
+   Readiness and full diagnostics are separate endpoints.
 7. Add service, authorization, failure/retry and browser tests. Document routes,
    statuses, deployment defaults, backups and coordinated key rotation.
 8. Run the full CI Rails suite, rebuild development services and verify HTTP.

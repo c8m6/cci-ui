@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "net/http"
+
+begin
+  http = Net::HTTP.new("127.0.0.1", ENV.fetch("PORT", "3000"), nil)
+  http.open_timeout = 2
+  http.read_timeout = 5
+  http.max_retries = 0
+  host = ENV.fetch("ALLOWED_HOSTS", "localhost").split(",").first.to_s.strip
+  response = http.get("/ready", "Host" => host)
+  exit(response.code == "200" ? 0 : 1)
+rescue StandardError
+  exit 1
+end

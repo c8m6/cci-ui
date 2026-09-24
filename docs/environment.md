@@ -220,16 +220,20 @@ app_env=(
 inventory=(--mount type=bind,src=/mnt/certificates,dst=/legacy)
 inventory_readonly=(--mount type=bind,src=/mnt/certificates,dst=/legacy,readonly)
 
+# Run once per deployment and stop if this command fails.
+docker run --rm "${app_env[@]}" "${CCI_IMAGE:?Set the application image}" ruby bin/rails db:prepare
+
 docker run -d --name cci-web --restart unless-stopped \
   "${app_env[@]}" "${inventory[@]}" \
   -p 127.0.0.1:3000:3000 "${CCI_IMAGE:?Set the application image}"
-# Start after web has prepared the database and responds through the proxy.
+# Start after the migration job has succeeded.
 docker run -d --name cci-indexer --restart unless-stopped \
   "${app_env[@]}" "${inventory_readonly[@]}" \
   "$CCI_IMAGE" ruby bin/indexer
 ```
 
-The web image prepares the database at startup. Supply reachable service URLs
+The web image starts Puma without preparing the database. Run the migration
+job once before starting or updating replicas. Supply reachable service URLs
 and container networking for your infrastructure and put an HTTPS reverse proxy
 in front of the published port. With no disk inventory, set
 `CCI_LEGACY_PATHS='{}'` and omit the `inventory` arguments. Add a read-only CA

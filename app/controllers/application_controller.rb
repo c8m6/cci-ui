@@ -5,7 +5,6 @@ class ApplicationController < ActionController::Base
   include WebContext
   include ErrorPages
 
-  before_action :require_dependencies
   before_action :require_identity
   rescue_from Certificates::Error do |error|
     Rails.logger.error(error.full_message(highlight: false))
@@ -13,14 +12,6 @@ class ApplicationController < ActionController::Base
   end
 
   private
-
-  def require_dependencies
-    failures = ApplicationHealth.check
-    return if failures.empty?
-
-    details = failures.map { |name, error| "#{name}: #{error.full_message(highlight: false)}" }.join("\n")
-    render_error(:service_unavailable, exception: ApplicationHealth::Unavailable.new(details))
-  end
 
   def require_identity
     redirect_to login_path unless current_identity

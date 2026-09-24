@@ -203,3 +203,6 @@ Set `CCI_CA_INVENTORY_ENABLED=true` to discover local CA chains on every index
 pass and show an area-scoped Hiera export under **CA certificates**. See the
 [CA inventory documentation](docs/ca-inventory.md) for validity rules, missing
 issuers and public CA handling.
+
+For migration jobs, replica startup ordering and load-balancer probes, see
+[HA deployment and health checks](docs/installation.md#health-checks).

@@ -2,7 +2,6 @@
 
 # CSR-only endpoints remain available to existing sessions during Consul outages.
 class CertificateRequestsController < ApplicationController
-  skip_before_action :require_dependencies
   before_action :require_csr
   before_action :load_request, except: %i[index new create]
 

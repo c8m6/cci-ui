@@ -33,7 +33,7 @@ SSH tunnel. The development service binds only to `127.0.0.1`; the databases
 do not publish host ports.
 
 Compose starts Rails, a Ruby indexer, PostgreSQL and a persistent single-server
-Consul instance. Application startup prepares the database and runs migrations.
+Consul instance. The one-shot `migrate` service prepares the database before web and indexer start.
 `data/` is mounted at `/legacy`, read/write for web and read-only for the indexer. The development Compose defaults set
 `CCI_AREAS` to the two example zones and `CCI_LEGACY_PATHS` to `{"zone_a":"/legacy"}`.
 The indexer runs every 60 seconds, so a newly connected collection may initially
@@ -310,7 +310,7 @@ rotated independently; doing so invalidates existing login sessions.
 
 ## Initial database setup
 
-Run `ruby bin/rails db:prepare` (also run by `bin/start`) to prepare the current
+Run `ruby bin/rails db:prepare` in a separate deployment job to prepare the current
 SQL structure. Deploy the supplied Ruby/Puppet clients with the application.
 The supplied Puppet module does not enforce `norollout` or `delete` yet.
 See [the storage contract](consul-schema.md) and [Puppet integration](puppet.md).
@@ -347,19 +347,58 @@ potentially stale in the UI. No certificate is removed. See the
 
 ## Health checks
 
-`GET /up` checks whether Rails is running. `GET /health` checks PostgreSQL with
-a query, Consul with a consistent read under the configured storage prefix,
-and the accessibility of each configured legacy directory. It also queries
-PuppetDB when enabled and checks OIDC discovery when OIDC authentication is used.
-Both endpoints are available without authentication.
+| Endpoint | Purpose | Dependencies |
+| --- | --- | --- |
+| `/up` | Process liveness | Rails only |
+| `/ready` | Load-balancer readiness | PostgreSQL connection, writable primary, current migrations |
+| `/health` | Full dependency diagnostics | PostgreSQL, Consul, configured legacy directories, optional PuppetDB and OIDC discovery |
 
-The overall check returns HTTP 200 with `{"status":"ok"}` or HTTP 503 with
-`{"status":"unavailable"}`. Normal application requests also check dependencies
-and show the existing 503 error page when a check fails. Responses are not cached.
-`CCI_SHOW_ERROR_DETAILS=true` adds failure details to the health response and
-the error page. Leave it disabled to show only the general error notification.
+All endpoints are anonymous. Readiness and diagnostics return HTTP 200 with
+`{"status":"ok"}` or HTTP 503 with `{"status":"unavailable"}`, with caching disabled.
+`CCI_SHOW_ERROR_DETAILS=true` exposes diagnostic details. Leave it disabled in production.
 
-The Compose web healthcheck uses `/health`. Checks run on every request and may
-wait for the configured connection timeouts during an outage. They verify read
-access, not write permissions or indexer freshness. An accessible empty legacy
-directory is valid. This check cannot distinguish it from an empty mount point.
+Compose uses `/ready`. Use `/up` for orchestrator liveness and `/ready` for
+routing. Do not restart replicas because a shared dependency is unavailable.
+Normal page requests no longer run global dependency probes. Catalog and audit
+pages can remain available during a Consul outage. Operations that need an
+unavailable service still fail, including new OIDC logins when Keycloak is down.
+
+Readiness performs no persistent writes. It checks PostgreSQL recovery and
+transaction read-only state and rejects pending migrations. It does not prove
+table write privileges, available disk space, indexer freshness or external
+write access. Database connection and pool checkout timeouts are three seconds.
+Probe statements have a two-second timeout and a one-second lock timeout.
+These limits apply individually, not as one total probe deadline.
+
+Full diagnostics verify external read access. An accessible empty legacy
+directory is valid and cannot be distinguished from an empty mount point.
+
+## Deploying multiple web replicas
+
+Run `ruby bin/rails db:prepare` exactly once as a deployment job using the
+new application image and the primary database endpoint. Require a successful
+exit before starting the new web replicas and indexer. A failed job must stop
+the rollout. `bin/start` only starts Puma and never migrates the database.
+
+The Compose templates enforce this ordering through the one-shot `migrate`
+service and `service_completed_successfully`. For a deployment with external
+clusters, implement the equivalent job in your orchestrator. The production
+Compose file is a single-host example, not a multi-host HA orchestrator.
+Recreate the migration job for every release, even if the previous job succeeded.
+For a Compose release, run:
+
+```bash
+docker compose -f compose.production.yml run --rm --no-deps migrate && \\
+  docker compose -f compose.production.yml up -d --no-deps web indexer
+```
+
+Use the same immutable image for all three services. Build or pull it before
+running the job. Keep one indexer active. Share `SECRET_KEY_BASE`, area keys,
+OIDC settings and role mappings across replicas. Legacy operations require
+the same mounted inventory on each replica.
+
+During rolling deployments, migrations must remain compatible with the old
+replicas. Use additive migrations first and defer incompatible removals until
+the old version has stopped. Extra migration versions from a newer replica
+do not by themselves make an older replica unready. Test actual database,
+Consul and load-balancer failover in your environment before production use.

@@ -15,6 +15,12 @@ services:
       retries: 15
     restart: unless-stopped
   web:
+    healthcheck:
+      test: ["CMD", "ruby", "bin/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
     build: .
     image: ${CCI_IMAGE:-cci-ui:local}
     ports:
@@ -68,9 +74,20 @@ services:
     volumes:
       - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:rw
     depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  migrate:
+    image: ${CCI_IMAGE:-cci-ui:local}
+    command: ["ruby", "bin/rails", "db:prepare"]
+    env_file:
+      - path: ${CCI_ENV_FILE:-.env.production}
+        required: false
+    environment: *production_environment
+    depends_on:
       db:
         condition: service_healthy
-    restart: unless-stopped
+    restart: "no"
   indexer:
     image: ${CCI_IMAGE:-cci-ui:local}
     command: ["ruby", "bin/indexer"]
@@ -81,7 +98,8 @@ services:
     volumes:
       - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
     depends_on:
-      - web
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 volumes:
   postgres_data:

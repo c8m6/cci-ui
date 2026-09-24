@@ -64,10 +64,13 @@ docker compose --env-file .env.production -f compose.production.yml pull web ind
 docker compose --env-file .env.production -f compose.production.yml up -d --no-build
 ```
 
-Both services use `CCI_IMAGE`; without this variable, local builds using
+Web, indexer and the migration job use `CCI_IMAGE`; without this variable, local builds using
 `cci-ui:local` remain available. For private Docker Hub repositories, log in
-on the deployment host first. Web startup runs database migrations; the indexer
-automatically retries failed indexing passes during startup.
+on the deployment host first. The one-shot migration job must succeed before
+web and indexer start. Web startup never runs migrations. For controlled release
+updates with existing replicas, follow the
+[deployment ordering](installation.md#deploying-multiple-web-replicas).
+The indexer retries failed indexing passes.
 
 To run CI locally without Docker Hub credentials:
 

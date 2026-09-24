@@ -26,9 +26,9 @@ services:
   web:
     build: .
     healthcheck:
-      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:' + ENV.fetch('PORT', '3000') + '/health')).code == '200' ? 0 : 1)"]
+      test: ["CMD", "ruby", "bin/healthcheck"]
       interval: 30s
-      timeout: 60s
+      timeout: 10s
       start_period: 30s
       retries: 3
     ports:
@@ -83,10 +83,19 @@ services:
     volumes:
       - ./data:/legacy:rw
     depends_on:
+      migrate:
+        condition: service_completed_successfully
+  migrate:
+    build: .
+    command: ["ruby", "bin/rails", "db:prepare"]
+    env_file:
+      - path: ${CCI_ENV_FILE:-.env}
+        required: false
+    environment: *app_environment
+    depends_on:
       db:
         condition: service_healthy
-      consul:
-        condition: service_healthy
+    restart: "no"
   indexer:
     build: .
     command: ["ruby", "bin/indexer"]
@@ -97,8 +106,8 @@ services:
     volumes:
       - ./data:/legacy:ro
     depends_on:
-      web:
-        condition: service_started
+      migrate:
+        condition: service_completed_successfully
     restart: on-failure
 volumes:
   postgres_data:
