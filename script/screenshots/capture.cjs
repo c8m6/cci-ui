@@ -34,12 +34,36 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     };
     const login = async identity => {
       await page.goto(`${base}/login`, { waitUntil: 'networkidle0' });
-      await page.select('#identity', identity);
+      assert.deepEqual(await page.select('#identity', identity), [identity]);
       await page.click('input[type=submit]');
       await page.waitForFunction(() => !location.pathname.includes('login'));
       await ready();
     };
-    await login('all:keys');
+    const captureCa = async () => {
+      await page.goto(base + '/ca_inventories', { waitUntil: 'networkidle0' });
+      await ready();
+      await page.waitForSelector('#zone_a-authorities-tab[aria-selected="true"]');
+      assert.equal(await page.$$eval('#zone_a-authorities-panel tr[data-depth="2"]', rows => rows.length), 1);
+      const badges = await page.$$eval('#zone_a-authorities-panel .badge', nodes => nodes.map(node => node.textContent.trim()));
+      for (const state of ['Expired', 'Not yet valid', 'Expiring soon']) assert(badges.includes(state), state);
+      assert.equal(await page.$eval('.ca-output td', node => getComputedStyle(node).whiteSpace), 'nowrap');
+      await capture('ca-certificates.png');
+      await page.click('#zone_a-issues-tab');
+      await page.waitForSelector('#zone_a-issues-panel:not([hidden])');
+      assert((await page.$eval('#zone_a-issues-panel', node => node.textContent)).includes('No gaps detected'));
+      await page.click('#zone_a-hiera-tab');
+      await page.waitForSelector('#zone_a-hiera-panel:not([hidden])');
+      const yaml = await page.$eval('#zone_a-hiera-panel pre', node => node.textContent);
+      assert(!yaml.includes('Retired'));
+      assert(!yaml.includes('Future'));
+    };
+    await login(process.env.CAPTURE_CA_ONLY === '1' ? 'zone_a_reader' : 'all:writer');
+    if (process.env.CAPTURE_CA_ONLY === '1') {
+      await captureCa();
+      assert.deepEqual(errors, []);
+      console.log('Updated ca-certificates.png; hierarchy, validity badges and tabs verified.');
+      return;
+    }
     await page.goto(`${base}/certificates?sort=name`, { waitUntil: 'networkidle0' });
     await ready();
     const headers = await page.$$eval('thead th', cells => cells.map(cell => cell.textContent.trim()));
@@ -50,8 +74,11 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       return { url: link.href, hosts: link.closest('tr').querySelector('.puppetdb-host-count').textContent.trim() };
     });
     assert.equal(portal.hosts, '3');
-    assert.equal(await page.$$eval('tbody tr', rows => rows.length), 6);
-    await capture('overview.png');
+    assert((await page.$$eval('tbody tr', rows => rows.length)) >= 6);
+    if (process.env.CAPTURE_DETAILS_ONLY !== '1') {
+      await capture('overview.png');
+      await captureCa();
+    }
 
     await page.goto(portal.url, { waitUntil: 'networkidle0' });
     await page.click('.theme-toggle');
@@ -61,7 +88,45 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.deepEqual(hosts, ['proxy01.example.test', 'web01.example.test', 'web02.example.test']);
     assert.equal(await page.$eval('.status-actions input[type=submit]', node => node.value), 'Save status');
     assert.equal(await page.$eval('.status-actions a', node => node.textContent), 'Archive');
+    assert.equal(await page.$$eval('.certificate-chain tr[data-depth]', rows => rows.length), 3);
+    assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
+    assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
+    assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
     await capture('details.png');
+    // Exercise long subjects without changing the captured application screenshot.
+    const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));
+    await page.$$eval('.certificate-chain .ca-subject-text a', nodes => {
+      nodes.forEach(node => { node.textContent = 'CN=Long demonstration certificate subject '.repeat(12); });
+    });
+    for (const width of [1800, 1024, 600, 390, 320]) {
+      await page.setViewport({ width, height: 1100, deviceScaleFactor: 1 });
+      const layout = await page.$eval('.certificate-chain', panel => {
+        const output = panel.querySelector('.ca-output');
+        const subject = panel.querySelector('.ca-subject-text');
+        const right = output.getBoundingClientRect().right;
+        return {
+          fits: output.scrollWidth <= output.clientWidth + 1,
+          validityVisible: [...panel.querySelectorAll('td:nth-child(3)')].every(cell =>
+            cell.getBoundingClientRect().right <= right + 1 &&
+            cell.scrollWidth <= cell.clientWidth + 1),
+          ellipsis: getComputedStyle(subject).textOverflow,
+          truncated: subject.scrollWidth > subject.clientWidth,
+        };
+      });
+      assert(layout.fits, 'Chain overflow at ' + width);
+      assert(layout.validityVisible, 'Validity clipped at ' + width);
+      assert.equal(layout.ellipsis, 'ellipsis');
+      assert(layout.truncated, 'Long subject not truncated at ' + width);
+    }
+    await page.$$eval('.certificate-chain .ca-subject-text a', (nodes, values) => {
+      nodes.forEach((node, index) => { node.textContent = values[index]; });
+    }, originalSubjects);
+    await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
+    if (process.env.CAPTURE_DETAILS_ONLY === '1') {
+      assert.deepEqual(errors, []);
+      console.log('Updated details.png; nested chain, selected certificate and export/status controls verified.');
+      return;
+    }
 
     await page.click('.account input[type=submit], .account button.text-button');
     await page.waitForFunction(() => location.pathname === '/login');
@@ -77,7 +142,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert(audit.includes('Certificates exported'));
     await capture('audit.png');
     assert.deepEqual(errors, []);
-    console.log('Updated overview.png, details.png and audit.png; host counts, names and controls verified.');
+    console.log('Updated overview.png, details.png, ca-certificates.png and audit.png; host counts, names and controls verified.');
   } finally {
     await browser.close();
   }

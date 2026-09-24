@@ -1,0 +1,27 @@
+<tbody class="ca-hierarchy-group" aria-label="<%= group.fetch(:root).fetch('subject') %>">
+  <% group.fetch(:rows).each do |row| %>
+    <% entry = row.fetch(:entry) %>
+    <tr class="<%= row.fetch(:depth).zero? ? 'ca-group-root' : 'ca-group-child' %>" data-depth="<%= row.fetch(:depth) %>"<% if entry["selected"] %> aria-current="true"<% end %>>
+      <td>
+        <span class="ca-tree-subject">
+          <span class="ca-tree-prefix" aria-hidden="true">
+          <% row.fetch(:depth).times do %><span class="ca-tree-indent" aria-hidden="true"></span><% end %>
+          <% if row.fetch(:depth).positive? %><span class="ca-tree-branch" aria-hidden="true">↳</span><% end %>
+          </span>
+          <span class="sr-only"><%= t("ca_inventory.level", level: row.fetch(:depth) + 1) %> </span>
+          <span class="ca-subject-text" title="<%= entry.fetch("subject") %>">
+          <% if entry["certificate_id"] %>
+            <%= link_to entry.fetch("subject"), certificate_path(entry.fetch("certificate_id")) %>
+          <% else %>
+            <%= entry.fetch("subject") %>
+            <span class="muted small"> · <%= t("ui.no_chain_record") %></span>
+          <% end %>
+          </span>
+        </span>
+      </td>
+      <td><span class="badge neutral"><%= entry.fetch("kind") == "certificate" ? t("ui.certificate") : t("ca_inventory.#{entry.fetch('kind')}") %></span></td>
+      <td><%= ca_validity_badge(entry) %></td>
+      <% if local_assigns.fetch(:show_fingerprint, true) %><td class="mono"><%= entry.fetch("fingerprint") %></td><% end %>
+    </tr>
+  <% end %>
+</tbody>

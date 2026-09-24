@@ -1,0 +1,66 @@
+<% content_for :title, t("ca_inventory.title") %>
+<% content_for :main_class, "full-width" %>
+<div class="page-heading"><div><h1><%= t("ca_inventory.title") %></h1><p><%= t("ca_inventory.description") %></p></div></div>
+<% current_identity.areas.each do |area| %>
+  <% inventory = @inventories[area] %>
+  <section class="panel detail-panel" data-controller="tabs">
+    <h2><%= area_label(area) %></h2>
+    <% if inventory&.error_at %><p role="status" class="flash flash-error"><%= t("ca_inventory.stale") %></p><% end %>
+    <% if inventory&.checked_at %>
+      <p class="muted"><%= t("ca_inventory.checked", time: l(inventory.checked_at.in_time_zone, format: :long)) %></p>
+      <% authorities = inventory.authorities %>
+      <% tabs = { "authorities" => t("ca_inventory.title"), "issues" => t("ca_inventory.issues"), "hiera" => t("ui.hiera_configuration") } %>
+      <div class="ca-tabs" role="tablist" aria-label="<%= area_label(area) %>" data-tabs-target="list" data-action="keydown->tabs#navigate" hidden>
+        <% tabs.each_with_index do |(name, label), index| %>
+          <button type="button" role="tab" id="<%= area %>-<%= name %>-tab" aria-controls="<%= area %>-<%= name %>-panel" aria-selected="<%= index.zero? %>" tabindex="<%= index.zero? ? 0 : -1 %>" data-tabs-target="tab" data-action="tabs#select"><%= label %></button>
+        <% end %>
+      </div>
+      <div role="tabpanel" id="<%= area %>-authorities-panel" aria-labelledby="<%= area %>-authorities-tab" tabindex="0" data-tabs-target="panel">
+        <h3 class="ca-panel-heading"><%= t("ca_inventory.title") %></h3>
+        <% if authorities.empty? %>
+          <p><%= t("ca_inventory.empty") %></p>
+        <% else %>
+          <div class="ca-output">
+            <table>
+              <thead><tr><th scope="col"><%= t("ui.subject") %></th><th scope="col"><%= t("ca_inventory.ca_type") %></th><th scope="col"><%= t("ui.validity") %></th><th scope="col"><%= t("ui.fingerprint") %></th></tr></thead>
+              <% hierarchy = inventory.hierarchy %>
+              <% hierarchy.fetch(:rooted).each do |group| %>
+                <%= render "hierarchy_group", group: group %>
+              <% end %>
+              <% if hierarchy.fetch(:unresolved).any? %>
+                <tbody><tr class="ca-unresolved-heading"><th colspan="4" scope="colgroup"><%= t("ca_inventory.unresolved_roots") %></th></tr></tbody>
+                <% hierarchy.fetch(:unresolved).each do |group| %>
+                  <%= render "hierarchy_group", group: group %>
+                <% end %>
+              <% end %>
+            </table>
+          </div>
+        <% end %>
+      </div>
+      <div role="tabpanel" id="<%= area %>-issues-panel" aria-labelledby="<%= area %>-issues-tab" tabindex="0" data-tabs-target="panel">
+        <h3 class="ca-panel-heading"><%= t("ca_inventory.issues") %></h3>
+        <% if inventory.issues.empty? %>
+          <p><%= t("ca_inventory.no_issues") %></p>
+        <% else %>
+          <div class="ca-output">
+            <table>
+              <thead><tr><th scope="col"><%= t("ui.subject") %></th><th scope="col"><%= t("ui.issuer") %></th><th scope="col"><%= t("ui.validity") %></th><th scope="col"><%= t("ca_inventory.reason") %></th></tr></thead>
+              <tbody>
+                <% inventory.issues.each do |issue| %>
+                  <tr><td><%= link_to issue.fetch("subject"), certificate_path(issue.fetch("certificate_id")) %></td><td><%= issue.fetch("issuer") %></td><td><%= ca_validity_badge(issue) %></td><td><%= t("ca_inventory.reasons.#{issue.fetch('reason')}") %></td></tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+      </div>
+      <div role="tabpanel" id="<%= area %>-hiera-panel" aria-labelledby="<%= area %>-hiera-tab" tabindex="0" data-tabs-target="panel">
+        <h3 class="ca-panel-heading"><%= t("ui.hiera_configuration") %></h3>
+        <pre><%= inventory.hiera %></pre>
+        <%= link_to t("ca_inventory.download"), ca_inventory_path(area), class: "button secondary", data: { turbo: false } %>
+      </div>
+    <% else %>
+      <p><%= t("ca_inventory.pending") %></p>
+    <% end %>
+  </section>
+<% end %>

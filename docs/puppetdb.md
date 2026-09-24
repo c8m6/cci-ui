@@ -116,7 +116,8 @@ host list, which can help track a pending Puppet deletion request.
   a warning. The next successful query clears the warning.
 
 The host section also appears for filesystem certificates, whose Puppet status
-and archive state remain read-only. Host reporting does not grant Puppet control
+and archive controls remain unavailable. Filesystem deletion is a separate
+[writer action](legacy-deletion.md). Host reporting does not grant Puppet control
 over those entries and does not copy their certificate material to Consul.
 
 The warning reflects a recorded failed query, not a background liveness check.

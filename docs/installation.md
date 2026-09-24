@@ -34,7 +34,7 @@ do not publish host ports.
 
 Compose starts Rails, a Ruby indexer, PostgreSQL and a persistent single-server
 Consul instance. Application startup prepares the database and runs migrations.
-`data/` is mounted read-only at `/legacy`. The development Compose defaults set
+`data/` is mounted at `/legacy`, read/write for web and read-only for the indexer. The development Compose defaults set
 `CCI_AREAS` to the two example zones and `CCI_LEGACY_PATHS` to `{"zone_a":"/legacy"}`.
 The indexer runs every 60 seconds, so a newly connected collection may initially
 appear empty. Neither `quelle/` nor `data/` is copied into the application image.
@@ -86,12 +86,12 @@ With a custom area list in development Compose, also set `CCI_LEGACY_PATHS`
 explicitly because the development template defaults to the example Zone A.
 
 For a shared host parent such as `/mnt/certificates`, set the production Compose
-variable `LEGACY_PATH=/mnt/certificates`. Its read-only `/legacy` mount makes
+variable `LEGACY_PATH=/mnt/certificates`. Its `/legacy` mount makes
 `/mnt/certificates/zone_a` available as `/legacy/zone_a`, and likewise for Zone B.
 `LEGACY_PATH` is only the Compose host-mount setting; the application selects
 its roots from `CCI_LEGACY_PATHS`.
 
-For host directories under different parents, add explicit read-only bind
+For host directories under different parents, add explicit bind
 mounts to both services through your container orchestrator or a Compose
 override, for example:
 
@@ -99,8 +99,8 @@ override, for example:
 services:
   web:
     volumes:
-      - /mnt/zone-a-certificates:/legacy/zone_a:ro
-      - /srv/zone-b-certificates:/legacy/zone_b:ro
+      - /mnt/zone-a-certificates:/legacy/zone_a:rw
+      - /srv/zone-b-certificates:/legacy/zone_b:rw
   indexer:
     volumes:
       - /mnt/zone-a-certificates:/legacy/zone_a:ro
@@ -169,6 +169,7 @@ zone_a_reader
 zone_a_writer
 zone_a_key_exporter
 zone_a_auditor
+zone_a_csr
 ```
 
 Writers can export public certificates and optional chains. Key Exporter is the
@@ -178,6 +179,12 @@ roles cannot export private keys. Independent Auditor roles allow reading audit
 logs within their area and grant no certificate or export permissions. Assign the
 Auditor roles of all desired areas for a combined view. Local Auditor identities
 land directly at `/audit_events` after login.
+The independent `zone_a_csr` role grants CSR creation, area-scoped request and
+issued-certificate access, confirmed revoke-password disclosure and publication
+of matching certificates. It grants no general Reader, Writer or Key Exporter
+permissions. Local identities `zone_a_csr` and `all:csr` land at
+`/certificate_requests`. See [CSR operations and key rotation](csr.md).
+
 Readers cannot export. Without assigned roles, the certificate list is empty.
 Existing group names can be translated through JSON in `OIDC_ROLE_MAP`:
 
@@ -226,8 +233,10 @@ built-in secret `_FILE` option. For a private Consul CA, mount the CA file in
 web and indexer containers and set `CONSUL_CA_FILE` to its container path.
 
 The container runs as UID 10001. This UID needs read access to the NFS legacy
-collection, including key files if their export is permitted. Keep the mount
-read-only (`:ro`); do not grant CCI-UI write access on the NFS server.
+collection, including key files if their export is permitted. For confirmed
+filesystem deletion, the web service also needs directory write permissions and
+a read/write mount (`:rw`). Keep the indexer mount read-only (`:ro`). See
+[filesystem deletion and recovery](legacy-deletion.md).
 
 The application token needs read/write access to `cci/`. Puppet receives
 separate area tokens. Example read policy for a compiler that must distribute
@@ -268,12 +277,14 @@ actual Keycloak/Consul infrastructure because its configuration is unavailable.
 Back up PostgreSQL, Consul snapshots, area secrets, configuration and the existing
 NFS collection together. Search metadata is reconstructible only while the
 corresponding source material still exists. Retained entries for missing sources,
-UI audit history and pending previews require a database backup. Test
+UI audit history, pending previews and all CSR records and encrypted CSR secrets
+require a database backup. Test
 restoration on an isolated VM. Restore Consul using the same prefix and original
 area secrets.
 
 Do not replace existing area secrets with newly generated ones. A key-rotation
-interface is not implemented. The SSO session secret, `SECRET_KEY_BASE`, can be
+UI is not implemented. See the [offline CSR rotation procedure](csr.md#secret-management-and-rotation)
+for the CSR maintenance helper and coordination with Consul and import drafts. The SSO session secret, `SECRET_KEY_BASE`, can be
 rotated independently; doing so invalidates existing login sessions.
 
 ## Troubleshooting
@@ -289,7 +300,7 @@ rotated independently; doing so invalidates existing login sessions.
 | SSO fails | Issuer, callback URI, client secret and claim mapping |
 | JKS import fails | Use matching store and key passwords |
 | Old PFX is rejected | Use AES/PBES2 or 3DES; RC2 is unsupported |
-| Filesystem certificate has no status or archive controls | Expected: only Consul certificates have mutable state; the file remains in the UI catalog |
+| Filesystem certificate has no status or archive controls | Expected: Puppet status and archiving apply only to Consul. Filesystem writers have a separate deletion action |
 | Archived certificate is missing from the overview | Use a text search or “Archivierte einschließen”; normal area and other filters still apply |
 | “Hosts” is missing | Set `PUPPETDB_ENABLED=true` in both services and recreate them |
 | Hosts show “–” | No successful observation yet; check indexer logs, URL, TLS, query and fact settings |
@@ -307,7 +318,9 @@ See [the storage contract](consul-schema.md) and [Puppet integration](puppet.md)
 ## Legacy inventory consistency
 
 The indexer retains catalog entries when a file or mount disappears. Filesystem
-certificates remain read-only and create no Consul state. Missing material blocks
+certificates create no Consul state. Explicit UI deletion renames files with
+`.DELETED` and hides their retained PostgreSQL rows. See
+[filesystem deletion](legacy-deletion.md). Missing material blocks
 export but retained metadata stays visible. Removing a directory mapping blocks
 material access through it.
 

@@ -60,6 +60,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `CCI_SHOW_ERROR_DETAILS` | `true` / `1` shows exception messages and stack traces on error pages. Default: `false`, including in development. Applies to all visitors, including users who are not signed in. Errors are logged regardless of this setting. Restart the web service after changing it. |
 | `PORT` | Puma listening port. Default: `3000`. Compose publishes the same port on `127.0.0.1`. |
 | `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
+| `CCI_CA_INVENTORY_ENABLED` | `true` / `1` enables CA discovery after each index pass and the CA certificates page. Default: `false`. Set identically for web and indexer. See [CA inventory](ca-inventory.md). |
 | `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
 
 Consul tokens, OIDC secrets and encryption keys are supplied directly through
@@ -162,7 +163,7 @@ The templates require Compose 2.24 or newer for optional environment files.
 | `CCI_ENV_FILE` | Optional service environment file. Defaults to `.env` in development and `.env.production` in production. Missing files are accepted. For Compose substitutions from a custom file, also supply `--env-file <path>`. |
 | `CCI_IMAGE` | Production image reference; default `cci-ui:local`. |
 | `POSTGRES_PASSWORD` | Password for the bundled PostgreSQL service. Required in production; development default `certui`. The production `DATABASE_URL` must contain the corresponding URL-encoded password. |
-| `LEGACY_PATH` | Production Compose host directory mounted read-only at `/legacy`. Required by that template, even if `CCI_LEGACY_PATHS` is `{}`. Use a readable empty directory in that case, or omit inventory mounts in your own container service definition. This variable no longer selects application inventory roots. |
+| `LEGACY_PATH` | Production Compose host directory mounted at `/legacy`, read/write for web and read-only for the indexer. Required by that template, even if `CCI_LEGACY_PATHS` is `{}`. Use a readable empty directory in that case, or omit inventory mounts in your own container service definition. This variable no longer selects application inventory roots. |
 
 Development Compose mounts `./data` at `/legacy`. Multiple inventories below
 that parent can be selected entirely through `CCI_LEGACY_PATHS`. Inventories on
@@ -210,20 +211,21 @@ app_env=(
   -e DATABASE_URL -e SECRET_KEY_BASE -e ALLOWED_HOSTS
   -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE
   -e OIDC_ISSUER -e OIDC_CLIENT_ID -e OIDC_CLIENT_SECRET
-  -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e INDEX_INTERVAL
+  -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e INDEX_INTERVAL -e CCI_CA_INVENTORY_ENABLED
   -e PUPPETDB_ENABLED -e PUPPETDB_URL -e PUPPETDB_QUERY
   -e PUPPETDB_FACT_NAME -e PUPPETDB_FINGERPRINT_FIELD -e PUPPETDB_FINGERPRINT_ALGORITHM
   -e PUPPETDB_CA_FILE -e PUPPETDB_CLIENT_CERT_FILE -e PUPPETDB_CLIENT_KEY_FILE
   -e PUPPETDB_TOKEN -e PUPPETDB_TIMEOUT -e PUPPETDB_MAX_RESPONSE_BYTES
 )
-inventory=(--mount type=bind,src=/mnt/certificates,dst=/legacy,readonly)
+inventory=(--mount type=bind,src=/mnt/certificates,dst=/legacy)
+inventory_readonly=(--mount type=bind,src=/mnt/certificates,dst=/legacy,readonly)
 
 docker run -d --name cci-web --restart unless-stopped \
   "${app_env[@]}" "${inventory[@]}" \
   -p 127.0.0.1:3000:3000 "${CCI_IMAGE:?Set the application image}"
 # Start after web has prepared the database and responds through the proxy.
 docker run -d --name cci-indexer --restart unless-stopped \
-  "${app_env[@]}" "${inventory[@]}" \
+  "${app_env[@]}" "${inventory_readonly[@]}" \
   "$CCI_IMAGE" ruby bin/indexer
 ```
 
@@ -248,3 +250,24 @@ The standalone example writer also uses `CCI_CLIENT_ID` and `CCI_ACTOR` for
 write provenance, and optional `KEY_PASSWORD` for the input private-key file.
 These are separate from the OIDC client settings. See
 [Ruby import examples](consul-schema.md).
+
+## CSR defaults
+
+These environment variables populate the CSR form and apply to omitted API
+fields. Users may override them. Empty subject fields are omitted. Existing
+`CCI_AREA_KEYS` (or the existing area-key fallback) encrypt both the private key
+and revoke password. There is no separate CSR secret or static revoke password.
+
+| Variable | Default | Allowed values or purpose |
+| --- | --- | --- |
+| `CSR_DEFAULT_KEY_ALGORITHM` | `RSA` | `RSA` or `EC` |
+| `CSR_DEFAULT_KEY_SIZE` | `4096` | RSA: 2048, 3072, 4096. EC: 256, 384, 521. Configure both algorithm and size when switching to EC. |
+| `CSR_DEFAULT_DIGEST` | `SHA512` | `SHA256`, `SHA384`, `SHA512` |
+| `CSR_DEFAULT_COUNTRY` | empty | Two uppercase country-code letters |
+| `CSR_DEFAULT_STATE` | empty | State or province |
+| `CSR_DEFAULT_LOCALITY` | empty | Locality |
+| `CSR_DEFAULT_ORGANIZATION` | empty | Organization |
+| `CSR_DEFAULT_ORGANIZATIONAL_UNIT` | empty | Organizational unit |
+
+The Compose web and indexer services receive the same defaults. See
+[CSR operations](csr.md) for validation, roles, persistence and rotation.

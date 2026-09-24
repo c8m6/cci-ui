@@ -6,7 +6,11 @@ class CatalogIndexer
     synchronize do
       indexer = new
       failures = []
-      %i[filesystem consul puppetdb].each do |source|
+      %i[filesystem consul ca_inventory puppetdb].each do |source|
+        if source == :ca_inventory && failures.any?
+          CaInventoryRefresh.failed!
+          next
+        end
         indexer.public_send(source)
       rescue Certificates::Error, ConsulConnection::Error, PuppetdbConnection::Error => e
         failures << e
@@ -17,6 +21,10 @@ class CatalogIndexer
 
   def self.refresh_consul
     synchronize { new.consul }
+  end
+
+  def ca_inventory
+    CaInventoryRefresh.run
   end
 
   def puppetdb
@@ -40,6 +48,8 @@ class CatalogIndexer
       attrs[:certid]].compact.join(" ")
     record = Certificate.find_or_initialize_by(attrs.slice(:area, :source,
       :source_id).merge(fingerprint: metadata.fetch(:fingerprint)))
+    return record if record.deleted_at
+
     record.update!(metadata.merge(attrs).merge(sha1_fingerprint: Digest::SHA1.hexdigest(cert.to_der),
       search_text: text, indexed_at: Time.current))
     record

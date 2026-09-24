@@ -1,0 +1,17 @@
+<section class="panel detail-panel certificate-chain" aria-labelledby="certificate-chain-title">
+  <h2 id="certificate-chain-title"><%= t("ui.chain") %></h2>
+  <div class="ca-output">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col"><%= t("ui.subject") %></th>
+          <th scope="col"><%= t("ui.certificate_type") %></th>
+          <th scope="col"><%= t("ui.validity") %></th>
+        </tr>
+      </thead>
+      <%= render "ca_inventories/hierarchy_group", group: certificate_chain_group(material, records, selected), show_fingerprint: false %>
+    </table>
+  </div>
+  <% highest_issuer = material.fetch(:chain).last || material.fetch(:certificate) %>
+  <p class="muted small"><%= highest_issuer.subject == highest_issuer.issuer && highest_issuer.verify(highest_issuer.public_key) ? t("ui.chain_complete") : t("ui.chain_incomplete") %></p>
+</section>

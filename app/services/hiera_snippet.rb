@@ -17,21 +17,26 @@ class HieraSnippet
     end.join(", ").gsub(/, (serialNumber|postalCode|emailAddress)=/, '/\1=')
   end
 
+  def self.reference(record, certificate)
+    return { "lookup" => record.certid } if record.source == "consul"
+
+    relative = record.source_id.rpartition("#").first
+    tag_path = relative.sub(/\.pem\z/i, ".tag")
+    tag = if LegacyStore.root(area: record.area).join(tag_path).exist?
+            LegacyStore.read(LegacyStore.safe_path(
+              tag_path, area: record.area
+            )).force_encoding("UTF-8").scrub
+          else
+            ""
+          end
+    { "issuer" => legacy_dn(certificate.issuer), "subject" => legacy_dn(certificate.subject) + tag }
+  end
+
   def self.for(record, certificate)
-    if record.source == "filesystem"
-      relative = record.source_id.rpartition("#").first
-      tag_path = relative.sub(/\.pem\z/i, ".tag")
-      tag = if LegacyStore.root(area: record.area).join(tag_path).exist?
-              LegacyStore.read(LegacyStore.safe_path(
-                tag_path, area: record.area
-              )).force_encoding("UTF-8").scrub
-            else
-              ""
-            end
-      { "issuer" => legacy_dn(certificate.issuer), "subject" => legacy_dn(certificate.subject) + tag }.to_yaml
-    else
-      { "cci::certificates" => { record.certid => { "area" => record.area, "certid" => record.certid,
-                                                    "path" => "/etc/ssl/certs/#{record.certid}.pem" } } }.to_yaml
-    end
+    values = reference(record, certificate)
+    return values.to_yaml if record.source == "filesystem"
+
+    { "cci::certificates" => { record.certid => values.merge("area" => record.area,
+      "path" => "/etc/ssl/certs/#{record.certid}.pem") } }.to_yaml
   end
 end

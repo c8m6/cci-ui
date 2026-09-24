@@ -11,6 +11,9 @@ class Identity
 
   def areas = AreaConfiguration.ids.select { |area| reader?(area) }
   def audit_areas = AreaConfiguration.ids.select { |area| roles.include?("#{area}_auditor") }
+  def csr?(area) = roles.include?("#{area}_csr")
+  def csr_areas = AreaConfiguration.ids.select { |area| csr?(area) }
+  def any_csr? = csr_areas.any?
   def auditor? = audit_areas.any?
   def reader?(area) = roles.include?("#{area}_reader") || writer?(area) || key_exporter?(area)
   def writer?(area) = roles.include?("#{area}_writer")

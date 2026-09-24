@@ -3,6 +3,8 @@
 # Reloads source bytes and verifies identity against the indexed certificate.
 class CertificateMaterial
   def self.load(record, private_key: false, password: "")
+    record.require_retained!
+
     if record.source == "consul"
       base = ConsulStore.prefix(record.area)
       paths = ["#{base}/certs/#{record.source_id}"]

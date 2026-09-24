@@ -34,6 +34,7 @@ services:
     environment:
       RAILS_ENV: development
       AUTH_MODE: local
+      CCI_CA_INVENTORY_ENABLED: "true"
       DATABASE_URL: postgresql://screenshots:screenshots@db/screenshots
       CONSUL_URL: http://consul:8500
       CONSUL_PREFIX: cci-screenshots/v1

@@ -13,7 +13,7 @@ class PuppetdbInventory
     column = configuration.fingerprint_column
     # Older retained entries may have no SHA-1 digest until their source is
     # readable again. Keep their previous observations instead of reporting 0.
-    records = Certificate.where(area: AreaConfiguration.ids).where.not(column => nil)
+    records = Certificate.retained.where(area: AreaConfiguration.ids).where.not(column => nil)
     # Validate the entire response before replacing any cached associations.
     # An empty successful result means no hosts in the configured query scope.
     Certificate.transaction do
@@ -25,7 +25,7 @@ class PuppetdbInventory
       end
     end
   rescue PuppetdbConnection::Error => e
-    Certificate.where(area: AreaConfiguration.ids).update_all(puppetdb_error_at: Time.current)
+    Certificate.retained.where(area: AreaConfiguration.ids).update_all(puppetdb_error_at: Time.current)
     Rails.logger.warn("PuppetDB host synchronisation failed: #{e.message}")
     raise
   end

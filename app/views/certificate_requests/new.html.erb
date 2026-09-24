@@ -1,0 +1,24 @@
+<% content_for :title, t("csr.title") %>
+<%= link_to t("csr.back"), certificate_requests_path, class: "back-link" %>
+<section class="panel detail-panel">
+  <h1><%= t("csr.title") %></h1>
+  <p><%= t("csr.form_hint") %></p>
+  <%= form_with url: certificate_requests_path, scope: :csr, class: "csr-form" do |form| %>
+    <div class="csr-fields">
+      <label><%= t("ui.area") %><%= form.select :area, current_identity.csr_areas.map { |area| [area_label(area), area] } %></label>
+      <label><%= t("ui.certid") %><%= form.text_field :certid, required: true, maxlength: 120, pattern: "[a-zA-Z0-9_.-]+" %></label>
+      <label><%= t("csr.common_name") %><%= form.text_field :common_name, required: true, maxlength: 64 %></label>
+      <% %w[country state locality organization organizational_unit email].each do |field| %>
+        <label><%= t("csr.fields.#{field}") %><%= form.text_field field, value: @defaults[field], maxlength: field == "country" ? 2 : 200 %></label>
+      <% end %>
+      <label><%= t("csr.fields.key_algorithm") %><%= form.select :key_algorithm, %w[RSA EC], selected: @defaults["key_algorithm"] %></label>
+      <label><%= t("csr.fields.key_size") %><%= form.select :key_size, [2048, 3072, 4096, 256, 384, 521], selected: @defaults["key_size"] %></label>
+      <label><%= t("csr.fields.digest") %><%= form.select :digest, %w[SHA256 SHA384 SHA512], selected: @defaults["digest"] %></label>
+    </div>
+    <label><%= t("ui.sans") %><%= form.text_area :sans, rows: 4, placeholder: "DNS:service.example.test
+IP:192.0.2.10" %></label>
+    <p class="muted"><%= t("csr.sans_hint") %></p>
+    <label><%= t("csr.fields.comment") %><%= form.text_area :comment, rows: 3, maxlength: 2000 %></label>
+    <%= form.submit t("csr.generate"), class: "button primary" %>
+  <% end %>
+</section>

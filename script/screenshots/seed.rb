@@ -27,10 +27,13 @@ end
 
 actor = "demo.operator@example.test"
 root, root_key = issue("Example Demo CA", serial: 1, days: 730, ca: true)
+issuing, issuing_key = issue("Example Issuing CA", serial: 101, days: 365,
+  issuer: root, issuer_key: root_key, ca: true)
 legacy, = issue("monitor.example.test", serial: 2, days: 95, issuer: root, issuer_key: root_key)
 FileUtils.mkdir_p("/tmp/cci-screenshot-legacy")
 legacy_root = LegacyStore.root(area: "zone_a")
 File.write(legacy_root.join("demo-ca.pem"), root.to_pem)
+File.write(legacy_root.join("demo-issuing-ca.pem"), issuing.to_pem)
 File.write(legacy_root.join("monitor.pem"), legacy.to_pem)
 
 AreaConfiguration.ids.each do |area|
@@ -45,7 +48,8 @@ issued = {}
   ["staging.example.test", "zone_b", "portal.staging", 90, "Staging"],
   ["retired.example.test", "zone_b", "retired.service", 60, "Retired"]
 ].each_with_index do |(name, area, certid, days, tag), index|
-  cert, key = issue(name, serial: 10 + index, days: days, issuer: root, issuer_key: root_key)
+  parent, parent_key = certid == "portal.production" ? [issuing, issuing_key] : [root, root_key]
+  cert, key = issue(name, serial: 10 + index, days: days, issuer: parent, issuer_key: parent_key)
   id = ConsulStore.save(area: area, cert: cert, key: key, tags: [tag],
     certid: certid, actor: actor, client: "cci-ui")
   issued[certid] = [cert, id, area]
@@ -90,3 +94,18 @@ connection.define_singleton_method(:inventory) { |_query| rows }
 PuppetdbInventory.refresh(connection: connection)
 abort "Demo host mapping failed" unless portal.reload.puppetdb_hosts.size == 3
 puts "Synthetic screenshot inventory ready: #{Certificate.count} certificates, #{rows.size} hosts."
+
+# Add a small synthetic hierarchy specifically for the CA documentation page.
+nested, = issue("Example Service CA", serial: 102, days: 18,
+  issuer: issuing, issuer_key: issuing_key, ca: true)
+retired_root, retired_key = issue("Example Retired Root CA", serial: 103, days: -10, ca: true)
+retired_issuer, = issue("Example Retired Issuing CA", serial: 104, days: -5,
+  issuer: retired_root, issuer_key: retired_key, ca: true)
+future, future_key = issue("Example Future Root CA", serial: 105, days: 730, ca: true)
+future.not_before = 10.days.from_now
+future.sign(future_key, OpenSSL::Digest.new("SHA256"))
+[nested, retired_root, retired_issuer, future].each_with_index do |certificate, index|
+  File.write(legacy_root.join("example-ca-#{index}.pem"), certificate.to_pem)
+end
+CatalogIndexer.new.filesystem
+CaInventoryRefresh.run

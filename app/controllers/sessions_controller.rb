@@ -6,7 +6,8 @@ class SessionsController < ApplicationController
   def self.local_identities
     groups = {
       "reader" => ["Reader", %w[reader]], "writer" => ["Writer", %w[writer]],
-      "exporter" => ["Key Exporter", %w[key_exporter]], "auditor" => ["Auditor", %w[auditor]]
+      "exporter" => ["Key Exporter", %w[key_exporter]], "auditor" => ["Auditor", %w[auditor]],
+      "csr" => ["CSR", %w[csr]]
     }
     identities = AreaConfiguration.ids.each_with_object({}) do |area, result|
       groups.each do |suffix, (label, roles)|
@@ -65,6 +66,8 @@ class SessionsController < ApplicationController
     session[:authenticated_at] = Time.current.to_i
     session[:import_owner] = SecureRandom.hex(24)
     identity = Identity.new(name: name, roles: roles)
+    return redirect_to certificate_requests_path, status: :see_other if identity.areas.empty? && identity.any_csr?
+
     redirect_to(identity.areas.empty? && identity.auditor? ? audit_events_path : root_path, status: :see_other)
   end
 end

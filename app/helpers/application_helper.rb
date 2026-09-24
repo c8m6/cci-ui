@@ -2,6 +2,13 @@
 
 # Formats catalogue labels and navigation while keeping literal audit data intact.
 module ApplicationHelper
+  def ca_validity_badge(entry)
+    return unless entry["not_before"] && entry["not_after"]
+
+    certificate = Certificate.new(not_before: entry.fetch("not_before"), not_after: entry.fetch("not_after"))
+    tag.span(certificate.status, class: "badge #{certificate.status_class}")
+  end
+
   def area_label(area) = AreaConfiguration.label(area)
   def filter_params = params.permit(:q, :area, :source, :status, :rollout_status, :key, :sort, :history, :archived).to_h
   def date_label(time) = time ? l(time.to_date) : "–"

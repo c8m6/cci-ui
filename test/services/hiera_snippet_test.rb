@@ -3,6 +3,19 @@
 require "test_helper"
 
 class HieraSnippetTest < ActiveSupport::TestCase
+  test "Consul Hiera uses the unqualified CertID as lookup in both exports" do
+    cert, = issue(ca: true)
+    record = store(cert, area: "zone_b", certid: "root-ca")
+    assert_equal({ "lookup" => "root-ca" }, HieraSnippet.reference(record, cert))
+    values = YAML.safe_load(HieraSnippet.for(record, cert)).fetch("cci::certificates").fetch("root-ca")
+    assert_equal "root-ca", values.fetch("lookup")
+    assert_equal "zone_b", values.fetch("area")
+    assert_equal "/etc/ssl/certs/root-ca.pem", values.fetch("path")
+    assert_not values.key?("certid")
+    assert_not values.key?("issuer")
+    assert_not values.key?("subject")
+  end
+
   test "binary UTF8 name values retain their byte escapes" do
     name = OpenSSL::X509::Name.new([["CN", "Müller 東京", OpenSSL::ASN1::UTF8STRING]])
     value = name.to_a.first[1]

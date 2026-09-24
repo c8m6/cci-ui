@@ -14,7 +14,7 @@ flowchart LR
   Rails -->|OIDC| Keycloak
   Rails -->|Search, previews, audit| PG[(PostgreSQL)]
   Rails -->|KV / transactions| Consul[(Consul)]
-  Rails -->|Read only| Legacy[Legacy files / NFS]
+  Rails -->|Read and confirmed rename| Legacy[Legacy files / NFS]
   Indexer[Ruby indexer] -->|Read only| Legacy
   Indexer -->|Read KV| Consul
   Indexer -->|Metadata| PG
@@ -31,8 +31,8 @@ separate Ruby process using the same container image. PostgreSQL provides the
 shared search index and relational management database. Consul is the source of
 truth for new certificates and keys. The file system remains the source of truth
 for legacy material; no material migration takes place. Only Consul certificates
-have mutable Puppet status and archive metadata. Filesystem entries remain
-read-only in the PostgreSQL catalog.
+have mutable Puppet status and archive metadata. Filesystem deletion renames files and retains PostgreSQL `deleted_at` tombstones.
+See [filesystem deletion and failure handling](legacy-deletion.md).
 
 Puppet uses the Consul HTTP API directly. Rails, Keycloak and PostgreSQL are not
 in the runtime path of a Puppet compile. Consul must remain available for these
@@ -43,6 +43,8 @@ requests. Existing NFS access is unchanged.
 | Table | Contents and responsibility |
 | --- | --- |
 | `certificates` | Area, source, source reference, originating `client`, `created_by` actor, certid, SHA-256 identity, optional SHA-1 digest, subject, issuer, SANs, tags, validity, key availability, active version, `rollout_status`, `archived`, cached PuppetDB hosts/query timestamps and search text |
+| `certificate_requests` | CSR identity, public request fields, encrypted private key and revoke password |
+| `csr_certificates` | Issued certificate history, issuer material, verification state and durable publication intent |
 | `audit_events` | Actor, action, area, event time in `occurred_at`, references and persistent certificate metadata/export options in `details` and mutation outcome |
 | `import_drafts` | Session owner, random preview token, expiry after 15 minutes, parsed import data with private keys already encrypted, destination certid indexes and previous version IDs |
 
@@ -113,7 +115,7 @@ Compose templates forward the maps, so adding an area needs no configuration
 mount or service-definition change. See [environment configuration](environment.md).
 
 Roles are generated from each ID and the suffixes `reader`, `writer`,
-`key_exporter` and `auditor`. UI labels and local test identities use the
+`key_exporter`, `auditor` and independent `csr`. UI labels and local test identities use the
 configured display names. Unknown roles grant no access. Existing IDs must not
 be renamed or reused: they form part of Consul paths, audit records, roles and
 the authenticated encryption context. Display names can be changed independently.
@@ -135,6 +137,8 @@ exports are password-protected.
 | Reader | Yes | No | No | No |
 | Writer | Yes | Yes | Yes | No |
 | Key Exporter | Yes | No | Yes | Yes |
+| CSR | CSR workflow only | Matching CSR certificate publication only | CSR download only | No |
+| Auditor | Audit logs only | No | No | No |
 
 Version activation, status editing and archiving apply only to Consul
 certificates. Auditor is an independent role for reading audit logs, without
@@ -218,7 +222,8 @@ between Consul and PostgreSQL. The index is never used as the material source
 for certificate or key exports. Source reference, area and fingerprint are
 checked again when loading.
 
-Legacy files are accessed through the read-only root configured for their area. Symlinks outside
+Legacy files are accessed through the root configured for their area. The web
+service needs write access for confirmed deletion, while the indexer stays read-only. Symlinks outside
 that directory are rejected. Multiple certificates in one PEM file receive
 separate search records using the file path and block index. A certificate may
 therefore appear more than once. `CCI_LEGACY_PATHS` determines directory-to-area
@@ -280,3 +285,23 @@ produce an error rather than being silently ignored.
 Tests use synthetic data. The production Keycloak realm, Consul ACLs and existing
 Puppet NFS lookup have not been tested against your infrastructure because its
 configuration has not been supplied.
+
+## CSR requests and issued certificates
+
+The independent `<area>_csr` role controls all `/certificate_requests` routes,
+including request creation, lists, confirmed password disclosure and publication.
+CSR-only users have no general catalog read/write or private-key export rights.
+
+`certificate_requests` retains PKCS#10 requests, public subject fields and
+AES-256-GCM encrypted private keys and revoke passwords. `csr_certificates`
+retains issued-certificate history, verification status and durable CAS intents.
+Neither table can be reconstructed by indexing Consul. Both belong in database
+backups. The existing external area keys protect secrets with separate
+area/request/purpose authenticated contexts.
+
+CSR endpoints skip the global dependency gate so an existing authenticated
+session can retain requests during Consul outages. Publication still requires
+signature verification and a successful Consul transaction. Only the newest
+submission can publish. Exact persisted transaction bytes reconcile lost replies
+without creating another version. CSR audit events use the existing area-scoped
+audit store. See [CSR validation, API, retry and rotation contracts](csr.md).

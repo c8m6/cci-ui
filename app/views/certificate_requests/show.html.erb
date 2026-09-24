@@ -1,0 +1,59 @@
+<% content_for :title, "CSR ##{@csr.id}" %>
+<%= link_to t("csr.back"), certificate_requests_path, class: "back-link" %>
+<div class="page-heading"><div><h1>CSR #<%= @csr.id %> · <%= @csr.common_name %></h1><p><%= area_label(@csr.area) %> · <%= @csr.certid %></p></div></div>
+<% if @consul_unavailable %><p class="flash flash-error" role="status"><%= t("csr.consul_unavailable") %></p><% end %>
+<section class="panel detail-panel">
+  <h2><%= t("ui.summary") %></h2>
+  <dl>
+    <dt><%= t("csr.status") %></dt><dd><%= @certificate ? t("csr.states.#{@certificate.state}") : t("csr.states.created") %></dd>
+    <dt><%= t("csr.created_by") %></dt><dd><%= @csr.created_by %></dd>
+    <dt><%= t("csr.created_at") %></dt><dd><%= l(@csr.created_at, format: :long) %></dd>
+    <dt><%= t("ui.sans") %></dt><dd><%= @csr.sans.join(", ") %></dd>
+    <dt><%= t("ui.algorithm") %></dt><dd><%= @csr.key_algorithm %> · <%= @csr.key_size %> · <%= @csr.digest %></dd>
+    <% @csr.subject_fields.each do |field, value| %><% next if value.blank? || field == "common_name" %><dt><%= t("csr.fields.#{field}") %></dt><dd><%= value %></dd><% end %>
+    <dt><%= t("csr.fields.comment") %></dt><dd><%= @csr.comment.presence || "–" %></dd>
+  </dl>
+  <%= link_to t("csr.download"), download_certificate_request_path(@csr), class: "button secondary", data: { turbo: false } %>
+</section>
+<section class="panel detail-panel">
+  <h2><%= t("csr.revoke_password") %></h2>
+  <p><%= t("csr.reveal_hint") %></p>
+  <%= form_with url: reveal_certificate_request_path(@csr), data: { turbo: false } do |form| %>
+    <label class="check-label"><%= form.check_box :confirm_reveal, { required: true }, "1", "0" %> <%= t("csr.confirm_reveal") %></label>
+    <p><%= form.submit t("csr.reveal"), class: "button secondary" %></p>
+  <% end %>
+</section>
+<% if @certificate %>
+  <section class="panel detail-panel">
+    <h2><%= t("csr.issued_certificate") %></h2>
+    <dl><dt><%= t("ui.subject") %></dt><dd><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd><%= @certificate.issuer %></dd><dt><%= t("ui.validity") %></dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %> <%= ca_validity_badge(@certificate.attributes) %></dd><dt><%= t("ui.fingerprint") %></dt><dd class="mono"><%= @certificate.fingerprint %></dd></dl>
+    <% if @certificate.error_code %><p class="flash flash-error"><%= t("csr.publication_errors.#{@certificate.error_code}") %></p><% end %>
+    <% if @certificate.state == "published" %>
+      <p class="badge success"><%= t("csr.published_version", version: @certificate.consul_version) %></p>
+    <% else %>
+      <h3><%= t("csr.add_issuers") %></h3>
+      <%= form_with url: issuers_certificate_request_path(@csr), multipart: true, data: { turbo: false } do |form| %>
+        <%= form.hidden_field :certificate_id, value: @certificate.id %>
+        <%= render "upload_fields", form: form %>
+        <p><%= form.submit t("csr.verify"), class: "button secondary" %></p>
+      <% end %>
+      <h3><%= t("csr.publish") %></h3>
+      <p><%= t("csr.publish_hint") %></p>
+      <%= form_with url: publish_certificate_request_path(@csr), data: { turbo: false } do |form| %>
+        <%= form.hidden_field :certificate_id, value: @certificate.id %>
+        <%= form.hidden_field :certid_index, value: @snapshot&.fetch(:index) || 0 %>
+        <% if @snapshot %><label class="check-label"><%= form.check_box :confirm_overwrite, { required: true }, "1", "0" %> <%= t("csr.confirm_overwrite") %></label><% end %>
+        <p><%= form.submit t("csr.publish"), class: "button primary" %></p>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>
+<section class="panel detail-panel">
+  <h2><%= t(@certificate ? "csr.replace" : "csr.upload") %></h2>
+  <p><%= t("csr.upload_hint") %></p>
+  <%= form_with url: upload_certificate_request_path(@csr), multipart: true, data: { turbo: false } do |form| %>
+    <%= render "upload_fields", form: form %>
+    <% if @certificate %><label class="check-label"><%= form.check_box :confirm_replace, { required: true }, "1", "0" %> <%= t("csr.confirm_replace") %></label><% end %>
+    <p><%= form.submit t("csr.upload"), class: "button primary" %></p>
+  <% end %>
+</section>
