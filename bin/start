@@ -2,5 +2,4 @@
 # frozen_string_literal: true
 
 require_relative "../config/boot"
-abort "Database preparation failed" unless system("ruby", "bin/rails", "db:prepare")
 exec "bundle", "exec", "puma", "-C", "config/puma.rb"

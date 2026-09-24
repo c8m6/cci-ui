@@ -1,9 +1,18 @@
 # frozen_string_literal: true
 
-# Exposes dependency readiness without requiring a signed-in session.
+# Exposes readiness and dependency diagnostics without requiring a signed-in session.
 class HealthController < ActionController::Base
   def show
-    failures = ApplicationHealth.check
+    report(ApplicationHealth.check)
+  end
+
+  def ready
+    report(ApplicationReadiness.check)
+  end
+
+  private
+
+  def report(failures)
     response.headers["Cache-Control"] = "no-store"
     body = { status: failures.empty? ? "ok" : "unavailable" }
     if Rails.application.config.x.show_error_details

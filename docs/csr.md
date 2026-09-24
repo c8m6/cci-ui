@@ -116,8 +116,9 @@ without secret values or raw transport errors. An interrupted mutation audit can
 remain `pending` or `unknown` until a later separately audited retry resolves it.
 
 Already authenticated sessions may use CSR pages while Consul is down, including
-creation and revoke-password access. Login and other pages retain their existing
-dependency policy. PostgreSQL remains required.
+creation and revoke-password access. Other pages likewise check dependencies
+only when needed by the operation. PostgreSQL remains required for CSR data.
+New OIDC logins still require Keycloak.
 
 ## HTTP interface
 

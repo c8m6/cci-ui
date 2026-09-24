@@ -1,6 +1,8 @@
 default: &default
   adapter: postgresql
   encoding: unicode
+  connect_timeout: 3
+  checkout_timeout: 3
   pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
   url: <%= ENV.fetch("DATABASE_URL", "postgresql://certui:certui@127.0.0.1:55432/certui_development") %>
 development:

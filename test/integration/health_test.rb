@@ -10,7 +10,7 @@ class HealthTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Control"], "no-store"
   end
 
-  test "dependency failures block pages and hide details unless enabled" do
+  test "dependency diagnostics do not block unrelated pages" do
     original = ApplicationHealth.method(:check)
     original_details = Rails.application.config.x.show_error_details
     ApplicationHealth.define_singleton_method(:check) do
@@ -22,8 +22,10 @@ class HealthTest < ActionDispatch::IntegrationTest
       assert_response :service_unavailable
       assert_equal details, response.parsed_body.key?("failures")
       get login_path
-      assert_response :service_unavailable
-      assert_select ".error-details", count: details ? 1 : 0
+      assert_response :ok
+      get "/ready"
+      assert_response :ok
+      assert_select ".error-details", count: 0
       assert_select ".error-details script", count: 0
       assert_not_includes response.body, "diagnostic" unless details
       head "/health"
@@ -42,7 +44,9 @@ class HealthTest < ActionDispatch::IntegrationTest
     configure_legacy_paths("zone_a" => File.join(TEST_LEGACY_ROOT, "missing-health-directory"))
     assert ApplicationHealth.check.key?("filesystem:zone_a")
     get login_path
-    assert_response :service_unavailable
+    assert_response :ok
+    get "/ready"
+    assert_response :ok
   ensure
     AreaConfiguration.instance_variable_set(:@configuration, original)
   end
@@ -59,6 +63,10 @@ class HealthTest < ActionDispatch::IntegrationTest
     failures = ApplicationHealth.check
     assert failures.key?("puppetdb")
     assert failures.key?("oidc")
+    get "/ready"
+    assert_response :ok
+    get login_path
+    assert_response :ok
   ensure
     %w[PUPPETDB_ENABLED PUPPETDB_URL AUTH_MODE OIDC_ISSUER].each do |key|
       previous.key?(key) ? ENV[key] = previous[key] : ENV.delete(key)

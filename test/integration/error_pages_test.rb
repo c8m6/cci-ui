@@ -70,7 +70,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     original = Certificate.method(:visible_to)
     Certificate.define_singleton_method(:visible_to) { |_identity| raise ActiveRecord::ConnectionNotEstablished, "database offline" }
     get root_path, headers: { "Accept-Language" => "de-DE" }
-    assert_error_page :internal_server_error, "de", "Ein interner Fehler ist aufgetreten"
+    assert_error_page :service_unavailable, "de", "Dienst nicht verfügbar"
     assert_not_includes response.body, "database offline"
     assert_includes @log_output.string, "database offline"
   ensure

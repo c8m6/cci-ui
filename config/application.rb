@@ -18,6 +18,9 @@ module Certui
     config.action_dispatch.log_rescued_responses = true
     config.log_tags = [:request_id]
     config.action_dispatch.rescue_responses["ConsulConnection::Error"] = :service_unavailable
+    %w[ActiveRecord::ConnectionNotEstablished ActiveRecord::ConnectionTimeoutError ActiveRecord::NoDatabaseError].each do |error|
+      config.action_dispatch.rescue_responses[error] = :service_unavailable
+    end
     config.x.show_error_details = %w[true 1].include?(ENV.fetch("CCI_SHOW_ERROR_DETAILS", "false").downcase)
     config.exceptions_app = lambda do |env|
       # Invalid JSON/query parameters must not fail again in the error renderer.
