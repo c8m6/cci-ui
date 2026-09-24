@@ -56,8 +56,9 @@ services:
       RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
       PORT: ${PORT:-3000}
       INDEX_INTERVAL: ${INDEX_INTERVAL:-60}
+      CCI_CA_INVENTORY_ENABLED: ${CCI_CA_INVENTORY_ENABLED:-false}
     volumes:
-      - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
+      - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:rw
     depends_on:
       db:
         condition: service_healthy

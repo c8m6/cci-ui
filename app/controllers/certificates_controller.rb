@@ -50,6 +50,25 @@ class CertificatesController < ApplicationController
     @certid_snapshot = ConsulStore.status_snapshot(@certificate)
   end
 
+  def delete_legacy
+    @certificate = Certificate.visible_to(current_identity).find(params[:id])
+    require_writer!(@certificate.area)
+    @deletion = LegacyDeletion.new(@certificate).preview
+  end
+
+  def destroy_legacy
+    @certificate = Certificate.visible_to(current_identity).find(params[:id])
+    require_writer!(@certificate.area)
+    unless params[:confirm_delete] == "1"
+      @deletion = LegacyDeletion.new(@certificate).preview
+      flash.now[:alert] = I18n.t("errors.app.deletion_confirmation")
+      return render :delete_legacy, status: :unprocessable_content
+    end
+
+    LegacyDeletion.new(@certificate).call(token: params[:deletion_token], actor: current_identity.name)
+    redirect_to root_path, notice: I18n.t("notices.legacy_deleted"), status: :see_other
+  end
+
   def export
     ids = Array(params[:ids]).map(&:to_s).uniq
     raise Certificates::Error, I18n.t("errors.app.export_count") unless (1..100).cover?(ids.size)

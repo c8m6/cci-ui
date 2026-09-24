@@ -5,8 +5,8 @@ an initial deployment. Consul's `/v1/` HTTP API path is unrelated to the storage
 prefix.
 
 Consul holds certificate material and the current selection. PostgreSQL holds
-UI audit history and the searchable catalog. Filesystem certificates remain
-read-only and have no Consul records.
+UI audit history and the searchable catalog. Filesystem certificates have no Consul records. Their explicit deletion uses
+file renames and PostgreSQL tombstones. See [filesystem deletion](legacy-deletion.md).
 
 ## KV structure
 

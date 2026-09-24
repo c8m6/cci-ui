@@ -5,9 +5,14 @@ class Certificate < ApplicationRecord
   validates :area, inclusion: { in: ->(_) { AreaConfiguration.ids } }
   validates :source, inclusion: { in: %w[filesystem consul] }
   validates :rollout_status, inclusion: { in: ConsulStore::ROLLOUT_STATUSES }
-  scope :visible_to, ->(identity) { where(area: identity.areas, source: %w[filesystem consul]) }
+  scope :retained, -> { where(deleted_at: nil) }
+  scope :visible_to, ->(identity) { retained.where(area: identity.areas, source: %w[filesystem consul]) }
 
   def puppetdb_refresh_failed? = puppetdb_error_at.present?
+
+  def require_retained!
+    raise Certificates::Error, I18n.t("errors.app.deletion_changed") if deleted_at
+  end
 
   def status
     I18n.t("ui.#{status_key}")

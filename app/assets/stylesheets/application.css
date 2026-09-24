@@ -510,12 +510,6 @@ display:block}
 display:inline-block;
 margin-bottom:25px;
 font-size:12px}
-.chain-list{
-padding-left:22px;
-font-size:12px}
-.chain-list li{
-padding:10px 0;
-overflow-wrap:anywhere}
 .detail-export{
 display:flex;
 flex-direction:column;
@@ -927,4 +921,40 @@ top:0}
   .topbar { height: auto; min-height: 58px; padding: 10px 18px; gap: 12px; }
   .topbar > span { flex-shrink: 0; }
   .account { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+}
+
+main.full-width { max-width: none; }
+.ca-tabs { display: flex; gap: 8px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 24px 0; }
+.ca-tabs[hidden] { display: none; }
+.ca-tabs [role="tab"] { flex: 0 0 auto; padding: 12px 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.ca-tabs [role="tab"][aria-selected="true"] { border-bottom-color: var(--teal); color: var(--teal); font-weight: 600; }
+.ca-tabs [role="tab"]:focus-visible { outline: 2px solid var(--teal); outline-offset: -3px; }
+.ca-panel-heading { margin: 20px 0; }
+.ca-output { width: 100%; min-width: 0; overflow-x: auto; }
+.ca-output table { width: max-content; min-width: 100%; table-layout: auto; }
+.ca-output th, .ca-output td { white-space: nowrap; max-width: none; }
+.ca-output th:first-child, .ca-output td:first-child { width: auto; }
+
+.ca-tree-subject { display: inline-flex; align-items: center; white-space: nowrap; }
+.ca-tree-indent { flex: 0 0 24px; width: 24px; align-self: stretch; border-left: 1px solid var(--line); }
+.ca-tree-branch { color: var(--muted); margin-right: 8px; }
+.ca-hierarchy-group .ca-group-root td { background: var(--subtle); border-top: 2px solid var(--line); }
+.ca-group-root .ca-subject-text a { font-weight: 600; }
+.ca-unresolved-heading th { padding-top: 24px; font-size: 13px; }
+
+.detail-grid-summary-only { grid-template-columns: minmax(0, 1fr); }
+.certificate-chain { margin-bottom: 22px; }
+
+.ca-tree-prefix { display: inline-flex; }
+.certificate-chain .ca-output { overflow: visible; }
+.certificate-chain table { width: 100%; min-width: 0; table-layout: fixed; }
+.certificate-chain th:nth-child(2) { width: 150px; }
+.certificate-chain th:nth-child(3) { width: 130px; }
+.certificate-chain .ca-tree-subject { display: flex; width: 100%; min-width: 0; }
+.certificate-chain .ca-tree-prefix { flex: 0 0 auto; max-width: 35%; overflow: hidden; }
+.certificate-chain .ca-subject-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) {
+  .certificate-chain th:nth-child(2), .certificate-chain td:nth-child(2) { display: none; }
+  .certificate-chain th:nth-child(3) { width: 115px; }
+  .certificate-chain th, .certificate-chain td { padding-left: 6px; padding-right: 6px; }
 }

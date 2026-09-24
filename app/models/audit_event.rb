@@ -11,7 +11,7 @@ class AuditEvent < ApplicationRecord
   scope :visible_to, ->(identity) { where(area: identity.audit_areas) }
   before_validation { self.occurred_at ||= Time.current }
 
-  # Commit the intent before contacting Consul. A timeout or process crash must
+  # Commit the intent before changing source material. A timeout or process crash must
   # never erase who requested a change or pretend its result is known.
   def self.record_mutation!(action:, area:, actor:, references:, details:)
     event = create!(action: action, area: area, actor: actor, references: references,

@@ -18,6 +18,7 @@
       <nav aria-label="<%= t('ui.main_navigation') %>">
         <% if current_identity.auditor? %><%= link_to audit_events_path, class: "nav-item #{controller_name == 'audit_events' ? 'active' : ''}" do %><%= icon("shield") %> <%= t("ui.audit_logs") %><% end %><% end %>
         <%= link_to root_path, class: "nav-item #{controller_name == 'certificates' ? 'active' : ''}" do %><%= icon("grid") %> <%= t("ui.overview") %><% end %>
+        <% if CaInventory.enabled? %><%= link_to ca_inventories_path, class: "nav-item #{controller_name == 'ca_inventories' ? 'active' : ''}" do %><%= icon("shield") %> <%= t("ca_inventory.title") %><% end %><% end %>
         <% if current_identity.any_writer? %><%= link_to new_import_path, class: "nav-item #{controller_name == 'imports' ? 'active' : ''}" do %><%= icon("upload") %> <%= t("ui.import_certificates") %><% end %><% end %>
       </nav>
       <div class="sidebar-caption section-caption"><%= t("ui.my_areas") %></div>
@@ -28,7 +29,7 @@
     <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
+    <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "ca_inventories" => t("ca_inventory.title"), "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
       <% if ENV["AUTH_MODE"] == "local" %><span class="badge neutral"><%= t("ui.local_mode") %></span><% end %>
       <% if current_identity %><span class="account-name"><%= current_identity.name %></span><%= button_to t("ui.logout"), logout_path, method: :delete, class: "text-button" %><% end %>
       <details class="language-menu">
@@ -44,7 +45,7 @@
         </div>
       </details>
     </div></header>
-    <main id="main" tabindex="-1">
+    <main id="main" class="<%= content_for(:main_class) %>" tabindex="-1">
       <% flash.each do |type, message| %><div role="status" class="flash <%= type == 'alert' ? 'flash-error' : '' %>"><%= message %></div><% end %>
       <%= yield %>
     </main>

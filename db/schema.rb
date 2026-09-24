@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_21_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -27,6 +27,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_000100) do
     t.index ["area", "occurred_at", "id"], name: "index_audit_events_on_area_and_occurred_at_and_id"
   end
 
+  create_table "ca_inventories", force: :cascade do |t|
+    t.string "area", null: false
+    t.jsonb "authorities", default: [], null: false
+    t.datetime "checked_at"
+    t.datetime "created_at", null: false
+    t.datetime "error_at"
+    t.jsonb "issues", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.index ["area"], name: "index_ca_inventories_on_area", unique: true
+  end
+
   create_table "certificates", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "algorithm"
@@ -38,6 +49,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_000100) do
     t.string "common_name", null: false
     t.datetime "created_at", null: false
     t.string "created_by"
+    t.datetime "deleted_at"
     t.string "fingerprint", null: false
     t.boolean "has_key", default: false, null: false
     t.datetime "imported_at"
@@ -62,6 +74,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_000100) do
     t.index ["area", "archived", "active"], name: "index_certificates_on_area_and_archived_and_active"
     t.index ["area", "rollout_status"], name: "index_certificates_on_area_and_rollout_status"
     t.index ["area", "source", "source_id", "fingerprint"], name: "index_certificates_on_source_identity_and_fingerprint", unique: true
+    t.index ["deleted_at"], name: "index_certificates_on_deleted_at"
     t.index ["fingerprint"], name: "index_certificates_on_fingerprint"
     t.index ["search_text"], name: "index_certificates_on_search_text", opclass: :gin_trgm_ops, using: :gin
     t.index ["sha1_fingerprint"], name: "index_certificates_on_sha1_fingerprint"

@@ -33,7 +33,8 @@ begin
   Dir.mktmpdir("cci-puppet-") do |dir|
     manifest = File.join(dir, "test.pp")
     File.write(manifest, <<~PUPPET)
-      cci::certificate { 'test':
+      cci::certificate { 'display-name':
+        lookup   => 'test',
         area     => 'zone_a',
         path     => '#{dir}/certificate.pem',
         key_path => '#{dir}/key.pem',

@@ -13,8 +13,11 @@ Rails.application.routes.draw do
   resources :certificates, only: %i[index show update] do
     post :export, on: :collection
     get :archive, on: :member
+    get :delete_legacy, on: :member
+    delete :delete_legacy, on: :member, action: :destroy_legacy
   end
   resources :imports, only: %i[new create]
   get "/imports/preview", to: "imports#preview", as: :import_preview
+  resources :ca_inventories, only: %i[index show]
   resources :audit_events, only: :index
 end

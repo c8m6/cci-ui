@@ -14,7 +14,7 @@ flowchart LR
   Rails -->|OIDC| Keycloak
   Rails -->|Search, previews, audit| PG[(PostgreSQL)]
   Rails -->|KV / transactions| Consul[(Consul)]
-  Rails -->|Read only| Legacy[Legacy files / NFS]
+  Rails -->|Read and confirmed rename| Legacy[Legacy files / NFS]
   Indexer[Ruby indexer] -->|Read only| Legacy
   Indexer -->|Read KV| Consul
   Indexer -->|Metadata| PG
@@ -31,8 +31,8 @@ separate Ruby process using the same container image. PostgreSQL provides the
 shared search index and relational management database. Consul is the source of
 truth for new certificates and keys. The file system remains the source of truth
 for legacy material; no material migration takes place. Only Consul certificates
-have mutable Puppet status and archive metadata. Filesystem entries remain
-read-only in the PostgreSQL catalog.
+have mutable Puppet status and archive metadata. Filesystem deletion renames files and retains PostgreSQL `deleted_at` tombstones.
+See [filesystem deletion and failure handling](legacy-deletion.md).
 
 Puppet uses the Consul HTTP API directly. Rails, Keycloak and PostgreSQL are not
 in the runtime path of a Puppet compile. Consul must remain available for these
@@ -218,7 +218,8 @@ between Consul and PostgreSQL. The index is never used as the material source
 for certificate or key exports. Source reference, area and fingerprint are
 checked again when loading.
 
-Legacy files are accessed through the read-only root configured for their area. Symlinks outside
+Legacy files are accessed through the root configured for their area. The web
+service needs write access for confirmed deletion, while the indexer stays read-only. Symlinks outside
 that directory are rejected. Multiple certificates in one PEM file receive
 separate search records using the file path and block index. A certificate may
 therefore appear more than once. `CCI_LEGACY_PATHS` determines directory-to-area

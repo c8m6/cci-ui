@@ -20,7 +20,8 @@ Open [http://localhost:3000](http://localhost:3000) and select a local test iden
 Keycloak is optional in explicit local mode.
 
 The development Compose defaults use **Zone A** and **Zone B**, with local
-`data/` mounted read-only as Zone A's `/legacy` inventory. Production settings
+`data/` mounted as Zone A's `/legacy` inventory, writable by the web service
+and read-only for the indexer. Production settings
 come entirely from environment variables:
 
 ```bash
@@ -56,10 +57,22 @@ Puppet certids in the light theme. Filesystem entries have no Puppet status.
 
 ### Certificate details
 
-Certificate metadata, chain, reported PuppetDB hosts, adjacent status and archive
-controls, versions and Hiera configuration in the dark theme.
+Certificate details show a full-width chain hierarchy from root CA through
+intermediates to the selected certificate, with validity badges and links.
+Metadata, reported PuppetDB hosts, status and archive controls, versions and Hiera
+configuration remain below the hierarchy. This example uses the dark theme.
 
 ![Certificate details with three synthetic PuppetDB hosts and Consul status controls in the dark theme](docs/screenshots/details.png)
+
+### CA certificates
+
+The optional CA page groups intermediates below their root CAs. Validity badges
+are independent of chain completeness. Tabs show incomplete issuer chains and
+area-specific Hiera output.
+
+![CA certificates with synthetic root and intermediate certificates and validity badges](docs/screenshots/ca-certificates.png)
+
+See [CA discovery, grouping and Hiera export](docs/ca-inventory.md).
 
 ### Audit logs
 
@@ -92,15 +105,15 @@ are rejected by DER fingerprint, regardless of certid or target area. The disk
 inventories in all configured areas are checked both before preview and before saving.
 
 Writers can set `active`, `norollout`, or `delete` in certificate details for
-Consul certificates only. Filesystem certificates remain read-only catalog
-entries without Puppet controls or archiving. The overview displays
+Consul certificates only. Filesystem certificates have no Puppet status controls or archiving. Writers
+can delete them through a separate confirmation page that renames their files
+with a `.DELETED` suffix and hides their catalog entries. The overview displays
 “Puppet-Status” and provides a matching filter independently of “Gültigkeit”.
-Status changes are audited. Consul stores certid status, while local files stay
-unchanged. Renewals preserve the certid status.
+Status changes are audited. Consul stores certid status. Renewals preserve the certid status.
 
-The UI and indexer never delete certificate entries, stored material, or status
-records. This also applies when files disappear, a mount becomes empty, or an
-inventory mapping is removed.
+The indexer retains entries when files disappear, a mount becomes empty, or an
+inventory mapping is removed. Explicit filesystem deletion retains the bytes
+and PostgreSQL tombstones. See [filesystem deletion and recovery](docs/legacy-deletion.md).
 
 Writers can choose “Archivieren” next to “Status speichern” in Consul
 certificate details. A separate confirmation page explains the scope and
@@ -134,6 +147,7 @@ and [fact formats and synchronization](docs/puppetdb.md).
 
 ## Documentation
 
+- [Filesystem deletion and recovery](docs/legacy-deletion.md)
 - [Installation and operations](docs/installation.md)
 - [Environment variables and file-free deployment](docs/environment.md)
 - [Technical architecture and data storage](docs/technik.md)
@@ -174,3 +188,10 @@ Tests generate their own certificates and use a separate PostgreSQL database
 and Consul namespace. Private keys from `data/` are not copied into test fixtures
 or Docker images. The legacy application under `quelle/`, local certificate
 files, runtime data and secrets are excluded from version control.
+
+## Optional CA inventory
+
+Set `CCI_CA_INVENTORY_ENABLED=true` to discover local CA chains on every index
+pass and show an area-scoped Hiera export under **CA certificates**. See the
+[CA inventory documentation](docs/ca-inventory.md) for validity rules, missing
+issuers and public CA handling.

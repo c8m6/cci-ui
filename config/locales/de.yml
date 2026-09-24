@@ -1,6 +1,15 @@
 ---
 de:
   ui:
+    certificate_type: "Zertifikatstyp"
+    legacy_delete: "Dateizertifikat löschen"
+    legacy_delete_question: "Dieses Dateizertifikat löschen?"
+    legacy_delete_scope:
+      one: "Diese PEM-Datei enthält ein Zertifikat. Folgende Dateien werden gelöscht:"
+      other: "Diese PEM-Datei enthält %{count} Zertifikate. Alle enthaltenen Zertifikate und folgende Dateien werden gelöscht:"
+    legacy_delete_warning: "Puppet und die alte UI finden diese Dateien anschließend nicht mehr. Abhängige Dienste können ausfallen. Vorhandene Kopien auf Zielsystemen werden durch diese Aktion nicht entfernt."
+    legacy_delete_retention: "Die Zertifikate stehen anschließend nicht mehr für Suche, Anzeige oder Export zur Verfügung. Die Löschung wird protokolliert und kann über die UI nicht rückgängig gemacht werden."
+    legacy_delete_confirmation: "Ich bestätige das Löschen dieser PEM-Datei und aller aufgeführten Begleitdateien."
     certificates: Zertifikate
     certificate: Zertifikat
     import_certificates: Zertifikate importieren
@@ -312,9 +321,13 @@ de:
       store_unavailable: Der Zertifikatsspeicher ist derzeit nicht erreichbar. Bitte später erneut versuchen.
       export_count: Bitte zwischen 1 und 100 Zertifikate auswählen.
       archived_reactivation: Archivierte Zertifikate können nicht reaktiviert werden.
+      deletion_changed: "Die Dateien wurden geändert, die Bestätigung ist abgelaufen oder das Zertifikat ist nicht mehr verfügbar. Bitte die Sicherheitsabfrage erneut öffnen."
+      deletion_confirmation: "Bitte die Auswirkungen des Löschens bestätigen."
+      deletion_collision: "Die Löschung wurde wegen eines Dateikonflikts abgebrochen. Bitte die Administration kontaktieren."
+      deletion_unsafe: "Das Löschen erfordert reguläre Dateien ohne symbolische oder harte Links und getrennte Bestandsverzeichnisse je Area."
+      deletion_failed: "Die Löschung konnte nicht abgeschlossen werden. Bitte die Administration kontaktieren und vor einem erneuten Versuch das Audit-Ergebnis prüfen."
       archive_confirmation: Bitte die Auswirkungen der Archivierung bestätigen.
-      consul_only: Puppet-Status und Archivierung sind nur für Consul-Zertifikate verfügbar. Der Dateibestand ist
-        nur lesbar.
+      consul_only: Puppet-Status und Archivierung sind nur für Consul-Zertifikate verfügbar. Dateizertifikate haben eine separate Löschfunktion.
       sso_failed: SSO-Anmeldung fehlgeschlagen. Bitte erneut versuchen.
       invalid_dates: Bitte einen gültigen Zeitraum angeben.
       overwrite_confirmation: Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden CertIDs überschreiben
@@ -334,7 +347,7 @@ de:
       certid_format: CertID darf nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich enthalten (max. 120).
       stored_archive: Ungültiger Archivstatus im Zertifikatsspeicher.
       archived_delete: Archivierte Zertifikate müssen den Puppet-Status delete behalten.
-      archive_consul_only: Nur Consul-Zertifikate können archiviert werden. Der Dateibestand ist nur lesbar.
+      archive_consul_only: Nur Consul-Zertifikate können archiviert werden. Dateizertifikate haben eine separate Löschfunktion.
       archive_changed: Der Status wurde geändert. Bitte Archivierung erneut prüfen und bestätigen.
       certid_ownership: CertID gehört nicht mehr zu diesem Zertifikat.
       unknown_area: Unbekannter Bereich.
@@ -416,6 +429,7 @@ de:
       inclusion: ist kein zulässiger Wert
       invalid: ist ungültig
   notices:
+    legacy_deleted: "Die Zertifikate und ihre zugehörigen Dateien wurden gelöscht."
     archived: Zertifikat archiviert. Der Puppet-Löschauftrag wurde gespeichert.
     status_saved: Puppet-Status gespeichert.
     version_activated: Version für Puppet aktiviert.
@@ -431,7 +445,7 @@ de:
       status_change: Puppet-Status geändert
       import: Import / neue Version
       activate: Version aktiviert
-      delete: Version gelöscht
+      delete: Zertifikat gelöscht
       export_public: Zertifikate exportiert
       export_private: Zertifikate mit privaten Schlüsseln exportiert
     archive_comment: >-
@@ -455,3 +469,24 @@ de:
       words_connector: ", "
       two_words_connector: " und "
       last_word_connector: " und "
+  ca_inventory:
+    unresolved_roots: "Ohne vollständige Root-Zuordnung"
+    level: "Ebene %{level}."
+    ca_type: "CA-Typ"
+    reason: "Hinweis"
+    title: "CA-Zertifikate"
+    description: "Root- und Intermediate-CAs aller katalogisierten Versionen, einschließlich archivierter und abgelaufener Zertifikate. Öffentliche CAs sind enthalten. Aussteller werden innerhalb jeder Area gesucht. Es werden keine Zertifikate automatisch heruntergeladen."
+    stale: "Der letzte Scan ist fehlgeschlagen. Das vorherige Ergebnis bleibt erhalten und kann veraltet sein."
+    checked: "Letzter erfolgreicher Scan: %{time}"
+    empty: "Keine CA-Zertifikate gefunden."
+    pending: "Noch kein erfolgreicher CA-Scan."
+    root: "Root-CA"
+    intermediate: "Intermediate-CA"
+    download: "Hiera-YAML herunterladen"
+    issues: "Unvollständige Ausstellerketten"
+    no_issues: "Keine Lücken in den lokalen Ausstellerketten gefunden."
+    reasons:
+      missing: "Keine CA mit passendem Aussteller und gültiger Signatur gefunden."
+      cycle: "Die Ausstellerkette enthält einen Zyklus."
+      depth: "Die Ausstellerkette überschreitet die Suchgrenze von zwölf Ausstellern."
+      inactive: "Diese historische CA-Version kann nicht über lookup exportiert werden, da die CertID eine andere Version auswählt."

@@ -23,7 +23,7 @@ these are held by the compilers.
 ## Prepared status contract
 
 CCI-UI can set `active`, `norollout`, or `delete` only for Consul certificates.
-Filesystem certificates have no mutable status and cannot be archived. This
+Filesystem certificates have no mutable Puppet status and cannot be archived. This
 release prepares only the UI and Consul storage. The supplied
 `cci::certificate` manifests do **not** implement status processing.
 They continue to manage configured files even when a stored status is
@@ -43,7 +43,10 @@ exposes the certid's status, defaulting to `active` for older entries. The statu
 also applies to explicitly pinned versions. Existing certificate and key reads
 continue to return material without acting on that status.
 
-Filesystem certificates remain read-only UI catalog entries without Consul state.
+Filesystem certificates have no Consul state. Their separate
+[deletion action](legacy-deletion.md) renames source files with `.DELETED`,
+preventing future lookup under the original names. It does not remove files
+already deployed to hosts.
 “Archivieren” sets `archived: true` and `status: delete` on a Consul certid without
 deleting material; it also applies to pinned versions and future renewals.
 See the [complete Consul schema](consul-schema.md).
@@ -88,11 +91,15 @@ are disabled for private keys.
 cci::certificates:
   portal.production:
     area: zone_a
-    certid: portal.production
+    lookup: portal.production
     path: /etc/ssl/certs/portal.pem
     key_path: /etc/ssl/private/portal.key
     include_chain: true
 ```
+
+`lookup` is the CertID, not a Consul path. The `area` selects its namespace.
+The existing `certid` parameter remains supported, and omitting both uses the
+resource title. If both are set, `lookup` takes precedence.
 
 Include class `cci` in the catalog, for example with `include cci`.
 Target directories must already exist. Owner and group default to `root`;

@@ -1,6 +1,15 @@
 ---
 en:
   ui:
+    certificate_type: "Certificate type"
+    legacy_delete: "Delete filesystem certificate"
+    legacy_delete_question: "Delete this filesystem certificate?"
+    legacy_delete_scope:
+      one: "This PEM file contains one certificate. The following files will be deleted:"
+      other: "This PEM file contains %{count} certificates. All certificates it contains and the following files will be deleted:"
+    legacy_delete_warning: "Puppet and the legacy UI will no longer find these files. Dependent services may fail. Existing copies on target hosts are not removed by this action."
+    legacy_delete_retention: "The certificates will no longer be available for search, viewing or export. Deletion is audited and cannot be undone through the UI."
+    legacy_delete_confirmation: "I confirm the deletion of this PEM file and all listed companion files."
     certificates: Certificates
     certificate: Certificate
     import_certificates: Import certificates
@@ -310,9 +319,13 @@ en:
       store_unavailable: The certificate store is currently unavailable. Please try again later.
       export_count: Please select between 1 and 100 certificates.
       archived_reactivation: Archived certificates cannot be reactivated.
+      deletion_changed: "The files changed, the confirmation expired, or the certificate is no longer available. Open the confirmation page again."
+      deletion_confirmation: "Please confirm the effects of deleting these files."
+      deletion_collision: "Deletion was cancelled because of a file conflict. Please contact your administrator."
+      deletion_unsafe: "Deletion requires regular files without symlinks or hard links and separate inventory roots for each area."
+      deletion_failed: "Deletion could not be completed. Please contact your administrator and check the audit outcome before retrying."
       archive_confirmation: Please confirm the effects of archiving.
-      consul_only: Puppet status and archiving are only available for Consul certificates. The filesystem inventory
-        is read-only.
+      consul_only: Puppet status and archiving are only available for Consul certificates. Use the separate deletion action for filesystem certificates.
       sso_failed: SSO sign-in failed. Please try again.
       invalid_dates: Please enter a valid date range.
       overwrite_confirmation: Please explicitly confirm that you want to overwrite the existing certids.
@@ -331,7 +344,7 @@ en:
       certid_format: A certid may only contain letters, digits, dots, underscores and hyphens (maximum 120 characters).
       stored_archive: Invalid archive status in the certificate store.
       archived_delete: Archived certificates must retain the Puppet status delete.
-      archive_consul_only: Only Consul certificates can be archived. The filesystem inventory is read-only.
+      archive_consul_only: Only Consul certificates can be archived. Filesystem certificates have a separate deletion action.
       archive_changed: The status has changed. Please review and confirm archiving again.
       certid_ownership: The certid no longer belongs to this certificate.
       unknown_area: Unknown area.
@@ -413,6 +426,7 @@ en:
       inclusion: is not included in the list
       invalid: is invalid
   notices:
+    legacy_deleted: "The certificates and their associated files were deleted."
     archived: Certificate archived. The Puppet deletion request has been saved.
     status_saved: Puppet status saved.
     version_activated: Version activated for Puppet.
@@ -428,7 +442,7 @@ en:
       status_change: Puppet status changed
       import: Import / new version
       activate: Version activated
-      delete: Version deleted
+      delete: Certificate deleted
       export_public: Certificates exported
       export_private: Certificates exported with private keys
     archive_comment: >-
@@ -452,3 +466,24 @@ en:
       words_connector: ", "
       two_words_connector: " and "
       last_word_connector: ", and "
+  ca_inventory:
+    unresolved_roots: "Without a complete path to a root"
+    level: "Level %{level}."
+    ca_type: "CA type"
+    reason: "Reason"
+    title: "CA certificates"
+    description: "Root and intermediate CAs from all catalogued versions, including archived and expired certificates. Public CAs are included. Issuers are searched within each area. No certificates are downloaded automatically."
+    stale: "The last scan failed. The previous result is retained and may be outdated."
+    checked: "Last successful scan: %{time}"
+    empty: "No CA certificates found."
+    pending: "No successful CA scan yet."
+    root: "Root CA"
+    intermediate: "Intermediate CA"
+    download: "Download Hiera YAML"
+    issues: "Unresolved issuer chains"
+    no_issues: "No gaps detected in the local issuer chains."
+    reasons:
+      missing: "No CA with a matching issuer and valid signature was found."
+      cycle: "A cycle was found in the issuer chain."
+      depth: "The issuer chain exceeds the twelve-hop search limit."
+      inactive: "This historical CA version cannot be exported with lookup because the CertID selects a different version."

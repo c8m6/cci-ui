@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Reads mounted certificate inventories without allowing traversal or incomplete scans.
+# Reads mounted inventories safely; confirmed retirement is handled by LegacyDeletion.
 class LegacyStore
   def self.areas = AreaConfiguration.legacy_paths.keys
   def self.area = AreaConfiguration.legacy_area

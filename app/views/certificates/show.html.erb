@@ -1,7 +1,8 @@
 <% content_for :title, @certificate.common_name %>
 <%= link_to t("ui.back_certificates"), root_path, class: "back-link" %>
 <div class="page-heading"><div><span class="eyebrow"><%= t("ui.certificate_details") %></span><h1 class="break-word"><%= @certificate.common_name %></h1><p><span class="area-pill"><%= area_label(@certificate.area) %></span> <span class="badge <%= @certificate.status_class %>"><%= @certificate.status %></span> <span class="source-label"><%= @certificate.source_label %></span></p></div></div>
-<div class="detail-grid"><section class="panel detail-panel"><h2><%= t("ui.summary") %></h2><dl>
+<% if @material %><%= render "chain", material: @material, records: @chain_records, selected: @certificate %><% end %>
+<div class="detail-grid<%= " detail-grid-summary-only" if @material && !current_identity.export?(@certificate.area) %>"><section class="panel detail-panel"><h2><%= t("ui.summary") %></h2><dl>
   <% if @certificate.source == "consul" %><dt><%= t("ui.archive_status") %></dt><dd><%= @archived ? t("ui.archived") : t("ui.not_archived") %></dd><% end %>
   <dt><%= t("ui.puppet_status") %></dt><dd><%= @certificate.source == "consul" ? @rollout_status : t("ui.filesystem_unmanaged") %></dd>
   <dt><%= t("ui.storage_location") %></dt><dd><%= @certificate.source_label %></dd>
@@ -18,11 +19,9 @@
   <dt><%= t("ui.algorithm") %></dt><dd><%= @certificate.algorithm %></dd><dt><%= t("ui.key_file") %></dt><dd><%= @certificate.has_key ? t("ui.key_export_check") : t("ui.absent") %></dd>
   <dt><%= t("ui.tags") %></dt><dd><%= @certificate.tags.join(", ").presence || t("ui.none") %></dd>
   <% if @certificate.certid %><dt><%= t("ui.puppet_certid") %></dt><dd class="mono"><%= @certificate.certid %></dd><% end %>
-</dl></section><section class="panel detail-panel"><% if @material %><h2><%= t("ui.chain") %></h2><ol class="chain-list"><% [@material[:certificate], *@material[:chain]].each do |cert| %><li><% linked = @chain_records[Certificates::Codec.fingerprint(cert)] %><% if linked %><%= link_to Certificates::Codec.metadata(cert)[:common_name], certificate_path(linked) %><% else %><%= Certificates::Codec.metadata(cert)[:common_name] %><span class="muted small"> <%= t("ui.no_chain_record") %></span><% end %></li><% end %></ol>
-<% root_cert = @material[:chain].last || @material[:certificate] %>
-<p class="muted small"><%= root_cert.subject == root_cert.issuer && root_cert.verify(root_cert.public_key) ? t("ui.chain_complete") : t("ui.chain_incomplete") %></p>
+</dl></section><% if !@material || current_identity.export?(@certificate.area) %><section class="panel detail-panel"><% if @material %>
 <% if current_identity.export?(@certificate.area) %><h2><%= t("ui.export") %></h2><%= form_with url: export_certificates_path, data: { turbo: false }, class: "detail-export" do |form| %><%= hidden_field_tag "ids[]", @certificate.id %><%= render "export_fields", form: form, writer: current_identity.export_key?(@certificate.area) %><% if @certificate.source == "filesystem" && current_identity.export_key?(@certificate.area) %><%= form.password_field :source_password, placeholder: t("ui.source_password_placeholder"), aria: { label: t("ui.source_password_label") }, autocomplete: "off" %><% end %><%= form.submit t("ui.download_certificate"), class: "button primary" %><% end %>
-<% end %><% else %><h2><%= t("ui.source_unavailable") %></h2><p><%= t("ui.source_unavailable_description") %></p><p class="muted"><%= @material_error %></p><% end %></section></div>
+<% end %><% else %><h2><%= t("ui.source_unavailable") %></h2><p><%= t("ui.source_unavailable_description") %></p><p class="muted"><%= @material_error %></p><% end %></section><% end %></div>
 <% if puppetdb_enabled? %><%= render "puppetdb_hosts", certificate: @certificate %><% end %>
 <% if @certificate.source == "consul" && current_identity.writer?(@certificate.area) %>
   <section class="panel detail-panel"><h2><%= t("ui.puppet_status") %></h2>
@@ -44,6 +43,13 @@
       </div>
     <% end %>
     <% else %><p><%= t("ui.archived_notice_html") %></p><% end %>
+  </section>
+<% end %>
+<% if @certificate.source == "filesystem" && current_identity.writer?(@certificate.area) %>
+  <section class="panel detail-panel">
+    <h2><%= t("ui.legacy_delete") %></h2>
+    <p><%= t("ui.legacy_delete_retention") %></p>
+    <%= link_to t("ui.legacy_delete"), delete_legacy_certificate_path(@certificate), class: "button secondary" %>
   </section>
 <% end %>
 <% if @versions.any? %><section class="panel detail-panel"><h2><%= t("ui.versions") %></h2><% @versions.each do |version| %><div class="version-row"><%= link_to "#{version.certificate_version}: #{date_label(version.not_before)} – #{date_label(version.not_after)}", certificate_path(version) %><span class="mono small"><%= version.fingerprint.first(16) %>…</span><% if version.active %><span class="badge success"><%= t("ui.current_version") %></span><% elsif !@archived && current_identity.writer?(version.area) %><%= button_to t("ui.activate"), certificate_path(version), method: :patch, class: "button secondary", data: { turbo_confirm: t("ui.activate_confirm") } %><% end %></div><% end %></section><% end %>

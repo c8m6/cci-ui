@@ -1,0 +1,20 @@
+<% content_for :title, t("ui.legacy_delete") %>
+<%= link_to t("ui.back_details"), certificate_path(@certificate), class: "back-link" %>
+<section class="panel detail-panel">
+  <h1><%= t("ui.legacy_delete_question") %></h1>
+  <p><strong><%= @certificate.common_name %></strong> · <%= area_label(@certificate.area) %></p>
+  <p class="mono break-word"><%= @certificate.fingerprint %></p>
+  <p><%= t("ui.legacy_delete_scope", count: @deletion.fetch(:count)) %></p>
+  <ul>
+    <% @deletion.fetch(:files).each do |file| %>
+      <li><code><%= file %></code></li>
+    <% end %>
+  </ul>
+  <p><%= t("ui.legacy_delete_warning") %></p>
+  <p><%= t("ui.legacy_delete_retention") %></p>
+  <%= form_with url: delete_legacy_certificate_path(@certificate), method: :delete do |form| %>
+    <%= form.hidden_field :deletion_token, value: @deletion.fetch(:token) %>
+    <label class="check-label"><%= form.check_box :confirm_delete, { required: true }, "1", "0" %> <%= t("ui.legacy_delete_confirmation") %></label>
+    <p><%= form.submit t("ui.legacy_delete"), class: "button primary" %> <%= link_to t("ui.cancel"), certificate_path(@certificate), class: "button secondary" %></p>
+  <% end %>
+</section>

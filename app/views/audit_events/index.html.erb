@@ -32,6 +32,9 @@
           <% if event.details["outcome"] %><div><%= t("ui.audit_outcome") %>: <%= t("ui.audit_outcomes.#{event.details.fetch("outcome")}") %></div><% end %>
           <% if event.action == "archive" %><div><%= audit_comment(event) %></div><div><%= t("ui.scope") %>: <%= event.details["scope"] == "certid" ? t("ui.scope_certid") : t("ui.scope_fingerprint") %></div><% end %>
           <% if %w[status_change archive].include?(event.action) %><div><%= t("ui.puppet_status") %>: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>
+          <% if event.details["operation"] == "rename" %>
+            <% event.details.fetch("files", {}).each_key do |source| %><div><code><%= source %></code></div><% end %>
+          <% end %>
           <% if event.details["format"] %><div><%= t("ui.format") %>: <%= event.details["format"].upcase %></div><div><%= t("ui.file") %>: <%= event.details["filename"] %></div><div><%= t("ui.private_keys") %>: <%= event.details["include_key"] ? t("ui.yes") : t("ui.no") %></div><div><%= t("ui.chain") %>: <%= event.details["include_chain"] ? t("ui.yes") : t("ui.no") %></div><% end %>
           <% if event.details["previous_version"] %><details><summary><%= t("ui.previous_active") %></summary><code><%= event.details["previous_version"] %></code></details><% end %>
           <% if event.details.key?("has_key") %><div><%= t("ui.key_available") %>: <%= event.details["has_key"] ? t("ui.yes") : t("ui.no") %></div><div><%= t("ui.tags") %>: <%= Array(event.details["tags"]).join(", ").presence || "–" %></div><% end %>

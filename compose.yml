@@ -46,6 +46,7 @@ services:
       CONSUL_TOKEN: ${CONSUL_TOKEN:-}
       CONSUL_PREFIX: ${CONSUL_PREFIX:-cci}
       INDEX_INTERVAL: ${INDEX_INTERVAL:-60}
+      CCI_CA_INVENTORY_ENABLED: ${CCI_CA_INVENTORY_ENABLED:-false}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       CCI_AREAS: '${CCI_AREAS:-{"zone_a":"Zone A","zone_b":"Zone B"}}'
@@ -72,7 +73,7 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:3000/auth/keycloak/callback}
     volumes:
-      - ./data:/legacy:ro
+      - ./data:/legacy:rw
     depends_on:
       db:
         condition: service_healthy
