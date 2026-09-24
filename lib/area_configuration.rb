@@ -5,7 +5,7 @@ require "json"
 # Shared by Rails and the local setup script; contains no framework dependencies.
 class AreaConfiguration
   ID_PATTERN = /\A[a-z][a-z0-9_]{0,47}\z/
-  ROLE_TYPES = %w[reader writer key_exporter auditor].freeze
+  ROLE_TYPES = %w[reader writer key_exporter auditor csr].freeze
 
   def self.load_env(environment = ENV)
     areas = parse_object(environment["CCI_AREAS"], "CCI_AREAS")

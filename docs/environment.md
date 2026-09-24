@@ -250,3 +250,24 @@ The standalone example writer also uses `CCI_CLIENT_ID` and `CCI_ACTOR` for
 write provenance, and optional `KEY_PASSWORD` for the input private-key file.
 These are separate from the OIDC client settings. See
 [Ruby import examples](consul-schema.md).
+
+## CSR defaults
+
+These environment variables populate the CSR form and apply to omitted API
+fields. Users may override them. Empty subject fields are omitted. Existing
+`CCI_AREA_KEYS` (or the existing area-key fallback) encrypt both the private key
+and revoke password. There is no separate CSR secret or static revoke password.
+
+| Variable | Default | Allowed values or purpose |
+| --- | --- | --- |
+| `CSR_DEFAULT_KEY_ALGORITHM` | `RSA` | `RSA` or `EC` |
+| `CSR_DEFAULT_KEY_SIZE` | `4096` | RSA: 2048, 3072, 4096. EC: 256, 384, 521. Configure both algorithm and size when switching to EC. |
+| `CSR_DEFAULT_DIGEST` | `SHA512` | `SHA256`, `SHA384`, `SHA512` |
+| `CSR_DEFAULT_COUNTRY` | empty | Two uppercase country-code letters |
+| `CSR_DEFAULT_STATE` | empty | State or province |
+| `CSR_DEFAULT_LOCALITY` | empty | Locality |
+| `CSR_DEFAULT_ORGANIZATION` | empty | Organization |
+| `CSR_DEFAULT_ORGANIZATIONAL_UNIT` | empty | Organizational unit |
+
+The Compose web and indexer services receive the same defaults. See
+[CSR operations](csr.md) for validation, roles, persistence and rotation.

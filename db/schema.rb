@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_24_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -36,6 +36,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_000200) do
     t.jsonb "issues", default: [], null: false
     t.datetime "updated_at", null: false
     t.index ["area"], name: "index_ca_inventories_on_area", unique: true
+  end
+
+  create_table "certificate_requests", force: :cascade do |t|
+    t.string "area", null: false
+    t.string "certid", null: false
+    t.text "comment", default: "", null: false
+    t.string "common_name", null: false
+    t.datetime "created_at", null: false
+    t.string "created_by", null: false
+    t.text "csr_pem", null: false
+    t.string "digest", null: false
+    t.text "encrypted_private_key", null: false
+    t.text "encrypted_revoke_password", null: false
+    t.string "key_algorithm", null: false
+    t.integer "key_size", null: false
+    t.jsonb "sans", default: [], null: false
+    t.string "secret_id", null: false
+    t.jsonb "subject_fields", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["area", "created_at"], name: "index_certificate_requests_on_area_and_created_at"
+    t.index ["secret_id"], name: "index_certificate_requests_on_secret_id", unique: true
   end
 
   create_table "certificates", force: :cascade do |t|
@@ -84,6 +105,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_000200) do
     t.check_constraint "source::text <> 'filesystem'::text OR NOT archived AND rollout_status::text = 'active'::text", name: "filesystem_certificates_have_no_control_state"
   end
 
+  create_table "csr_certificates", force: :cascade do |t|
+    t.bigint "certificate_request_id", null: false
+    t.integer "consul_version"
+    t.datetime "created_at", null: false
+    t.string "error_code"
+    t.string "fingerprint", null: false
+    t.text "issuer", null: false
+    t.jsonb "issuer_pems", default: [], null: false
+    t.datetime "not_after", null: false
+    t.datetime "not_before", null: false
+    t.text "pem", null: false
+    t.jsonb "prepared", default: {}, null: false
+    t.datetime "published_at"
+    t.jsonb "sans", default: [], null: false
+    t.string "state", default: "awaiting_issuer", null: false
+    t.text "subject", null: false
+    t.datetime "updated_at", null: false
+    t.string "uploaded_by", null: false
+    t.datetime "verified_at"
+    t.index ["certificate_request_id", "fingerprint"], name: "idx_on_certificate_request_id_fingerprint_19fcbe4096", unique: true
+    t.index ["certificate_request_id"], name: "index_csr_certificates_on_certificate_request_id"
+    t.check_constraint "state::text <> 'published'::text OR consul_version > 0 AND published_at IS NOT NULL", name: "csr_published_version"
+    t.check_constraint "state::text = ANY (ARRAY['awaiting_issuer'::character varying, 'pending'::character varying, 'publishing'::character varying, 'published'::character varying, 'failed'::character varying]::text[])", name: "csr_certificate_state"
+  end
+
   create_table "import_drafts", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
@@ -94,4 +140,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_000200) do
     t.index ["expires_at"], name: "index_import_drafts_on_expires_at"
     t.index ["token"], name: "index_import_drafts_on_token", unique: true
   end
+
+  add_foreign_key "csr_certificates", "certificate_requests"
 end

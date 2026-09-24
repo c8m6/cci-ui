@@ -96,6 +96,14 @@ PEM, DER, PKCS#12/PFX and JKS are supported, including bulk and chain exports
 where applicable. JKS currently requires matching store and key passwords.
 PKCS#12 supports AES/PBES2 and 3DES; legacy RC2 is not supported.
 
+## CSR creation
+
+The **CSR erstellen** menu is available to the independent `<area_id>_csr` role.
+It creates RSA or EC requests, keeps private keys and generated revoke passwords
+encrypted in PostgreSQL, and publishes matching issued certificates through the
+existing Consul version workflow. Writer access alone does not grant CSR access.
+See [CSR workflow, API and key management](docs/csr.md).
+
 ## Overwrite confirmation and Puppet status
 
 Imports into an existing area/certid require explicit confirmation in the preview.

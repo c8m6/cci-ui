@@ -1,0 +1,7 @@
+<% content_for :title, t("csr.revoke_password") %>
+<%= link_to t("csr.back_request"), certificate_request_path(@csr), class: "back-link" %>
+<section class="panel detail-panel" data-controller="csr-secret">
+  <h1><%= t("csr.revoke_password") %></h1>
+  <p><%= t("csr.revealed_hint") %></p>
+  <label><%= t("csr.revoke_password") %><input type="text" readonly autocomplete="off" spellcheck="false" value="<%= @password %>" data-csr-secret-target="value"></label>
+</section>

@@ -1,0 +1,20 @@
+<% content_for :title, t("csr.title") %>
+<div class="page-heading"><div><h1><%= t("csr.title") %></h1><p><%= t("csr.description") %></p></div><%= link_to t("csr.generate"), new_certificate_request_path, class: "button primary" %></div>
+<section class="panel detail-panel">
+  <h2><%= t("csr.open") %></h2>
+  <% if @open_requests.empty? %><p><%= t("csr.no_open") %></p><% else %>
+    <div class="table-scroll"><table>
+      <thead><tr><th>CSR</th><th><%= t("ui.area") %></th><th><%= t("ui.certid") %></th><th><%= t("csr.common_name") %></th><th><%= t("csr.created_by") %></th><th><%= t("csr.created_at") %></th></tr></thead>
+      <tbody><% @open_requests.each do |csr| %><tr><td><%= link_to "##{csr.id}", certificate_request_path(csr) %></td><td><%= area_label(csr.area) %></td><td><%= csr.certid %></td><td><%= csr.common_name %></td><td><%= csr.created_by %></td><td><%= l(csr.created_at, format: :long) %></td></tr><% end %></tbody>
+    </table></div>
+  <% end %>
+</section>
+<section class="panel detail-panel">
+  <h2><%= t("csr.issued") %></h2>
+  <% if @issued.empty? %><p><%= t("csr.no_issued") %></p><% else %>
+    <div class="table-scroll"><table>
+      <thead><tr><th>CSR</th><th><%= t("ui.area") %></th><th><%= t("ui.certid") %></th><th><%= t("ui.subject") %></th><th><%= t("ui.issuer") %></th><th><%= t("ui.validity") %></th><th><%= t("csr.status") %></th></tr></thead>
+      <tbody><% @issued.each do |certificate| %><% csr = certificate.certificate_request %><tr><td><%= link_to "##{csr.id}", certificate_request_path(csr) %></td><td><%= area_label(csr.area) %></td><td><%= csr.certid %></td><td><%= certificate.subject %></td><td><%= certificate.issuer %></td><td><%= date_label(certificate.not_before) %> – <%= date_label(certificate.not_after) %> <%= ca_validity_badge(certificate.attributes) %></td><td><%= t("csr.states.#{certificate.state}") %></td></tr><% end %></tbody>
+    </table></div>
+  <% end %>
+</section>

@@ -16,6 +16,15 @@ Rails.application.routes.draw do
     get :delete_legacy, on: :member
     delete :delete_legacy, on: :member, action: :destroy_legacy
   end
+  resources :certificate_requests, only: %i[index new create show] do
+    member do
+      get :download
+      post :reveal
+      post :upload
+      post :issuers
+      post :publish
+    end
+  end
   resources :imports, only: %i[new create]
   get "/imports/preview", to: "imports#preview", as: :import_preview
   resources :ca_inventories, only: %i[index show]

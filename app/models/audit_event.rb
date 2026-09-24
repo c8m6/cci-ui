@@ -2,7 +2,8 @@
 
 # Persists mutation intent and outcome separately so uncertain writes stay auditable.
 class AuditEvent < ApplicationRecord
-  ACTIONS = %w[archive status_change import activate delete export_public export_private].freeze
+  ACTIONS = %w[archive status_change import activate delete export_public export_private csr_create csr_upload csr_publish csr_reveal
+    csr_download csr_verify csr_rotate].freeze
 
   def self.action_label(action)
     ACTIONS.include?(action) ? I18n.t("audit.actions.#{action}") : action

@@ -26,9 +26,11 @@
               <details><summary><%= t("ui.identification") %></summary><div><%= t("ui.subject") %>: <%= cert["subject"] %></div><div><%= t("ui.issuer") %>: <%= cert["issuer"] %></div><div><%= t("ui.serial") %>: <%= cert["serial"] %></div><div>SHA-256: <code><%= cert["fingerprint"] %></code></div><% if cert["source_id"] %><div><%= t("ui.source") %>: <%= cert["source"] %> · <code><%= cert["source_id"] %></code></div><% end %></details>
             </div>
           <% end %>
-          <% if event.details["certificates"].blank? %><div class="muted small"><%= t("ui.audit_historical") %></div><% event.references.each do |reference| %><div class="mono"><%= reference %></div><% end %><% end %>
+          <% if event.details["csr_id"] %><div><strong><%= event.details["common_name"] %></strong></div><div>CSR #<%= event.details["csr_id"] %> · <%= event.details["certid"] %></div><% end %>
+          <% if event.details["certificates"].blank? && !event.details["csr_id"] %><div class="muted small"><%= t("ui.audit_historical") %></div><% event.references.each do |reference| %><div class="mono"><%= reference %></div><% end %><% end %>
         </td>
         <td>
+          <% if event.details["csr_id"] %><div>CSR #<%= event.details["csr_id"] %></div><div><%= event.details["certid"] %></div><% end %>
           <% if event.details["outcome"] %><div><%= t("ui.audit_outcome") %>: <%= t("ui.audit_outcomes.#{event.details.fetch("outcome")}") %></div><% end %>
           <% if event.action == "archive" %><div><%= audit_comment(event) %></div><div><%= t("ui.scope") %>: <%= event.details["scope"] == "certid" ? t("ui.scope_certid") : t("ui.scope_fingerprint") %></div><% end %>
           <% if %w[status_change archive].include?(event.action) %><div><%= t("ui.puppet_status") %>: <code><%= event.details["previous_status"] %></code> → <code><%= event.details["status"] %></code></div><% end %>

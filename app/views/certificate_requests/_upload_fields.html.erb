@@ -1,0 +1,2 @@
+<label><%= t("csr.certificate_file") %><%= form.file_field :file, accept: ".pem,.crt,.cer,.der" %></label>
+<label><%= t("csr.paste_pem") %><%= form.text_area :pem, rows: 5, autocomplete: "off" %></label>

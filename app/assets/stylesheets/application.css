@@ -958,3 +958,7 @@ main.full-width { max-width: none; }
   .certificate-chain th:nth-child(3) { width: 115px; }
   .certificate-chain th, .certificate-chain td { padding-left: 6px; padding-right: 6px; }
 }
+
+.csr-form { display: grid; gap: 18px; }
+.csr-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+.csr-form label { display: flex; flex-direction: column; gap: 6px; }

@@ -169,6 +169,7 @@ zone_a_reader
 zone_a_writer
 zone_a_key_exporter
 zone_a_auditor
+zone_a_csr
 ```
 
 Writers can export public certificates and optional chains. Key Exporter is the
@@ -178,6 +179,12 @@ roles cannot export private keys. Independent Auditor roles allow reading audit
 logs within their area and grant no certificate or export permissions. Assign the
 Auditor roles of all desired areas for a combined view. Local Auditor identities
 land directly at `/audit_events` after login.
+The independent `zone_a_csr` role grants CSR creation, area-scoped request and
+issued-certificate access, confirmed revoke-password disclosure and publication
+of matching certificates. It grants no general Reader, Writer or Key Exporter
+permissions. Local identities `zone_a_csr` and `all:csr` land at
+`/certificate_requests`. See [CSR operations and key rotation](csr.md).
+
 Readers cannot export. Without assigned roles, the certificate list is empty.
 Existing group names can be translated through JSON in `OIDC_ROLE_MAP`:
 
@@ -270,12 +277,14 @@ actual Keycloak/Consul infrastructure because its configuration is unavailable.
 Back up PostgreSQL, Consul snapshots, area secrets, configuration and the existing
 NFS collection together. Search metadata is reconstructible only while the
 corresponding source material still exists. Retained entries for missing sources,
-UI audit history and pending previews require a database backup. Test
+UI audit history, pending previews and all CSR records and encrypted CSR secrets
+require a database backup. Test
 restoration on an isolated VM. Restore Consul using the same prefix and original
 area secrets.
 
 Do not replace existing area secrets with newly generated ones. A key-rotation
-interface is not implemented. The SSO session secret, `SECRET_KEY_BASE`, can be
+UI is not implemented. See the [offline CSR rotation procedure](csr.md#secret-management-and-rotation)
+for the CSR maintenance helper and coordination with Consul and import drafts. The SSO session secret, `SECRET_KEY_BASE`, can be
 rotated independently; doing so invalidates existing login sessions.
 
 ## Troubleshooting
