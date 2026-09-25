@@ -206,3 +206,6 @@ issuers and public CA handling.
 
 For migration jobs, replica startup ordering and load-balancer probes, see
 [HA deployment and health checks](docs/installation.md#health-checks).
+
+For a complete production Compose template with inline values, external services
+and a reduced indexer environment, see [inline Compose configuration](docs/compose-full.md).

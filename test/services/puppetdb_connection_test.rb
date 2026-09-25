@@ -51,6 +51,15 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
     end
   end
 
+  test "limited probes can omit total verification" do
+    rows = [{ "certname" => "web.example.test" }]
+    with_server(body: JSON.generate(rows), headers: { "X-Records" => "27" }) do |url, requests|
+      connection = PuppetdbConnection.new(environment: { "PUPPETDB_URL" => url })
+      assert_equal rows, connection.inventory("nodes[certname] { limit 1 }", verify_total: false)
+      assert_equal "POST /pdb/query/v4 HTTP/1.1\r\n", requests.pop.first
+    end
+  end
+
   test "HTTP errors invalid JSON truncated results and oversized bodies are rejected without leaking content" do
     [
       { body: "private response detail", status: 403 },

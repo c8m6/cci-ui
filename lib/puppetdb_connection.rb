@@ -31,9 +31,11 @@ class PuppetdbConnection
 
   # Fetch the complete result in one request so changing factsets cannot move
   # hosts between offset pages. Never publish a truncated or partial response.
-  def inventory(query)
+  def inventory(query, verify_total: true)
     http = configured_http
-    request = Net::HTTP::Post.new(@uri)
+    uri = @uri.dup
+    uri.query = nil unless verify_total
+    request = Net::HTTP::Post.new(uri)
     request["Content-Type"] = "application/json"
     request["Accept"] = "application/json"
     request["X-Authentication"] = @token unless @token.empty?
@@ -43,7 +45,7 @@ class PuppetdbConnection
     http.request(request) do |response|
       raise Error, "PuppetDB request failed (HTTP #{response.code})." unless response.code == "200"
 
-      total = response["X-Records"]
+      total = response["X-Records"] if verify_total
       response.read_body do |chunk|
         if body.bytesize + chunk.bytesize > @max_bytes
           raise Error,
