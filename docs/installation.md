@@ -186,11 +186,115 @@ permissions. Local identities `zone_a_csr` and `all:csr` land at
 `/certificate_requests`. See [CSR operations and key rotation](csr.md).
 
 Readers cannot export. Without assigned roles, the certificate list is empty.
-Existing group names can be translated through JSON in `OIDC_ROLE_MAP`:
+### OIDC_ROLE_MAP JSON format
+
+`OIDC_ROLE_MAP` translates names supplied by your identity provider into CCI-UI
+application roles. Set it to a JSON object. Each property has:
+
+- **Key:** an incoming group or role name, exactly as it appears in the claims.
+  Matching is case-sensitive. A leading slash is part of the name, so
+  `/cci/zone_a-editors` and `cci/zone_a-editors` are different keys. There is no
+  wildcard, prefix or regular-expression matching.
+- **Value:** one CCI-UI role as a JSON string, or multiple roles as an array of
+  strings. Each role uses `<area_id>_<role>`, where `area_id` is a key from
+  `CCI_AREAS`, not its display label. Supported suffixes are `reader`, `writer`,
+  `key_exporter`, `auditor` and `csr`.
+
+For example, with `zone_a` and `zone_b` configured in `CCI_AREAS`:
 
 ```json
-{"/cci/zone_a-editors":"zone_a_writer","/cci/zone_a-key-export":"zone_a_key_exporter","/cci/auditors":["zone_a_auditor","zone_b_auditor"]}
+{
+  "/cci/zone_a-editors": "zone_a_writer",
+  "/cci/zone_a-key-export": "zone_a_key_exporter",
+  "/cci/auditors": ["zone_a_auditor", "zone_b_auditor"],
+  "cci-requesters": ["zone_a_reader", "zone_a_csr"]
+}
 ```
+
+This maps the editors group to Writer in Zone A, the key-export group to Key
+Exporter in Zone A, and the auditors group to Auditor in both areas. The
+`cci-requesters` role grants both Reader and CSR permissions in Zone A. Mapping
+a group to several roles grants all of them, not a choice between them.
+
+#### Incoming claims and resulting roles
+
+CCI-UI combines these fields from the OIDC authentication data (`raw_info`):
+
+| Claim | Names used as mapping keys |
+| --- | --- |
+| `groups` | Group names or full group paths, as supplied by the provider |
+| `realm_access.roles` | Realm role names |
+| `resource_access.<OIDC_CLIENT_ID>.roles` | Client role names for the configured CCI-UI client |
+
+Client roles belonging to other clients are not read. All three sources use the
+same mapping, so an identical name in a group and a role has the same result.
+Configure Keycloak to include the required claims in the ID token or UserInfo.
+A mapping entry alone does not assign a role: the user must supply its key in
+one of these claims.
+
+For every incoming name, CCI-UI applies the following rules at login:
+
+1. If the name is a key in `OIDC_ROLE_MAP`, replace it with that entry's value.
+   Mapping is applied once, so values are not looked up again as mapping keys.
+2. Otherwise, keep the incoming name unchanged. This allows direct assignment
+   of application roles such as `zone_a_reader` without a mapping entry.
+3. Combine all results, remove duplicates and keep only valid application roles
+   for the configured areas. Unknown names and roles for unconfigured areas
+   grant no permissions.
+
+For example, with the mapping above, these claims:
+
+```json
+{
+  "groups": ["/cci/zone_a-editors", "/cci/auditors"],
+  "realm_access": { "roles": ["zone_b_reader", "unrelated-role"] },
+  "resource_access": {
+    "cci-ui": { "roles": ["cci-requesters"] }
+  }
+}
+```
+
+produce the following roles when `OIDC_CLIENT_ID=cci-ui`:
+
+```json
+[
+  "zone_a_writer",
+  "zone_a_auditor",
+  "zone_b_auditor",
+  "zone_b_reader",
+  "zone_a_reader",
+  "zone_a_csr"
+]
+```
+
+`unrelated-role` is discarded. No private-key export permission is granted in
+this example because no `key_exporter` role results from these claims.
+
+The default `{}` performs no translation and still accepts valid application
+roles directly. It does not disable role-based access. To discard a particular
+incoming name, map it to an empty array, for example `{"zone_a_writer":[]}`.
+This only discards that name: another incoming group or role can still grant
+`zone_a_writer` through its own mapping.
+
+#### Setting the environment variable
+
+In a Compose `.env` file, put the JSON on one line and wrap it in single quotes:
+
+```dotenv
+OIDC_ROLE_MAP='{"/cci/zone_a-editors":"zone_a_writer","/cci/zone_a-key-export":"zone_a_key_exporter","/cci/auditors":["zone_a_auditor","zone_b_auditor"],"cci-requesters":["zone_a_reader","zone_a_csr"]}'
+```
+
+For a shell environment, use the same assignment preceded by `export`.
+The outer single quotes protect the JSON and are not part of the environment
+variable's value. JSON keys and role strings require double quotes. Do not use
+comments, trailing commas, a top-level array, `null`, numbers or nested objects.
+Invalid JSON causes the login callback to fail. Use `{}` for an empty mapping.
+
+Recreate the application containers after changing the variable. Users must
+sign out and sign in again for the new mapping to apply, because roles are
+stored in the session at login.
+
+### Testing OIDC login
 
 For a local SSO test, set `AUTH_MODE=oidc`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
 `OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI` in `.env`, then recreate the containers.

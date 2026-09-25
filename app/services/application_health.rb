@@ -33,7 +33,7 @@ class ApplicationHealth
     probe(failures, "puppetdb") do
       if PuppetdbConfiguration.enabled?
         PuppetdbConfiguration.new
-        PuppetdbConnection.new.inventory("nodes[certname] { limit 1 }")
+        PuppetdbConnection.new.inventory("nodes[certname] { limit 1 }", verify_total: false)
       end
     end
     probe(failures, "oidc") { check_oidc if ENV.fetch("AUTH_MODE", "oidc") == "oidc" }

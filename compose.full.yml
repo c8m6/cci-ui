@@ -1,0 +1,146 @@
+# Complete production example with inline configuration and external services.
+# Copy outside the repository, then replace every REPLACE_* value and example host.
+# No env_file or shell-variable substitution is used.
+name: cci-ui-full
+
+x-image: &image cci-ui:local
+
+# All commands currently boot the full production Rails application. The indexer
+# and migration job therefore also require session/host/OIDC settings at boot,
+# even though they do not serve HTTP or authenticate users.
+x-rails-environment: &rails_environment
+  RAILS_ENV: production
+  DATABASE_URL: "postgresql://cci:REPLACE_DATABASE_PASSWORD@postgresql.example.test:5432/cci?sslmode=verify-full&sslrootcert=/run/postgresql/ca.pem"
+  RAILS_MAX_THREADS: "5"
+  SECRET_KEY_BASE: "REPLACE_WITH_A_STABLE_RANDOM_SESSION_SECRET"
+  ALLOWED_HOSTS: "cci.example.test"
+  AUTH_MODE: oidc
+  OIDC_ISSUER: "https://keycloak.example.test/realms/cci"
+  OIDC_CLIENT_ID: "cci-ui"
+  OIDC_CLIENT_SECRET: "REPLACE_OIDC_CLIENT_SECRET"
+  OIDC_REDIRECT_URI: "https://cci.example.test/auth/keycloak/callback"
+  CCI_AREAS: '{"zone_a":"Zone A","zone_b":"Zone B"}'
+
+# Public inventory reads do not need CCI_AREA_KEYS.
+x-inventory-environment: &inventory_environment
+  CCI_LEGACY_PATHS: '{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+  CONSUL_URL: "https://consul.example.test:8501"
+  CONSUL_PREFIX: "cci"
+  CONSUL_CA_FILE: "/run/consul/ca.pem"
+  CCI_CA_INVENTORY_ENABLED: "true"
+
+# Web needs these settings for /health diagnostics as well as the feature flag.
+x-puppetdb-environment: &puppetdb_environment
+  PUPPETDB_ENABLED: "true"
+  PUPPETDB_URL: "https://puppetdb.example.test:8081"
+  PUPPETDB_FACT_NAME: "certificates"
+  # Empty selects the generated query. An explicit alternative is:
+  # inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }
+  PUPPETDB_QUERY: ""
+  PUPPETDB_FINGERPRINT_FIELD: "fingerprint"
+  PUPPETDB_FINGERPRINT_ALGORITHM: "sha256"
+  PUPPETDB_CA_FILE: "/run/puppetdb/ca.pem"
+  PUPPETDB_CLIENT_CERT_FILE: "/run/puppetdb/client.pem"
+  PUPPETDB_CLIENT_KEY_FILE: "/run/puppetdb/client.key"
+  # Optional Enterprise RBAC token. Leave empty when not used.
+  PUPPETDB_TOKEN: ""
+  PUPPETDB_TIMEOUT: "30"
+  PUPPETDB_MAX_RESPONSE_BYTES: "52428800"
+
+x-postgresql-ca: &postgresql_ca
+  type: bind
+  source: /srv/cci/tls/postgresql
+  target: /run/postgresql
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-consul-ca: &consul_ca
+  type: bind
+  source: /srv/cci/tls/consul
+  target: /run/consul
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-puppetdb-tls: &puppetdb_tls
+  type: bind
+  source: /srv/cci/tls/puppetdb
+  target: /run/puppetdb
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-legacy-inventory: &legacy_inventory
+  type: bind
+  source: /mnt/certificates
+  target: /legacy
+  bind:
+    create_host_path: false
+
+services:
+  migrate:
+    image: *image
+    command: ["ruby", "bin/rails", "db:prepare"]
+    environment: *rails_environment
+    volumes:
+      - *postgresql_ca
+    restart: "no"
+
+  web:
+    image: *image
+    environment:
+      <<: [*rails_environment, *inventory_environment, *puppetdb_environment]
+      CONSUL_TOKEN: "REPLACE_CONSUL_WRITE_TOKEN"
+      # Each value must be an existing or newly generated Base64 32-byte key.
+      # Keep the same keys on every web replica and across restarts.
+      CCI_AREA_KEYS: '{"zone_a":"REPLACE_ZONE_A_BASE64_KEY","zone_b":"REPLACE_ZONE_B_BASE64_KEY"}'
+      # Alternatively omit the map and set ZONE_A_KEY / ZONE_B_KEY here.
+      OIDC_ROLE_MAP: '{"cci-readers":["zone_a_reader","zone_b_reader"],"cci-writers":["zone_a_writer","zone_b_writer"],"cci-auditors":["zone_a_auditor","zone_b_auditor"],"cci-exporters":["zone_a_key_exporter","zone_b_key_exporter"],"cci-csr":["zone_a_csr","zone_b_csr"]}'
+      CCI_SHOW_ERROR_DETAILS: "false"
+      PORT: "3000"
+      CSR_DEFAULT_KEY_ALGORITHM: "RSA"
+      CSR_DEFAULT_KEY_SIZE: "4096"
+      CSR_DEFAULT_DIGEST: "SHA512"
+      CSR_DEFAULT_COUNTRY: "DE"
+      CSR_DEFAULT_STATE: ""
+      CSR_DEFAULT_LOCALITY: ""
+      CSR_DEFAULT_ORGANIZATION: "Example Organization"
+      CSR_DEFAULT_ORGANIZATIONAL_UNIT: ""
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - *postgresql_ca
+      - *consul_ca
+      - *puppetdb_tls
+      # Legacy deletion renames files, so web requires write access.
+      - <<: *legacy_inventory
+        read_only: false
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "ruby", "bin/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+
+  indexer:
+    image: *image
+    command: ["ruby", "bin/indexer"]
+    environment:
+      <<: [*rails_environment, *inventory_environment, *puppetdb_environment]
+      CONSUL_TOKEN: "REPLACE_CONSUL_READ_TOKEN"
+      INDEX_INTERVAL: "60"
+    volumes:
+      - *postgresql_ca
+      - *consul_ca
+      - *puppetdb_tls
+      - <<: *legacy_inventory
+        read_only: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
