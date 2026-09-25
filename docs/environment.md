@@ -82,14 +82,47 @@ internal information to any visitor, so enable it only in a trusted environment.
 Ordinary validation messages, such as an invalid certificate or missing input,
 remain visible so users can correct their input.
 
-Rails logs unhandled exceptions independently of the display setting, including
-their class, message and backtrace. Handled import and certificate errors are
-also logged. Logs use the configured Rails logger, by default
-`log/<RAILS_ENV>.log` inside the application container. For example:
+Web and indexer write logs to standard output. No diagnostic display setting is
+required. Follow both container logs with:
 
 ```bash
-docker compose -f compose.yml exec -T web tail -n 100 log/development.log
+docker compose -f compose.yml logs -f web indexer
 ```
+
+Operational events are JSON lines containing UTC time, process name, PID and
+an event name. They deliberately omit SQL parameters, certificate material,
+private keys, HTTP bodies, tokens, passwords and authentication claims.
+Framework logs use parameter filtering and redact configured secrets, private-key
+PEM blocks and URL query strings. Do not enable raw HTTP debug logging.
+
+- `database.write` records each INSERT, UPDATE and DELETE, including bulk writes,
+  with the table, connection ID and affected row count when available. `executed`
+  means the statement completed, not that the transaction committed. BEGIN,
+  COMMIT and ROLLBACK events identify transaction outcomes on that connection.
+- `record.committed` adds the table, record ID and operation after model commits.
+  Bulk SQL bypasses model callbacks and is covered by `database.write` instead.
+- `consul.write` records each transaction write operation as `attempted`,
+  `succeeded`, `rejected` (CAS conflict) or `unknown` (unconfirmed outcome).
+- `filesystem.rename` records each successful legacy-file rename, including
+  compensating renames during rollback, with the certificate record ID.
+- `indexing.started`, `indexing.source.started`, `indexing.source.completed`,
+  `indexing.source.failed`, `indexing.completed` and `indexing.failed` show progress.
+  A completed pass includes duration and is emitted only after all sources succeed.
+
+At container startup, web and indexer run dependency diagnostics and database
+readiness checks. `startup.health.failed` identifies the service, exception chain
+and safe diagnostic reasons such as missing mounts, DNS failure, connection
+refusal or TLS verification failure. Raw exception messages and response bodies
+are excluded from these structured events. Dependency failures are reported but
+do not stop startup. A Rails boot failure emits `startup.boot.failed` and exits.
+The web container still uses `/ready` for its recurring Docker healthcheck.
+Failures returned by `/health` or `/ready` also generate `health.failed` events.
+
+Keycloak request and callback phases emit `keycloak.*` events, including
+connection failures, authentication rejection and successful application login.
+No authorization code, state, redirect query, token or user claims are included.
+OIDC HTTP clients use a 5-second connection timeout and 15-second request timeout.
+Rails error logging is independent of `CCI_SHOW_ERROR_DETAILS`.
 
 If the application cannot start, or the error layout itself fails, Rails or the
 web server must provide its fallback response. Those failures cannot use the

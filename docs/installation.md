@@ -482,7 +482,7 @@ directory is valid and cannot be distinguished from an empty mount point.
 Run `ruby bin/rails db:prepare` exactly once as a deployment job using the
 new application image and the primary database endpoint. Require a successful
 exit before starting the new web replicas and indexer. A failed job must stop
-the rollout. `bin/start` only starts Puma and never migrates the database.
+the rollout. `bin/start` logs startup dependency diagnostics before starting Puma and never migrates the database.
 
 The Compose templates enforce this ordering through the one-shot `migrate`
 service and `service_completed_successfully`. For a deployment with external

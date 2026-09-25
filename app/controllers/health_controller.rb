@@ -13,6 +13,9 @@ class HealthController < ActionController::Base
   private
 
   def report(failures)
+    failures.each do |service, error|
+      OperationalLog.failure("health.failed", error, service: service, configuration: OperationalLog.configuration(service))
+    end
     response.headers["Cache-Control"] = "no-store"
     body = { status: failures.empty? ? "ok" : "unavailable" }
     if Rails.application.config.x.show_error_details

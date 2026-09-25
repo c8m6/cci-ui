@@ -122,5 +122,7 @@ class LegacyDeletion
   def move(source, target)
     result = Native.renameat2(-100, source, -100, target, 1)
     raise SystemCallError.new("renameat2", Fiddle.last_error) unless result.zero?
+
+    OperationalLog.emit("filesystem.rename", certificate_id: @record.id, outcome: "succeeded")
   end
 end

@@ -47,6 +47,7 @@ class SessionsController < ApplicationController
     mapping = JSON.parse(ENV.fetch("OIDC_ROLE_MAP", "{}"))
     roles = supplied.map { |role| mapping.fetch(role, role) }.flatten
     establish(auth.uid.to_s, Identity.new(name: auth.uid, roles: roles).roles)
+    OperationalLog.emit("keycloak.authentication.succeeded")
   end
 
   def failure

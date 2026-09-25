@@ -5,6 +5,7 @@ require "uri"
 require "json"
 require "base64"
 require "openssl"
+require "securerandom"
 
 # Minimal Consul KV transport with TLS verification and atomic transaction support.
 class ConsulConnection
@@ -76,7 +77,24 @@ class ConsulConnection
   def transaction(operations)
     raise Error, "Too many changes for one Consul transaction." if operations.size > 64
 
-    request("put", "/v1/txn", body: JSON.generate(operations.map { |op| { "KV" => op } }))
+    writes = operations.reject { |operation| %w[get get-tree check-index check-not-exists].include?(operation["Verb"]) }
+    transaction_id = SecureRandom.uuid
+    log_transaction(writes, "attempted", transaction_id)
+    result = request("put", "/v1/txn", body: JSON.generate(operations.map { |op| { "KV" => op } }))
+    log_transaction(writes, "succeeded", transaction_id)
+    result
+  rescue StandardError => e
+    log_transaction(writes || [], e.is_a?(Conflict) ? "rejected" : "unknown", transaction_id)
+    raise
+  end
+
+  def log_transaction(writes, outcome, transaction_id)
+    return unless defined?(OperationalLog)
+
+    writes.each_with_index do |operation, index|
+      OperationalLog.emit("consul.write", operation: operation["Verb"], outcome: outcome,
+        transaction_id: transaction_id, operation_index: index)
+    end
   end
 
   def self.set(key, value, index: nil)
