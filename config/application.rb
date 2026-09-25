@@ -2,6 +2,7 @@
 
 require_relative "boot"
 require "rails"
+require_relative "../lib/container_log_formatter"
 require "active_record/railtie"
 require "action_controller/railtie"
 require "action_view/railtie"
@@ -17,6 +18,10 @@ module Certui
     config.action_dispatch.show_exceptions = :all
     config.action_dispatch.log_rescued_responses = true
     config.log_tags = [:request_id]
+    stdout_logger = ActiveSupport::Logger.new($stdout)
+    stdout_logger.formatter = ContainerLogFormatter.new
+    config.logger = ActiveSupport::TaggedLogging.new(stdout_logger)
+    config.log_level = :info
     config.action_dispatch.rescue_responses["ConsulConnection::Error"] = :service_unavailable
     %w[ActiveRecord::ConnectionNotEstablished ActiveRecord::ConnectionTimeoutError ActiveRecord::NoDatabaseError].each do |error|
       config.action_dispatch.rescue_responses[error] = :service_unavailable
@@ -36,7 +41,8 @@ module Certui
       File.basename(path, ".yml").to_sym
     end
     config.autoload_lib(ignore: %w[assets tasks])
-    config.filter_parameters += %i[password private_key key pem content file files token secret authorization]
+    config.filter_parameters += %i[password private_key key pem content file files token secret authorization
+      code state session_state assertion client_assertion revoke_password]
     config.action_dispatch.cookies_same_site_protection = :lax
     config.session_store :cookie_store, key: "_certui", expire_after: 1.hour,
       secure: ENV["RAILS_ENV"] == "production", httponly: true

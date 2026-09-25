@@ -1,12 +1,23 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative "../config/environment"
+ENV["CCI_PROCESS"] = "indexer"
+require_relative "../lib/operational_log"
+begin
+  require_relative "../config/environment"
+rescue StandardError => e
+  OperationalLog.failure("startup.boot.failed", e)
+  exit 1
+end
+OperationalLog.startup
 loop do
   begin
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    OperationalLog.emit("indexing.started")
     CatalogIndexer.run
+    OperationalLog.emit("indexing.completed", duration_seconds: (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(3))
   rescue StandardError => e
-    Rails.logger.error("Indexing failed: #{e.class}")
+    OperationalLog.failure("indexing.failed", e)
   end
   sleep Integer(ENV.fetch("INDEX_INTERVAL", "60"))
 end

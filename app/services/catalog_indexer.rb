@@ -11,8 +11,11 @@ class CatalogIndexer
           CaInventoryRefresh.failed!
           next
         end
+        OperationalLog.emit("indexing.source.started", source: source)
         indexer.public_send(source)
+        OperationalLog.emit("indexing.source.completed", source: source)
       rescue Certificates::Error, ConsulConnection::Error, PuppetdbConnection::Error => e
+        OperationalLog.failure("indexing.source.failed", e, source: source)
         failures << e
       end
       raise failures.first if failures.any?
