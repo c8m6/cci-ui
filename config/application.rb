@@ -2,7 +2,8 @@
 
 require_relative "boot"
 require "rails"
-require_relative "../lib/container_log_formatter"
+require_relative "../lib/operational_log"
+require_relative "../lib/request_log_context"
 require "active_record/railtie"
 require "action_controller/railtie"
 require "action_view/railtie"
@@ -17,11 +18,18 @@ module Certui
     config.consider_all_requests_local = false
     config.action_dispatch.show_exceptions = :all
     config.action_dispatch.log_rescued_responses = true
-    config.log_tags = [:request_id]
+    configured_level, invalid_log_level = OperationalLog.resolve_level
     stdout_logger = ActiveSupport::Logger.new($stdout)
     stdout_logger.formatter = ContainerLogFormatter.new
-    config.logger = ActiveSupport::TaggedLogging.new(stdout_logger)
-    config.log_level = :info
+    stdout_logger.level = configured_level
+    config.logger = stdout_logger
+    config.log_level = configured_level
+    OperationalLog.configure(stdout_logger)
+    if invalid_log_level
+      OperationalLog.warn(logger: "cci.configuration", message: "Invalid LOG_LEVEL; using INFO",
+        setting: "LOG_LEVEL", configured_value: invalid_log_level, effective_value: "INFO")
+    end
+    config.middleware.insert_after ActionDispatch::RequestId, RequestLogContext
     config.action_dispatch.rescue_responses["ConsulConnection::Error"] = :service_unavailable
     %w[ActiveRecord::ConnectionNotEstablished ActiveRecord::ConnectionTimeoutError ActiveRecord::NoDatabaseError].each do |error|
       config.action_dispatch.rescue_responses[error] = :service_unavailable

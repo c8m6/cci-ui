@@ -7,5 +7,4 @@ Rails.application.configure do
   config.assume_ssl = true
   config.secret_key_base = ENV.fetch("SECRET_KEY_BASE")
   config.hosts = ENV.fetch("ALLOWED_HOSTS").split(",")
-  config.log_level = :info
 end

@@ -1,23 +1,30 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+$stdout.sync = true
+$stderr.sync = true
+
 ENV["CCI_PROCESS"] = "indexer"
 require_relative "../lib/operational_log"
 begin
   require_relative "../config/environment"
 rescue StandardError => e
-  OperationalLog.failure("startup.boot.failed", e)
+  OperationalLog.failure(logger: "cci.startup", message: "Application boot failed", error: e,
+    operation: "boot")
   exit 1
 end
 OperationalLog.startup
 loop do
-  begin
+  LogContext.with(correlation_id: SecureRandom.uuid) do
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    OperationalLog.emit("indexing.started")
+    OperationalLog.info(logger: "cci.indexer", message: "Index refresh started", operation: "refresh_index")
     CatalogIndexer.run
-    OperationalLog.emit("indexing.completed", duration_seconds: (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(3))
+    OperationalLog.info(logger: "cci.indexer", message: "Index refresh completed", operation: "refresh_index",
+      result: "succeeded",
+      duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(1))
   rescue StandardError => e
-    OperationalLog.failure("indexing.failed", e)
+    OperationalLog.failure(logger: "cci.indexer", message: "Index refresh failed", error: e,
+      operation: "refresh_index", result: "failed")
   end
   sleep Integer(ENV.fetch("INDEX_INTERVAL", "60"))
 end

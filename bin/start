@@ -1,13 +1,17 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+$stdout.sync = true
+$stderr.sync = true
+
 ENV["CCI_PROCESS"] = "web"
 require_relative "../lib/operational_log"
 begin
   require_relative "../config/environment"
 rescue StandardError => e
-  OperationalLog.failure("startup.boot.failed", e)
+  OperationalLog.failure(logger: "cci.startup", message: "Application boot failed", error: e,
+    operation: "boot")
   exit 1
 end
 OperationalLog.startup
-exec "bundle", "exec", "puma", "-C", "config/puma.rb"
+exec "bundle", "exec", "ruby", "bin/puma", "-C", "config/puma.rb"

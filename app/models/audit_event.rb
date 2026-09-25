@@ -11,6 +11,8 @@ class AuditEvent < ApplicationRecord
 
   scope :visible_to, ->(identity) { where(area: identity.audit_areas) }
   before_validation { self.occurred_at ||= Time.current }
+  after_create_commit :log_business_action
+  after_update_commit :log_business_outcome, if: :saved_change_to_details?
 
   # Commit the intent before changing source material. A timeout or process crash must
   # never erase who requested a change or pretend its result is known.
@@ -28,6 +30,20 @@ class AuditEvent < ApplicationRecord
     end
     event.update!(details: event.details.merge("outcome" => "succeeded", "finished_at" => Time.current.iso8601(6)))
     result
+  end
+
+  def log_business_action
+    OperationalLog.info(logger: "cci.audit", message: "Business action recorded",
+      operation: action, audit_event_id: id, area: area, user: actor,
+      result: details["outcome"])
+  end
+
+  def log_business_outcome
+    return unless details["outcome"]
+
+    OperationalLog.info(logger: "cci.audit", message: "Business action completed",
+      operation: action, audit_event_id: id, area: area, user: actor,
+      result: details["outcome"])
   end
 
   def self.snapshot(cert)

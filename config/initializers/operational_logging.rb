@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require Rails.root.join("lib/operational_log")
-
-ActiveSupport::Notifications.subscribe("sql.active_record") do |event|
-  OperationalLog.database_write(event.payload)
+# SQL output is intentionally disabled at every level. Business writes are
+# represented by application and audit events instead.
+Rails.application.config.after_initialize do
+  ActiveRecord::Base.logger = nil
 end

@@ -30,6 +30,7 @@ services:
         required: false
     environment: &production_environment
       RAILS_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CCI_SHOW_ERROR_DETAILS: ${CCI_SHOW_ERROR_DETAILS:-false}
       AUTH_MODE: oidc
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE setzen}

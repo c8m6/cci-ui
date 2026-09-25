@@ -7,7 +7,7 @@ class ApplicationController < ActionController::Base
 
   before_action :require_identity
   rescue_from Certificates::Error do |error|
-    Rails.logger.error(error.full_message(highlight: false))
+    OperationalLog.failure(logger: "cci.certificates", message: "Certificate operation failed", error: error)
     redirect_back fallback_location: root_path, alert: error.message, status: :see_other
   end
 
@@ -17,9 +17,19 @@ class ApplicationController < ActionController::Base
     redirect_to login_path unless current_identity
   end
 
+  def log_authorization_denied(required_roles:)
+    identity = current_identity
+    effective_roles = identity&.roles || []
+    OperationalLog.debug(logger: "cci.authorization", message: "Authorization denied",
+      system: "cci-ui", user: identity&.name, required_roles: required_roles,
+      effective_roles: effective_roles, missing_roles: required_roles - effective_roles,
+      reason: identity ? "required_role_missing" : "identity_missing")
+  end
+
   def require_writer!(area)
     return if current_identity.writer?(area)
 
+    log_authorization_denied(required_roles: ["#{area}_writer"])
     raise Certificates::Error,
       I18n.t("errors.app.writer_required",
         area: AreaConfiguration.label(area))

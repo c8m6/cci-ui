@@ -47,7 +47,10 @@ class SessionsController < ApplicationController
     mapping = JSON.parse(ENV.fetch("OIDC_ROLE_MAP", "{}"))
     roles = supplied.map { |role| mapping.fetch(role, role) }.flatten
     establish(auth.uid.to_s, Identity.new(name: auth.uid, roles: roles).roles)
-    OperationalLog.emit("keycloak.authentication.succeeded")
+    OperationalLog.debug(logger: "cci.keycloak", message: "User authenticated by Keycloak",
+      system: "keycloak", operation: "authentication", user: auth.uid.to_s,
+      client_id: ENV.fetch("OIDC_CLIENT_ID"), realm: keycloak_realm,
+      effective_roles: Identity.new(name: auth.uid, roles: roles).roles)
   end
 
   def failure
@@ -60,6 +63,12 @@ class SessionsController < ApplicationController
   end
 
   private
+
+  def keycloak_realm
+    URI(ENV.fetch("OIDC_ISSUER")).path.split("/").reject(&:empty?).last
+  rescue URI::InvalidURIError
+    nil
+  end
 
   def establish(name, roles)
     reset_session

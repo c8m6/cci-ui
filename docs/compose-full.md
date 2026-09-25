@@ -71,6 +71,7 @@ application. Consequently `SECRET_KEY_BASE`, `ALLOWED_HOSTS`, `AUTH_MODE` and
 the four OIDC connection settings are required for boot even though these
 processes do not serve requests. The shared boot anchor documents this
 dependency explicitly. `RAILS_MAX_THREADS` also controls the database pool.
+`LOG_LEVEL` is shared so web, indexer and migration output use the same threshold.
 
 Legacy storage is mounted read/write for web and read-only for the indexer.
 TLS mounts are read-only. Web receives PuppetDB connection settings because

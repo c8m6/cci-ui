@@ -37,7 +37,8 @@ class CertificatesController < ApplicationController
       ).to_a.group_by(&:fingerprint).transform_values(&:first)
       @hiera = HieraSnippet.for(@certificate, @material[:certificate])
     rescue Certificates::Error, ConsulConnection::Error => e
-      Rails.logger.error(e.full_message(highlight: false))
+      OperationalLog.failure(logger: "cci.certificates", message: "Certificate material loading failed", error: e,
+        certificate_id: @certificate.id)
       @material = nil
       @material_error = e.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : e.message
     end

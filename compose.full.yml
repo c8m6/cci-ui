@@ -10,6 +10,7 @@ x-image: &image cci-ui:local
 # even though they do not serve HTTP or authenticate users.
 x-rails-environment: &rails_environment
   RAILS_ENV: production
+  LOG_LEVEL: "INFO"
   DATABASE_URL: "postgresql://cci:REPLACE_DATABASE_PASSWORD@postgresql.example.test:5432/cci?sslmode=verify-full&sslrootcert=/run/postgresql/ca.pem"
   RAILS_MAX_THREADS: "5"
   SECRET_KEY_BASE: "REPLACE_WITH_A_STABLE_RANDOM_SESSION_SECRET"

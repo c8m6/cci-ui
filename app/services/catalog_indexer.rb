@@ -3,22 +3,30 @@
 # Refreshes source projections under a shared lock, preserving data on failed scans.
 class CatalogIndexer
   def self.run
-    synchronize do
-      indexer = new
-      failures = []
-      %i[filesystem consul ca_inventory puppetdb].each do |source|
-        if source == :ca_inventory && failures.any?
-          CaInventoryRefresh.failed!
-          next
+    context = LogContext.correlation_id ? {} : { correlation_id: SecureRandom.uuid }
+    LogContext.with(**context) do
+      synchronize do
+        indexer = new
+        failures = []
+        %i[filesystem consul ca_inventory puppetdb].each do |source|
+          if source == :ca_inventory && failures.any?
+            CaInventoryRefresh.failed!
+            next
+          end
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          OperationalLog.debug(logger: "cci.indexer", message: "Index source refresh started",
+            operation: "refresh_index_source", source: source)
+          indexer.public_send(source)
+          OperationalLog.debug(logger: "cci.indexer", message: "Index source refresh completed",
+            operation: "refresh_index_source", source: source, result: "succeeded",
+            duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(1))
+        rescue Certificates::Error, ConsulConnection::Error, PuppetdbConnection::Error => e
+          OperationalLog.failure(logger: "cci.indexer", message: "Index source refresh failed",
+            error: e, level: :warn, operation: "refresh_index_source", source: source, result: "failed")
+          failures << e
         end
-        OperationalLog.emit("indexing.source.started", source: source)
-        indexer.public_send(source)
-        OperationalLog.emit("indexing.source.completed", source: source)
-      rescue Certificates::Error, ConsulConnection::Error, PuppetdbConnection::Error => e
-        OperationalLog.failure("indexing.source.failed", e, source: source)
-        failures << e
+        raise failures.first if failures.any?
       end
-      raise failures.first if failures.any?
     end
   end
 
@@ -63,7 +71,8 @@ class CatalogIndexer
     LegacyStore.areas.each do |area|
       filesystem_area(area)
     rescue Certificates::Error, ConsulConnection::Error => e
-      Rails.logger.warn("Filesystem inventory #{area}: indexing failed (#{e.class})")
+      OperationalLog.failure(logger: "cci.indexer", message: "Filesystem inventory refresh failed",
+        error: e, level: :warn, operation: "refresh_filesystem_inventory", area: area)
       failures << e
     end
     raise failures.first if failures.any?

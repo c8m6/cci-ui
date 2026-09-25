@@ -3,7 +3,7 @@
 # Separates upload previews from confirmed, audited certificate publication.
 class ImportsController < ApplicationController
   rescue_from Certificates::Error do |error|
-    Rails.logger.error(error.full_message(highlight: false))
+    OperationalLog.failure(logger: "cci.certificates", message: "Certificate import failed", error: error)
     # A preview can expire or be consumed. Redirecting back to its URL would
     # repeat the same failure, so always return to a usable page.
     destination = current_identity&.any_writer? ? new_import_path : root_path
@@ -11,7 +11,10 @@ class ImportsController < ApplicationController
   end
 
   def new
-    render_error(:forbidden) unless current_identity.any_writer?
+    return if current_identity.any_writer?
+
+    log_authorization_denied(required_roles: AreaConfiguration.ids.map { |area| "#{area}_writer" })
+    render_error(:forbidden)
   end
 
   # Reopen an existing preview after a language change without repeating upload

@@ -57,6 +57,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `SECRET_KEY_BASE` | Rails session secret, required in production. Development has a local fallback. Changing it invalidates sessions. |
 | `ALLOWED_HOSTS` | Comma-separated allowed request hostnames. Required in production; development adds `localhost,127.0.0.1` by default. |
 | `RAILS_ENV` | Rails environment. The Compose templates set `development` or `production`. Set explicitly with `docker run`. |
+| `LOG_LEVEL` | Global application log level. Default: `INFO`. Use `DEBUG` for detailed Keycloak, PuppetDB, Consul and indexer diagnostics. Invalid values produce a startup warning and fall back to `INFO`. Restart services after changing it. |
 | `CCI_SHOW_ERROR_DETAILS` | `true` / `1` shows exception messages and stack traces on error pages. Default: `false`, including in development. Applies to all visitors, including users who are not signed in. Errors are logged regardless of this setting. Restart the web service after changing it. |
 | `PORT` | Puma listening port. Default: `3000`. Compose publishes the same port on `127.0.0.1`. |
 | `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
@@ -82,51 +83,68 @@ internal information to any visitor, so enable it only in a trusted environment.
 Ordinary validation messages, such as an invalid certificate or missing input,
 remain visible so users can correct their input.
 
-Web and indexer write logs to standard output. No diagnostic display setting is
-required. Follow both container logs with:
+Web and indexer write one JSON object per line to standard output. Every entry
+contains `timestamp`, `level`, `logger` and a human-readable `message`.
+Context is represented by separate fields such as `operation`, `http_status`,
+`endpoint`, `duration_ms`, `user`, `client_id` and `realm`. Errors also contain
+`error_type` and `error_message`. ERROR entries include their stack trace as a
+JSON array instead of additional plain-text lines.
+
+Follow both container logs with:
 
 ```bash
 docker compose -f compose.yml logs -f web indexer
 ```
 
-Operational events are JSON lines containing UTC time, process name, PID and
-an event name. They deliberately omit SQL parameters, certificate material,
-private keys, HTTP bodies, tokens, passwords and authentication claims.
-Framework logs use parameter filtering and redact configured secrets, private-key
-PEM blocks and URL query strings. Do not enable raw HTTP debug logging.
+`LOG_LEVEL` defaults to `INFO`. INFO contains request completion summaries,
+startup health results, complete index passes and audited business actions.
+Rails SQL, transaction internals and generic model callbacks are disabled at
+every level. Set `LOG_LEVEL=DEBUG` and recreate the services when diagnosing
+an integration:
 
-- `database.write` records each INSERT, UPDATE and DELETE, including bulk writes,
-  with the table, connection ID and affected row count when available. `executed`
-  means the statement completed, not that the transaction committed. BEGIN,
-  COMMIT and ROLLBACK events identify transaction outcomes on that connection.
-- `record.committed` adds the table, record ID and operation after model commits.
-  Bulk SQL bypasses model callbacks and is covered by `database.write` instead.
-- `consul.write` records each transaction write operation as `attempted`,
-  `succeeded`, `rejected` (CAS conflict) or `unknown` (unconfirmed outcome).
-- `filesystem.rename` records each successful legacy-file rename, including
-  compensating renames during rollback, with the certificate record ID.
-- `indexing.started`, `indexing.source.started`, `indexing.source.completed`,
-  `indexing.source.failed`, `indexing.completed` and `indexing.failed` show progress.
-  A completed pass includes duration and is emitted only after all sources succeed.
+```bash
+LOG_LEVEL=DEBUG docker compose -f compose.yml up -d --force-recreate web indexer
+docker compose -f compose.yml logs -f web indexer
+```
+
+DEBUG adds source-level index progress and safe Consul write outcomes. For
+Keycloak it records OIDC phases, discovery, token and user-info requests,
+upstream HTTP status, authenticated user, effective roles and CCI-UI
+authorization denials with required and missing roles. A Keycloak 401 or 403
+uses `result` value `upstream_authentication_rejected`, while a local decision
+uses logger `cci.authorization` and reason `required_role_missing`.
+
+PuppetDB logs transport and comparison separately. A successful query reports
+`resource_count` and either `data` or `no_data`. The comparison reports
+`diff_count` and one of `updated`, `no_difference` or `no_data`. Connection
+failures, upstream HTTP errors and responses that cannot be processed use the
+distinct results `unreachable`, `http_error` and `unprocessable_response`.
+WARNING and ERROR remain visible at the default INFO level.
+
+Each incoming HTTP request receives a validated request ID. A safe
+`X-Request-ID` supplied by the caller is retained, otherwise the application
+generates a UUID. All application events during that request contain
+`request_id`, and outgoing Keycloak, PuppetDB and Consul calls receive the same
+value as `X-Request-ID`. Index passes use `correlation_id` to connect their
+entries when no HTTP request exists.
+
+Tokens, authorization and cookie headers, passwords, client secrets, area
+keys, private keys, JWTs, URL queries and request or response bodies are not
+logged. The central formatter also redacts configured secret values if a
+framework exception includes one. Do not enable raw HTTP debug logging.
 
 At container startup, web and indexer run dependency diagnostics and database
-readiness checks. `startup.health.failed` identifies the service, exception chain
-and safe diagnostic reasons such as missing mounts, DNS failure, connection
-refusal or TLS verification failure. Raw exception messages and response bodies
-are excluded from these structured events. Dependency failures are reported but
-do not stop startup. A Rails boot failure emits `startup.boot.failed` and exits.
-The web container still uses `/ready` for its recurring Docker healthcheck.
-Failures returned by `/health` or `/ready` also generate `health.failed` events.
+readiness checks. Failed checks identify the service, safe endpoint and file
+metadata, the structured exception chain and diagnostic reasons such as a
+missing mount, DNS failure, connection refusal or TLS verification failure.
+Dependency failures are reported but do not stop startup. A Rails boot failure
+is logged and exits. The web container still uses `/ready` for its recurring
+Docker healthcheck. Failures returned by `/health` or `/ready` use the same
+JSON error schema.
 
-Keycloak request and callback phases emit `keycloak.*` events, including
-connection failures, authentication rejection and successful application login.
-No authorization code, state, redirect query, token or user claims are included.
-OIDC HTTP clients use a 5-second connection timeout and 15-second request timeout.
-Rails error logging is independent of `CCI_SHOW_ERROR_DETAILS`.
-
-If the application cannot start, or the error layout itself fails, Rails or the
-web server must provide its fallback response. Those failures cannot use the
-application layout. The error renderer does not query the database or Consul.
+If the application cannot initialize its logger, the Ruby or container runtime
+may still emit a fallback line. Once Rails has booted, application and
+framework messages use the shared JSON formatter.
 
 ## Optional PuppetDB host inventory
 
@@ -239,7 +257,7 @@ export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
 export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
 
 app_env=(
-  -e RAILS_ENV -e AUTH_MODE -e PORT -e RAILS_MAX_THREADS -e CCI_SHOW_ERROR_DETAILS
+  -e RAILS_ENV -e AUTH_MODE -e PORT -e RAILS_MAX_THREADS -e LOG_LEVEL -e CCI_SHOW_ERROR_DETAILS
   -e CCI_AREAS -e CCI_LEGACY_PATHS -e CCI_AREA_KEYS
   -e DATABASE_URL -e SECRET_KEY_BASE -e ALLOWED_HOSTS
   -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE

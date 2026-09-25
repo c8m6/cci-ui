@@ -32,6 +32,7 @@ class ConsulConnection
     request = Net::HTTP.const_get(method.capitalize).new(uri)
     request["X-Consul-Token"] = @token unless @token.empty?
     request["Content-Type"] = "application/json"
+    request["X-Request-ID"] = LogContext.correlation_id if defined?(LogContext) && LogContext.correlation_id
     request.body = body if body
     response = http.request(request)
     return nil if missing && response.code == "404"
@@ -92,8 +93,9 @@ class ConsulConnection
     return unless defined?(OperationalLog)
 
     writes.each_with_index do |operation, index|
-      OperationalLog.emit("consul.write", operation: operation["Verb"], outcome: outcome,
-        transaction_id: transaction_id, operation_index: index)
+      OperationalLog.debug(logger: "cci.consul", message: "Consul write #{outcome}",
+        system: "consul", operation: operation["Verb"], result: outcome,
+        consul_transaction_id: transaction_id, operation_index: index)
     end
   end
 

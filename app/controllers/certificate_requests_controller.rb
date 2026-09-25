@@ -91,6 +91,7 @@ class CertificateRequestsController < ApplicationController
   def require_csr
     return if current_identity&.any_csr?
 
+    log_authorization_denied(required_roles: AreaConfiguration.ids.map { |area| "#{area}_csr" })
     request.format.json? ? render(json: { error: t("csr.errors.forbidden") }, status: :forbidden) : render_error(:forbidden)
   end
 

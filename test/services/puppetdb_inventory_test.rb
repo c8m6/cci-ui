@@ -178,4 +178,39 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
   ensure
     CatalogIndexer.define_singleton_method(:new, original) if original
   end
+
+  test "DEBUG distinguishes empty PuppetDB data from an unchanged comparison" do
+    no_data = capture_debug_log { refresh([]) }
+    no_data_event = no_data.lines.map { |line| JSON.parse(line) }.find do |event|
+      event["operation"] == "compare_inventory"
+    end
+    assert_equal "no_data", no_data_event["result"]
+    assert_equal 0, no_data_event["resource_count"]
+    assert_equal 0, no_data_event["diff_count"]
+
+    rows = [row("host.example.test", @record.fingerprint)]
+    refresh(rows)
+    no_difference = capture_debug_log { refresh(rows) }
+    comparison = no_difference.lines.map { |line| JSON.parse(line) }.find do |event|
+      event["operation"] == "compare_inventory"
+    end
+    assert_equal "no_difference", comparison["result"]
+    assert_equal 1, comparison["resource_count"]
+    assert_equal 0, comparison["diff_count"]
+  end
+
+  private
+
+  def capture_debug_log
+    original = OperationalLog.target
+    output = StringIO.new
+    logger = ActiveSupport::Logger.new(output)
+    logger.formatter = ContainerLogFormatter.new
+    logger.level = Logger::DEBUG
+    OperationalLog.configure(logger)
+    yield
+    output.string
+  ensure
+    OperationalLog.configure(original)
+  end
 end

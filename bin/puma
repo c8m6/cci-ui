@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+$stdout.sync = true
+$stderr.sync = true
+
+require_relative "../lib/puma_json_output"
+require "puma/cli"
+
+stdout = PumaJsonOutput.new($stdout, level: "INFO")
+stderr = PumaJsonOutput.new($stderr, level: "ERROR")
+Puma::CLI.new(ARGV, Puma::LogWriter.new(stdout, stderr)).run
