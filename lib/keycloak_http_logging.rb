@@ -25,9 +25,13 @@ class KeycloakHttpLogging < Faraday::Middleware
   rescue Faraday::Error => e
     safe_error = StandardError.new("Keycloak HTTP request failed")
     safe_error.set_backtrace(e.backtrace)
+    parsing_error = e.is_a?(Faraday::ParsingError)
     OperationalLog.failure(logger: "cci.keycloak", message: "Keycloak request failed", error: safe_error,
       level: :warn, **fields, http_status: response_status(e), duration_ms: elapsed_ms(started),
-      upstream_error_type: e.class.name, reason: "connection_or_http_error")
+      content_type: response_header(e, "content-type"), response_bytes: response_bytes(e),
+      upstream_error_type: e.class.name,
+      reason: parsing_error ? "invalid_json_response" : "connection_or_http_error",
+      diagnostic_reasons: parsing_error ? ["response is not valid JSON (body omitted)"] : nil)
     raise
   end
 
@@ -48,6 +52,16 @@ class KeycloakHttpLogging < Faraday::Middleware
 
   def response_status(error)
     error.response_status if error.respond_to?(:response_status)
+  end
+
+  def response_header(error, name)
+    headers = error.response_headers if error.respond_to?(:response_headers)
+    headers&.[](name)
+  end
+
+  def response_bytes(error)
+    body = error.response_body if error.respond_to?(:response_body)
+    body.respond_to?(:bytesize) ? body.bytesize : nil
   end
 
   def elapsed_ms(started)

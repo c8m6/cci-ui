@@ -94,6 +94,58 @@ class OperationalLogTest < ActiveSupport::TestCase
     assert_not_includes output, "private-provider-response"
   end
 
+  test "Keycloak authentication failure identifies invalid ID token JSON without logging the token" do
+    base = Class.new do
+      def callback_phase
+        decode_id_token("private-header.private-payload.private-signature")
+      end
+
+      def decode_id_token(_token)
+        raise JSON::ParserError, "private-token-parser-detail"
+      end
+
+      def fail!(_message, _exception = nil)
+        [302, {}, []]
+      end
+    end
+    base.prepend(KeycloakLogging)
+
+    event = with_log_output { base.new.callback_phase }.lines.map { |line| JSON.parse(line) }.last
+    assert_equal "identity_response_parsing", event["oidc_phase"]
+    assert_equal "signed_jwt", event["identity_format"]
+    assert_equal 3, event["compact_segment_count"]
+    assert_equal ["ID token header or payload is not valid JSON (token omitted)"], event["diagnostic_reasons"]
+    assert_not_includes event.to_json, "private-header"
+    assert_not_includes event.to_json, "private-token-parser-detail"
+  end
+
+  test "invalid Keycloak response JSON logs the endpoint metadata without the body" do
+    stubs = Faraday::Adapter::Test::Stubs.new do |stub|
+      stub.get("/realms/example/protocol/openid-connect/userinfo") do
+        [200, { "Content-Type" => "application/json" }, "<private-html-response>"]
+      end
+    end
+    connection = Faraday.new(url: "https://keycloak.example.test") do |faraday|
+      faraday.use KeycloakHttpLogging
+      faraday.response :json
+      faraday.adapter :test, stubs
+    end
+
+    output = with_log_output do
+      assert_raises(Faraday::ParsingError) do
+        connection.get("/realms/example/protocol/openid-connect/userinfo")
+      end
+    end
+    failure = output.lines.map { |line| JSON.parse(line) }.last
+    assert_equal "Keycloak request failed", failure["message"]
+    assert_equal "userinfo", failure["operation"]
+    assert_equal 200, failure["http_status"]
+    assert_equal "application/json", failure["content_type"]
+    assert_equal 23, failure["response_bytes"]
+    assert_equal "invalid_json_response", failure["reason"]
+    assert_not_includes output, "private-html-response"
+  end
+
   test "Keycloak authentication failure retains a known reason without provider response" do
     base = Class.new do
       def fail!(_message, _exception = nil)

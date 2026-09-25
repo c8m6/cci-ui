@@ -126,6 +126,13 @@ reasons including `authentication_failed`, `identity_missing`,
 or 403 instead uses `result` value `upstream_authentication_rejected`, making an
 upstream rejection distinguishable from a CCI-UI decision.
 
+Malformed OIDC JSON is attributed to the concrete operation and endpoint. The
+log includes the HTTP status, content type and response size, but never the
+response body. An identity response that cannot be decoded reports
+`oidc_phase` as `identity_response_parsing`, together with its compact format
+and segment count. Three segments identify a signed JWT, five identify an
+encrypted JWE, and any other count identifies unexpected compact serialization.
+
 PuppetDB logs transport and comparison separately. A successful query reports
 `resource_count` and either `data` or `no_data`. The comparison reports
 `diff_count` and one of `updated`, `no_difference` or `no_data`. Connection
