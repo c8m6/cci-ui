@@ -13,10 +13,14 @@ module ErrorPages
       @error_details = exception.full_message(highlight: false,
         order: :top)
     end
-    # Unhandled exceptions have already been logged by Rails' DebugExceptions.
     unless request.env["action_dispatch.exception"].equal?(exception) && exception
-      detail = exception ? exception.full_message(highlight: false) : @error_title
-      Rails.logger.error("[#{request.request_id}] HTTP #{@error_status}: #{detail}")
+      fields = { http_method: request.request_method, endpoint: request.path, http_status: @error_status }
+      if exception
+        OperationalLog.failure(logger: "cci.http", message: "HTTP request failed", error: exception,
+          level: @error_status >= 500 ? :error : :warn, **fields)
+      else
+        OperationalLog.warn(logger: "cci.http", message: "HTTP error response", **fields)
+      end
     end
     # ShowExceptions rewrites even HEAD requests to GET before dispatching here.
     if request.head? || request.env["action_dispatch.original_request_method"] == "HEAD"

@@ -42,12 +42,13 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
     rows = [{ "certname" => "web.example.test", "facts" => { "certificates" => [] } }]
     with_server(body: JSON.generate(rows), headers: { "X-Records" => "1" }) do |url, requests|
       connection = PuppetdbConnection.new(environment: { "PUPPETDB_URL" => "#{url}/proxy/" })
-      assert_equal rows, connection.inventory(query)
+      LogContext.with(request_id: "puppetdb-request") { assert_equal rows, connection.inventory(query) }
       line, headers, body = requests.pop
       assert_equal "POST /proxy/pdb/query/v4?include_total=true HTTP/1.1\r\n", line
       assert_equal "application/json", headers["content-type"]
       assert_equal({ "query" => query }, JSON.parse(body))
       assert_nil headers["x-authentication"]
+      assert_equal "puppetdb-request", headers["x-request-id"]
     end
   end
 

@@ -56,7 +56,8 @@ class CertificateImport
           expected_certid_index: entry.fetch("certid_index"))
         successes << id
       rescue Certificates::Error, ConsulConnection::Error => e
-        Rails.logger.error(e.full_message(highlight: false))
+        OperationalLog.failure(logger: "cci.certificates", message: "Certificate import entry failed", error: e,
+          operation: "import_certificate", area: area)
         message = e.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : e.message
         errors << "#{AreaConfiguration.label(area)} / #{entry.fetch("name")}: #{message}"
       end

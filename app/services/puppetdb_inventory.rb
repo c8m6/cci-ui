@@ -14,6 +14,9 @@ class PuppetdbInventory
     # Older retained entries may have no SHA-1 digest until their source is
     # readable again. Keep their previous observations instead of reporting 0.
     records = Certificate.retained.where(area: AreaConfiguration.ids).where.not(column => nil)
+    differences = records.pluck(column, :puppetdb_hosts).count do |fingerprint, previous_hosts|
+      previous_hosts.to_a.sort != hosts.fetch(fingerprint, []).to_a.sort
+    end
     # Validate the entire response before replacing any cached associations.
     # An empty successful result means no hosts in the configured query scope.
     Certificate.transaction do
@@ -24,9 +27,21 @@ class PuppetdbInventory
         records.where(column => fingerprint).update_all(puppetdb_hosts: hosts.fetch(fingerprint).to_a.sort)
       end
     end
+    result = if rows.empty?
+               "no_data"
+             elsif differences.zero?
+               "no_difference"
+             else
+               "updated"
+             end
+    message = rows.empty? ? "PuppetDB returned no matching data" : "PuppetDB comparison completed"
+    OperationalLog.debug(logger: "cci.puppetdb", message: message, system: "puppetdb",
+      operation: "compare_inventory", http_status: connection.respond_to?(:last_http_status) ? connection.last_http_status : nil,
+      resource_count: rows.size, diff_count: differences, result: result)
   rescue PuppetdbConnection::Error => e
     Certificate.retained.where(area: AreaConfiguration.ids).update_all(puppetdb_error_at: Time.current)
-    Rails.logger.warn("PuppetDB host synchronisation failed: #{e.message}")
+    OperationalLog.failure(logger: "cci.puppetdb", message: "PuppetDB host synchronisation failed",
+      error: e, level: :warn, system: "puppetdb", operation: "compare_inventory", result: "failed")
     raise
   end
 

@@ -5,9 +5,14 @@ require "time"
 require "socket"
 require "timeout"
 require "uri"
+require "logger"
+require_relative "log_context"
+require_relative "container_log_formatter"
 
-# Emits metadata only, excluding exception messages, SQL values and response bodies.
+# Routes application events through the same structured logger as Rails.
 module OperationalLog
+  LEVELS = { "DEBUG" => Logger::DEBUG, "INFO" => Logger::INFO, "WARN" => Logger::WARN,
+             "WARNING" => Logger::WARN, "ERROR" => Logger::ERROR, "FATAL" => Logger::FATAL }.freeze
   REASONS = {
     /certificate verify failed/ => "certificate verification failed: check CA trust and certificate chain",
     /hostname mismatch/ => "TLS hostname does not match the certificate",
@@ -22,21 +27,47 @@ module OperationalLog
     /directory is not readable/ => "inventory directory missing or unreadable: check mounts and permissions"
   }.freeze
 
-  def self.emit(event, **fields)
-    $stdout.puts(JSON.generate(time: Time.now.utc.iso8601(6), event: event,
-      process: ENV.fetch("CCI_PROCESS", "rails"), pid: Process.pid, **fields))
-    $stdout.flush
+  # Resolves stdout at write time so boot failures and tests use the active stream.
+  class DynamicOutput
+    def write(value) = $stdout.write(value)
+    def close; end
   end
 
-  def self.failure(event, error, **fields)
+  def self.resolve_level(value = ENV.fetch("LOG_LEVEL", "INFO"))
+    normalized = value.to_s.upcase
+    return [normalized == "WARNING" ? :warn : normalized.downcase.to_sym, nil] if LEVELS.key?(normalized)
+
+    [:info, value]
+  end
+
+  def self.configure(logger)
+    @target = logger
+  end
+
+  def self.log(level, logger:, message:, **fields)
+    target.public_send(level, { logger: logger, message: message,
+                                process: ENV.fetch("CCI_PROCESS", "rails"), **fields }.compact)
+  end
+
+  %i[debug info warn error fatal].each do |level|
+    define_singleton_method(level) do |logger:, message:, **fields|
+      log(level, logger: logger, message: message, **fields)
+    end
+  end
+
+  def self.failure(logger:, message:, error:, level: :error, **fields)
     causes = []
     seen = []
-    while error && !seen.include?(error.object_id)
-      seen << error.object_id
-      causes << { type: error.class.name, reasons: reasons(error) }
-      error = error.cause
+    current = error
+    while current && !seen.include?(current.object_id)
+      seen << current.object_id
+      causes << { error_type: current.class.name, error_message: current.message, reasons: reasons(current) }
+      current = current.cause
     end
-    emit(event, **fields, causes: causes)
+    stacktrace = Array(error.backtrace) if %i[debug error fatal].include?(level)
+    log(level, logger: logger, message: message, **fields,
+      error_type: error.class.name, error_message: error.message, causes: causes,
+      stacktrace: stacktrace)
   end
 
   def self.reasons(error)
@@ -52,17 +83,6 @@ module OperationalLog
     reasons << "connection refused: check host, port and listener" if error.is_a?(Errno::ECONNREFUSED)
     reasons << "network timeout: check routing, firewall and service response time" if error.is_a?(Timeout::Error)
     reasons
-  end
-
-  def self.database_write(payload)
-    sql = payload[:sql].to_s
-    match = sql.match(/\A\s*(INSERT INTO|UPDATE|DELETE FROM)\s+"?([a-zA-Z_][a-zA-Z_0-9]*)"?/i)
-    transaction = sql.strip.upcase
-    return unless match || %w[BEGIN COMMIT ROLLBACK].include?(transaction)
-
-    emit("database.write", operation: match ? match[1].upcase : transaction,
-      table: match && match[2], outcome: payload[:exception] ? "failed" : "executed",
-      affected_rows: payload[:affected_rows], connection: payload[:connection]&.object_id)
   end
 
   def self.configuration(service)
@@ -84,11 +104,24 @@ module OperationalLog
   end
 
   def self.startup
-    emit("startup.health.started")
+    info(logger: "cci.startup", message: "Startup health checks started", operation: "startup_health")
     failures = ApplicationHealth.check.merge(ApplicationReadiness.check)
-    failures.each { |service, error| failure("startup.health.failed", error, service: service, configuration: configuration(service)) }
-    emit("startup.health.completed", outcome: failures.empty? ? "healthy" : "unhealthy")
+    failures.each do |service, error|
+      failure(logger: "cci.startup", message: "Startup health check failed", error: error,
+        service: service, operation: "startup_health", configuration: configuration(service))
+    end
+    info(logger: "cci.startup", message: "Startup health checks completed", operation: "startup_health",
+      result: failures.empty? ? "healthy" : "unhealthy")
   rescue StandardError => e
-    failure("startup.health.failed", e, service: "application")
+    failure(logger: "cci.startup", message: "Startup health checks failed", error: e,
+      service: "application", operation: "startup_health")
+  end
+
+  def self.target
+    @target ||= Logger.new(DynamicOutput.new).tap do |logger|
+      level, = resolve_level
+      logger.level = level
+      logger.formatter = ContainerLogFormatter.new
+    end
   end
 end

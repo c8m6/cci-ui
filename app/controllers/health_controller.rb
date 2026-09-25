@@ -14,7 +14,8 @@ class HealthController < ActionController::Base
 
   def report(failures)
     failures.each do |service, error|
-      OperationalLog.failure("health.failed", error, service: service, configuration: OperationalLog.configuration(service))
+      OperationalLog.failure(logger: "cci.health", message: "Health check failed", error: error, service: service,
+        operation: "health_check", configuration: OperationalLog.configuration(service))
     end
     response.headers["Cache-Control"] = "no-store"
     body = { status: failures.empty? ? "ok" : "unavailable" }

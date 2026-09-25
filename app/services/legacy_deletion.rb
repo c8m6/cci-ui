@@ -123,6 +123,7 @@ class LegacyDeletion
     result = Native.renameat2(-100, source, -100, target, 1)
     raise SystemCallError.new("renameat2", Fiddle.last_error) unless result.zero?
 
-    OperationalLog.emit("filesystem.rename", certificate_id: @record.id, outcome: "succeeded")
+    OperationalLog.info(logger: "cci.certificates", message: "Legacy certificate file renamed",
+      operation: "rename_legacy_certificate", certificate_id: @record.id, result: "succeeded")
   end
 end

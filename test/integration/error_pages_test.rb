@@ -12,7 +12,9 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     @log_output = StringIO.new
     @original_logger = Rails.logger
     @original_request_logger = Rails.application.env_config["action_dispatch.logger"]
-    Rails.logger = ActiveSupport::TaggedLogging.new(ActiveSupport::Logger.new(@log_output))
+    Rails.logger = ActiveSupport::Logger.new(@log_output)
+    Rails.logger.formatter = ContainerLogFormatter.new
+    OperationalLog.configure(Rails.logger)
     Rails.application.env_config["action_dispatch.logger"] = Rails.logger
   end
 
@@ -21,6 +23,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     Rails.application.env_config["action_dispatch.show_exceptions"] = @original_exceptions
     Rails.application.env_config["action_dispatch.logger"] = @original_request_logger
     Rails.logger = @original_logger
+    OperationalLog.configure(@original_logger)
   end
 
   test "unknown routes render a localized anonymous page and log the error" do
@@ -100,7 +103,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     post local_login_path, params: { identity: "zone_a_reader" }
     get new_import_path, headers: { "Accept-Language" => "en" }
     assert_error_page :forbidden, "en", "Access denied"
-    assert_includes @log_output.string, "HTTP 403"
+    assert_includes @log_output.string, '"http_status":403'
   end
 
   test "a missing certificate stays a 404" do
@@ -150,7 +153,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     head new_import_path
     assert_response :forbidden
     assert_empty response.body
-    assert_includes @log_output.string, "HTTP 403"
+    assert_includes @log_output.string, '"http_status":403'
   end
 
   private

@@ -3,7 +3,10 @@
 # Lists durable audit events within the areas visible to the current auditor.
 class AuditEventsController < ApplicationController
   def index
-    return render_error(:forbidden) unless current_identity.auditor?
+    unless current_identity.auditor?
+      log_authorization_denied(required_roles: AreaConfiguration.ids.map { |area| "#{area}_auditor" })
+      return render_error(:forbidden)
+    end
 
     events = AuditEvent.visible_to(current_identity)
     events = events.where(area: params[:area]) if params[:area].present?

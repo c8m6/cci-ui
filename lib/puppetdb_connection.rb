@@ -9,6 +9,8 @@ require "openssl"
 class PuppetdbConnection
   class Error < StandardError; end
 
+  attr_reader :last_http_status
+
   def initialize(environment: ENV)
     @environment = environment
     @uri = URI(environment.fetch("PUPPETDB_URL", ""))
@@ -32,29 +34,78 @@ class PuppetdbConnection
   # Fetch the complete result in one request so changing factsets cannot move
   # hosts between offset pages. Never publish a truncated or partial response.
   def inventory(query, verify_total: true)
-    http = configured_http
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    uri = query_uri(verify_total)
+    fields = { system: "puppetdb", operation: "inventory_query", http_method: "POST",
+               endpoint: safe_endpoint(uri) }
+    OperationalLog.debug(logger: "cci.puppetdb", message: "PuppetDB query started", **fields)
+    body, total = perform_request(configured_http, build_request(uri, query), verify_total)
+    rows = parse_rows(body, total)
+    OperationalLog.debug(logger: "cci.puppetdb", message: "PuppetDB query completed", **fields,
+      http_status: @last_http_status, resource_count: rows.size, duration_ms: elapsed_ms(started),
+      result: rows.empty? ? "no_data" : "data")
+    rows
+  rescue Error => e
+    OperationalLog.failure(logger: "cci.puppetdb", message: "PuppetDB response could not be used",
+      error: e, level: :warn, **(fields || {}), http_status: @last_http_status,
+      duration_ms: started && elapsed_ms(started),
+      result: @last_http_status && @last_http_status != 200 ? "http_error" : "unprocessable_response")
+    raise
+  rescue JSON::ParserError => e
+    safe_error = Error.new("PuppetDB returned invalid JSON. Host assignments are preserved.")
+    safe_error.set_backtrace(e.backtrace)
+    OperationalLog.failure(logger: "cci.puppetdb", message: "PuppetDB response could not be used",
+      error: safe_error, level: :warn, **(fields || {}), http_status: @last_http_status,
+      duration_ms: started && elapsed_ms(started), result: "unprocessable_response",
+      upstream_error_type: e.class.name)
+    raise safe_error
+  rescue IOError, SystemCallError, Timeout::Error, SocketError, OpenSSL::OpenSSLError,
+    Net::HTTPBadResponse => e
+    safe_error = Error.new("PuppetDB is unreachable or returned an invalid response. Check TLS and connectivity.")
+    safe_error.set_backtrace(e.backtrace)
+    OperationalLog.failure(logger: "cci.puppetdb", message: "PuppetDB connection failed",
+      error: safe_error, level: :warn, **(fields || {}), http_status: @last_http_status,
+      duration_ms: started && elapsed_ms(started), result: "unreachable",
+      upstream_error_type: e.class.name, diagnostic_reasons: OperationalLog.reasons(e))
+    raise safe_error
+  end
+
+  private
+
+  def query_uri(verify_total)
     uri = @uri.dup
     uri.query = nil unless verify_total
+    uri
+  end
+
+  def build_request(uri, query)
     request = Net::HTTP::Post.new(uri)
     request["Content-Type"] = "application/json"
     request["Accept"] = "application/json"
     request["X-Authentication"] = @token unless @token.empty?
+    request["X-Request-ID"] = LogContext.correlation_id if LogContext.correlation_id
     request.body = JSON.generate(query: query)
+    request
+  end
+
+  def perform_request(http, request, verify_total)
     body = +""
     total = nil
     http.request(request) do |response|
+      @last_http_status = response.code.to_i
       raise Error, "PuppetDB request failed (HTTP #{response.code})." unless response.code == "200"
 
       total = response["X-Records"] if verify_total
       response.read_body do |chunk|
-        if body.bytesize + chunk.bytesize > @max_bytes
-          raise Error,
-            "PuppetDB response exceeds PUPPETDB_MAX_RESPONSE_BYTES."
-        end
+        raise Error, "PuppetDB response exceeds PUPPETDB_MAX_RESPONSE_BYTES." if body.bytesize + chunk.bytesize > @max_bytes
 
         body << chunk
       end
     end
+    [body, total]
+  end
+
+  def parse_rows(body, total)
     rows = JSON.parse(body)
     raise Error, "PuppetDB must return a JSON array of host inventories." unless rows.is_a?(Array)
     if total && (!total.match?(/\A\d+\z/) || total.to_i != rows.size)
@@ -62,12 +113,15 @@ class PuppetdbConnection
     end
 
     rows
-  rescue IOError, SystemCallError, Timeout::Error, SocketError, OpenSSL::OpenSSLError, JSON::ParserError,
-    Net::HTTPBadResponse
-    raise Error, "PuppetDB is unreachable or returned an invalid response. Check TLS and connectivity."
   end
 
-  private
+  def elapsed_ms(started)
+    ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(1)
+  end
+
+  def safe_endpoint(uri)
+    URI::Generic.build(scheme: uri.scheme, host: uri.host, port: uri.port, path: uri.path).to_s
+  end
 
   def positive_integer(name, default)
     value = Integer(@environment.fetch(name, default).to_s, 10)
