@@ -13,7 +13,9 @@ if mode == "oidc"
   OpenIDConnect.http_config do |http|
     http.options.open_timeout = 5
     http.options.timeout = 15
-    http.use KeycloakHttpLogging
+    # Wrap the JSON response parser so malformed provider responses can be
+    # attributed to the concrete endpoint without logging their bodies.
+    http.builder.insert_before(Faraday::Response::Json, KeycloakHttpLogging)
   end
   issuer = ENV.fetch("OIDC_ISSUER")
   raise "OIDC_ISSUER requires HTTPS" if Rails.env.production? && !issuer.start_with?("https://")

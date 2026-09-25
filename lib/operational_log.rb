@@ -75,7 +75,7 @@ module OperationalLog
     reasons = REASONS.filter_map { |pattern, explanation| explanation if pattern.match?(message) }
     status = message[/\bHTTP ([1-5][0-9]{2})\b/, 1]
     reasons << "HTTP #{status}" if status
-    reasons << "invalid JSON response (body omitted)" if error.is_a?(JSON::ParserError)
+    reasons << "invalid JSON data (content omitted)" if error.is_a?(JSON::ParserError)
     reasons << "check required environment configuration" if error.is_a?(KeyError)
     reasons << "check DNS resolution" if error.is_a?(SocketError)
     reasons << "file or directory missing: check container mounts" if error.is_a?(Errno::ENOENT)
