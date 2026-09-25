@@ -108,11 +108,23 @@ docker compose -f compose.yml logs -f web indexer
 ```
 
 DEBUG adds source-level index progress and safe Consul write outcomes. For
-Keycloak it records OIDC phases, discovery, token and user-info requests,
-upstream HTTP status, authenticated user, effective roles and CCI-UI
-authorization denials with required and missing roles. A Keycloak 401 or 403
-uses `result` value `upstream_authentication_rejected`, while a local decision
-uses logger `cci.authorization` and reason `required_role_missing`.
+Keycloak it records OIDC phases, discovery, token and user-info requests and
+upstream HTTP status. After a successful provider response, logger
+`cci.authorization` records the resolved user, the relevant claim paths that
+were checked and found, role sources, realm roles, client roles for
+`OIDC_CLIENT_ID`, matching `OIDC_ROLE_MAP` entries, mapped roles, discarded
+roles and effective application roles. It then records `decision` as
+`granted`, `denied` or `continued`, while `reason` contains the concrete state.
+
+The callback itself requires an authenticated identity but no application role.
+A user without roles is therefore accepted with an empty certificate view, and
+the log contains reason `no_roles_received`, followed by an `Authorization granted` event.
+Protected actions log their concrete `reason`, such as `required_role_missing`,
+immediately before CCI-UI returns HTTP 403. Callback failures use distinct
+reasons including `authentication_failed`, `identity_missing`,
+`required_claim_missing`, `user_not_found` and `user_disabled`. A Keycloak 401
+or 403 instead uses `result` value `upstream_authentication_rejected`, making an
+upstream rejection distinguishable from a CCI-UI decision.
 
 PuppetDB logs transport and comparison separately. A successful query reports
 `resource_count` and either `data` or `no_data`. The comparison reports

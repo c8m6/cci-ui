@@ -48,13 +48,13 @@ class SessionsController < ApplicationController
     identity = result.identity
     if result.details.fetch(:incoming_roles).empty?
       OperationalLog.debug(logger: "cci.authorization", message: "No OIDC roles received",
-        system: "keycloak", operation: "authorization", result: "continued", state: "no_roles_received",
+        system: "keycloak", operation: "authorization", result: "continued", decision: "continued", reason: "no_roles_received",
         user: identity.name, client_id: result.details.fetch(:client_id),
         claim_paths_checked: result.details.fetch(:claim_paths_checked),
         required_roles: result.details.fetch(:required_roles), effective_roles: identity.roles)
     end
     OperationalLog.debug(logger: "cci.authorization", message: "Authorization granted",
-      system: "keycloak", operation: "authorization", result: "allowed", state: "authorization_granted",
+      system: "keycloak", operation: "authorization", result: "allowed", decision: "granted",
       user: identity.name, client_id: result.details.fetch(:client_id), realm: keycloak_realm,
       required_roles: result.details.fetch(:required_roles), effective_roles: identity.roles)
     establish(identity.name, identity.roles)
@@ -91,7 +91,7 @@ class SessionsController < ApplicationController
 
   def log_oidc_denial(reason:, failure_detail:, **details)
     OperationalLog.debug(logger: "cci.authorization", message: "Authorization denied",
-      system: "keycloak", operation: "authorization", result: "denied", state: "authorization_denied",
+      system: "keycloak", operation: "authorization", result: "denied", decision: "denied",
       reason: reason, failure_detail: failure_detail, realm: keycloak_realm,
       **details.slice(:user, :client_id, :provider, :expected_provider, :auth_mode,
         :claim_paths_checked, :relevant_claims_present, :missing_claims, :required_roles, :effective_roles))

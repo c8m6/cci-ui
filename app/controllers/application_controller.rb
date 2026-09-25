@@ -22,7 +22,7 @@ class ApplicationController < ActionController::Base
     effective_roles = identity&.roles || []
     OperationalLog.debug(logger: "cci.authorization", message: "Authorization denied",
       system: ENV.fetch("AUTH_MODE", "oidc") == "oidc" ? "keycloak" : "cci-ui", operation: "authorization",
-      result: "denied", state: "authorization_denied", user: identity&.name, required_roles: required_roles,
+      result: "denied", decision: "denied", user: identity&.name, required_roles: required_roles,
       effective_roles: effective_roles, missing_roles: required_roles - effective_roles,
       reason: identity ? "required_role_missing" : "identity_missing")
   end

@@ -54,7 +54,7 @@ class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
     assert_equal [], evaluation["required_roles"]
     assert_equal %w[zone_a_writer zone_b_reader], evaluation["effective_roles"]
     assert_equal ["default-roles-example"], evaluation["discarded_roles"]
-    granted = events.find { |event| event["state"] == "authorization_granted" }
+    granted = events.find { |event| event["decision"] == "granted" }
     assert_equal "allowed", granted["result"]
     assert_not_includes @log_output.string, "private-access-token"
     assert_not_includes @log_output.string, "private-other-role"
@@ -70,7 +70,7 @@ class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
     assert http_index
     assert_operator denial_index, :<, http_index
     denial = events.fetch(denial_index)
-    assert_equal "authorization_denied", denial["state"]
+    assert_equal "denied", denial["decision"]
     assert_equal "identity_missing", denial["reason"]
     assert_equal "omniauth_auth_missing", denial["failure_detail"]
     assert_equal 401, events.fetch(http_index)["http_status"]
@@ -98,10 +98,10 @@ class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
     get "/auth/keycloak/callback", env: { "omniauth.auth" => auth_hash }
 
     assert_response :see_other
-    no_roles = events.find { |event| event["state"] == "no_roles_received" }
+    no_roles = events.find { |event| event["reason"] == "no_roles_received" }
     assert_equal "continued", no_roles["result"]
     assert_equal [], no_roles["effective_roles"]
-    assert(events.any? { |event| event["state"] == "authorization_granted" })
+    assert(events.any? { |event| event["decision"] == "granted" })
   end
 
   test "OmniAuth failure preserves safe user states without logging provider input" do
