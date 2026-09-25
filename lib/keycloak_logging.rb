@@ -4,7 +4,7 @@
 module KeycloakLogging
   FAILURE_CODES = %w[csrf_detected invalid_state invalid_credentials timeout failed_to_connect connection_failed
     authentication_failed invalid_client unauthorized_client invalid_grant access_denied invalid_scope invalid_request
-    invalid_signature invalid_nonce expired_token].freeze
+    invalid_signature invalid_nonce expired_token user_not_found user_disabled].freeze
 
   def request_phase
     OperationalLog.debug(logger: "cci.keycloak", message: "OIDC authentication request started",

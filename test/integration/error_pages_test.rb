@@ -104,6 +104,8 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     get new_import_path, headers: { "Accept-Language" => "en" }
     assert_error_page :forbidden, "en", "Access denied"
     assert_includes @log_output.string, '"http_status":403'
+    assert_includes @log_output.string, '"state":"authorization_denied"'
+    assert_includes @log_output.string, '"reason":"required_role_missing"'
   end
 
   test "a missing certificate stays a 404" do
