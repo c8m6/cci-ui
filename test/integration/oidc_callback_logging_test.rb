@@ -10,6 +10,8 @@ class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
     ENV["OIDC_CLIENT_ID"] = "cci-ui"
     ENV["OIDC_ISSUER"] = "https://keycloak.example.test/realms/example"
     ENV["OIDC_ROLE_MAP"] = JSON.generate("/cci/editors" => "zone_a_writer", "cci-reader" => "zone_b_reader")
+    @original_role_mapping = Rails.application.config.x.oidc_role_mapping
+    Rails.application.config.x.oidc_role_mapping = OidcConfiguration.load_role_mapping
     @log_output = StringIO.new
     @original_logger = Rails.logger
     @original_request_logger = Rails.application.env_config["action_dispatch.logger"]
@@ -24,6 +26,7 @@ class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
     %w[AUTH_MODE OIDC_CLIENT_ID OIDC_ISSUER OIDC_ROLE_MAP].each do |name|
       @environment.key?(name) ? ENV[name] = @environment.fetch(name) : ENV.delete(name)
     end
+    Rails.application.config.x.oidc_role_mapping = @original_role_mapping
     Rails.application.env_config["action_dispatch.logger"] = @original_request_logger
     Rails.logger = @original_logger
     OperationalLog.configure(@original_logger)

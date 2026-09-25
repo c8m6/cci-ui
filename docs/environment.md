@@ -126,6 +126,10 @@ reasons including `authentication_failed`, `identity_missing`,
 or 403 instead uses `result` value `upstream_authentication_rejected`, making an
 upstream rejection distinguishable from a CCI-UI decision.
 
+`OIDC_ROLE_MAP` is validated once during application startup. Invalid JSON,
+non-object JSON and values other than strings or arrays of strings stop startup
+with a configuration error that omits the configured content.
+
 Malformed OIDC JSON is attributed to the concrete operation and endpoint. The
 log includes the HTTP status, content type and response size, but never the
 response body. An identity response that cannot be decoded reports

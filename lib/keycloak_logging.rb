@@ -22,7 +22,13 @@ module KeycloakLogging
       system: "keycloak", operation: "authentication_callback")
     super
   rescue StandardError => e
+    raise if env["omniauth.error.app"]
+
     fail!(:authentication_failed, e)
+  end
+
+  def auth_hash
+    with_oidc_phase("identity_assembly") { super }
   end
 
   def config

@@ -38,7 +38,8 @@ class SessionsController < ApplicationController
   def callback
     auth = request.env["omniauth.auth"]
     result = OidcAuthorization.new(auth: auth, auth_mode: ENV.fetch("AUTH_MODE", "oidc"),
-      client_id: ENV.fetch("OIDC_CLIENT_ID", ""), role_mapping: JSON.parse(ENV.fetch("OIDC_ROLE_MAP", "{}"))).call
+      client_id: ENV.fetch("OIDC_CLIENT_ID", ""),
+      role_mapping: Rails.application.config.x.oidc_role_mapping || OidcConfiguration.load_role_mapping).call
     log_oidc_evaluation(result)
     unless result.allowed?
       log_oidc_denial(reason: result.reason, failure_detail: result.failure_detail, **result.details)

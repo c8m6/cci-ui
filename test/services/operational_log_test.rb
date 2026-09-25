@@ -94,6 +94,30 @@ class OperationalLogTest < ActiveSupport::TestCase
     assert_not_includes output, "private-provider-response"
   end
 
+  test "application errors after OIDC authentication are not reported as Keycloak failures" do
+    base = Class.new do
+      def callback_phase
+        env["omniauth.error.app"] = true
+        raise JSON::ParserError, "private-application-configuration"
+      end
+
+      def env
+        @env ||= {}
+      end
+
+      def fail!(_message, _exception = nil)
+        raise "must not invoke the OmniAuth failure handler"
+      end
+    end
+    base.prepend(KeycloakLogging)
+
+    output = with_log_output do
+      error = assert_raises(JSON::ParserError) { base.new.callback_phase }
+      assert_equal "private-application-configuration", error.message
+    end
+    assert_not_includes output, "Keycloak authentication failed"
+  end
+
   test "Keycloak authentication failure identifies invalid ID token JSON without logging the token" do
     base = Class.new do
       def callback_phase
@@ -106,6 +130,10 @@ class OperationalLogTest < ActiveSupport::TestCase
 
       def fail!(_message, _exception = nil)
         [302, {}, []]
+      end
+
+      def env
+        @env ||= {}
       end
     end
     base.prepend(KeycloakLogging)

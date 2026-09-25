@@ -7,6 +7,8 @@ raise "Local sign-in is prohibited in production" if Rails.env.production? && mo
 if mode == "oidc"
   require Rails.root.join("lib/keycloak_logging")
   require Rails.root.join("lib/keycloak_http_logging")
+  require Rails.root.join("lib/oidc_configuration")
+  Rails.application.config.x.oidc_role_mapping = OidcConfiguration.load_role_mapping
   OmniAuth::Strategies::OpenIDConnect.prepend(KeycloakLogging)
   # Keep provider exceptions out of Rails request dumps in every environment.
   OmniAuth.config.failure_raise_out_environments = []

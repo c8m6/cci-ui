@@ -189,7 +189,11 @@ Readers cannot export. Without assigned roles, the certificate list is empty.
 ### OIDC_ROLE_MAP JSON format
 
 `OIDC_ROLE_MAP` translates names supplied by your identity provider into CCI-UI
-application roles. Set it to a JSON object. Each property has:
+application roles. Set it to a JSON object. CCI-UI validates its JSON and value
+types during startup. Invalid configuration stops the container with an
+`OIDC_ROLE_MAP must contain a valid JSON object` error before any login can be
+attempted. The configured JSON content is not included in that error. Each
+property has:
 
 - **Key:** an incoming group or role name, exactly as it appears in the claims.
   Matching is case-sensitive. A leading slash is part of the name, so
