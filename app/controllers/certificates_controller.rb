@@ -66,7 +66,8 @@ class CertificatesController < ApplicationController
       return render :delete_legacy, status: :unprocessable_content
     end
 
-    LegacyDeletion.new(@certificate).call(token: params[:deletion_token], actor: current_identity.name)
+    LegacyDeletion.new(@certificate).call(token: params[:deletion_token], actor: current_identity.uid,
+      actor_display_name: current_identity.display_name)
     redirect_to root_path, notice: I18n.t("notices.legacy_deleted"), status: :see_other
   end
 
@@ -96,13 +97,15 @@ class CertificatesController < ApplicationController
         flash.now[:alert] = I18n.t("errors.app.archive_confirmation")
         return render :archive, status: :unprocessable_content
       end
-      ConsulStore.archive(record, actor: current_identity.name, expected_certid_index: params[:certid_index])
+      ConsulStore.archive(record, actor: current_identity.uid, actor_display_name: current_identity.display_name,
+        expected_certid_index: params[:certid_index])
       notice = I18n.t("notices.archived")
     elsif params.key?(:rollout_status)
       change_rollout_status(record)
       notice = I18n.t("notices.status_saved")
     else
-      ConsulStore.activate(record.area, record.source_id, actor: current_identity.name)
+      ConsulStore.activate(record.area, record.source_id, actor: current_identity.uid,
+        actor_display_name: current_identity.display_name)
       notice = I18n.t("notices.version_activated")
     end
     CatalogIndexer.refresh_consul
@@ -116,8 +119,8 @@ class CertificatesController < ApplicationController
   end
 
   def change_rollout_status(record)
-    options = { status: params[:rollout_status], actor: current_identity.name,
-                expected_certid_index: params[:certid_index] }
+    options = { status: params[:rollout_status], actor: current_identity.uid,
+                actor_display_name: current_identity.display_name, expected_certid_index: params[:certid_index] }
     ConsulStore.set_status(record.area, record.source_id, **options)
   end
 end

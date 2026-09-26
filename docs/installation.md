@@ -185,7 +185,28 @@ of matching certificates. It grants no general Reader, Writer or Key Exporter
 permissions. Local identities `zone_a_csr` and `all:csr` land at
 `/certificate_requests`. See [CSR operations and key rotation](csr.md).
 
-Readers cannot export. Without assigned roles, the certificate list is empty.
+Readers cannot export. Users without an effective CCI-UI role are signed out
+after the OIDC callback and see a message that no permissions were assigned.
+
+### OIDC display name
+
+CCI-UI uses the OIDC subject returned by OmniAuth as the stable user UID. This
+UID remains the actor stored in audit records and sent with write operations.
+The name shown in the upper-right account area can be selected independently:
+
+```dotenv
+OIDC_DISPLAY_NAME_CLAIM=preferred_username
+```
+
+Allowed values are `preferred_username`, `name` and `email`. The default is
+`preferred_username`. If the selected claim is missing or blank, CCI-UI tries
+`preferred_username`, `name` and `email` in that order, then displays the stable
+UID. Configure Keycloak to include the desired claim in the ID token or
+UserInfo response. Changing this setting requires a container restart and a new
+login because the resolved display name is stored in the session. With
+`LOG_LEVEL=DEBUG`, the callback log includes `display_name` and
+`display_name_source` without logging tokens.
+
 ### OIDC_ROLE_MAP JSON format
 
 `OIDC_ROLE_MAP` translates names supplied by your identity provider into CCI-UI
@@ -332,6 +353,7 @@ OIDC_ISSUER=https://keycloak.example.internal/realms/internal
 OIDC_CLIENT_ID=cci-ui
 OIDC_CLIENT_SECRET=<Keycloak client secret>
 OIDC_REDIRECT_URI=https://cci.example.internal/auth/keycloak/callback
+OIDC_DISPLAY_NAME_CLAIM=preferred_username
 LEGACY_PATH=/mnt/certificates
 ```
 

@@ -153,10 +153,13 @@ unauthorized record causes the entire export to fail.
 Keycloak is connected through OIDC Authorization Code with PKCE. The library
 validates the ID token. Roles are read from `groups`, `realm_access.roles` and
 client roles, and can be translated through `OIDC_ROLE_MAP`. These claims must
-be available to the Keycloak client. Sessions last one hour; role changes take
-effect when a new session is established. Immediate role revocation and
-Keycloak backchannel logout are not yet implemented. Local mode uses test
-identities generated from configuration and is prohibited in production.
+be available to the Keycloak client. The OIDC subject remains the stable user
+UID for audit and write attribution. `OIDC_DISPLAY_NAME_CLAIM` selects the
+standard claim shown in the UI without changing that identity. Sessions last
+one hour; role and display-name changes take effect when a new session is
+established. Immediate role revocation and Keycloak backchannel logout are not
+yet implemented. Local mode uses test identities generated from configuration
+and is prohibited in production.
 
 Consul machine credentials are separate ACL tokens, independent of UI Reader
 roles. Compilers need read access to their area's CertID metadata and certificates, plus

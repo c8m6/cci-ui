@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Durable CAS intents and immutable-value reconciliation make retries safe after lost replies.
+# Durable CAS intents and one atomic Consul transaction make multi-area retries safe.
 class CsrPublication
   def initialize(entry, identity:)
     @entry = entry
@@ -10,17 +10,19 @@ class CsrPublication
     @writer = CciWriter.new(connection: @connection, prefix: ConsulStore.namespace)
   end
 
-  def call(expected_index: 0, confirm_overwrite: false)
-    CsrWorkflow.authorize!(@identity, @request.area)
+  def call(expected_index: 0, expected_indices: nil, confirm_overwrite: false)
+    CsrWorkflow.authorize!(@identity, @request.areas)
     CatalogIndexer.synchronize do
       @entry.reload
       CsrNames.fail!(:stale) unless @request.latest_certificate&.id == @entry.id
       return @entry if @entry.state == "published"
 
+      CatalogIndexer.new.consul
+      CertificateAreaConfiguration.validate_fingerprint!(@entry.fingerprint, areas: @request.areas)
       verify!
       return @entry if @entry.state == "awaiting_issuer"
 
-      prepare!(expected_index, confirm_overwrite) if @entry.prepared.empty?
+      prepare!(indices(expected_index, expected_indices), confirm_overwrite) if @entry.prepared.empty?
       publish!
       @entry
     rescue ConsulConnection::Conflict
@@ -34,47 +36,70 @@ class CsrPublication
 
   private
 
+  def indices(expected_index, expected_indices)
+    return @request.areas.to_h { |area| [area, Integer(expected_index)] } unless expected_indices
+
+    @request.areas.to_h { |area| [area, Integer(expected_indices.fetch(area))] }
+  rescue KeyError, ArgumentError, TypeError
+    CsrNames.fail!(:stale)
+  end
+
   def verify!
-    result = CsrCertificateCheck.verify(OpenSSL::X509::Certificate.new(@entry.pem),
-      area: @request.area, issuer_pems: @entry.issuer_pems)
-    if result == "missing"
+    cert = OpenSSL::X509::Certificate.new(@entry.pem)
+    results = @request.areas.map do |area|
+      CsrCertificateCheck.verify(cert, area: area, issuer_pems: @entry.issuer_pems)
+    end
+    CsrNames.fail!(:signature) if results.include?("invalid")
+    if results.include?("missing")
       @entry.update!(state: "awaiting_issuer", error_code: "issuer_missing")
       return
     end
-    CsrNames.fail!(:signature) if result == "invalid"
 
     @entry.update!(verified_at: Time.current, state: @entry.prepared.empty? ? "pending" : "publishing", error_code: nil)
   end
 
-  def prepare!(expected_index, confirm_overwrite)
-    CsrNames.fail!(:overwrite) unless expected_index.to_i.zero? || confirm_overwrite
+  def prepare!(expected_indices, confirm_overwrite)
+    CsrNames.fail!(:overwrite) if expected_indices.values.any?(&:positive?) && !confirm_overwrite
 
     cert = OpenSSL::X509::Certificate.new(@entry.pem)
     key = OpenSSL::PKey.read(CsrSecrets.decrypt(@request, "key"))
-    prepared = @writer.prepare(area: @request.area, certid: @request.certid, cert: cert, key: key, tags: [],
-      client: "cci-ui-csr", actor: @identity.name, expected_index: Integer(expected_index))
-    @entry.update!(prepared: prepared, consul_version: prepared.fetch(:version), state: "publishing", error_code: nil)
+    preparations = @request.areas.to_h do |area|
+      prepared = @writer.prepare(area: area, certid: @request.certid, cert: cert, key: key, tags: [],
+        client: "cci-ui-csr", actor: @identity.uid, expected_index: expected_indices.fetch(area))
+      [area, prepared]
+    end
+    versions = preparations.transform_values { |prepared| prepared.fetch(:version) }
+    @entry.update!(prepared: { areas: preparations }, consul_version: versions.fetch(@request.area),
+      consul_versions: versions, state: "publishing", error_code: nil)
   end
 
   def publish!
-    # Operation hashes have string keys in the Consul transport contract.
-    operations = @entry.prepared.fetch("operations")
-    AuditEvent.record_mutation!(action: "csr_publish", area: @request.area, actor: @identity.name,
-      references: [@request.id.to_s], details: { csr_id: @request.id, certid: @request.certid,
-                                                 certificate_id: @entry.id, version: @entry.consul_version }) do
-      @writer.commit(version: @entry.consul_version, operations: operations) unless already_written?(operations)
+    preparations = area_preparations
+    operations = preparations.values.flat_map { |prepared| prepared.fetch("operations") }
+    events = preparations.map do |area, prepared|
+      { action: "csr_publish", area: area, actor: @identity.uid,
+        actor_display_name: @identity.display_name, references: [@request.id.to_s],
+        details: { csr_id: @request.id, certid: @request.certid, certificate_id: @entry.id,
+                   version: prepared.fetch("version"), target_areas: @request.areas } }
+    end
+    AuditEvent.record_mutations!(events: events) do
+      @connection.transaction(operations) unless already_written?(preparations)
       @entry.update!(state: "published", published_at: Time.current, error_code: nil)
     end
     # Catalog refresh is independent of successful source publication.
     CatalogIndexer.new.consul
   rescue ConsulConnection::Conflict
-    raise unless already_written?(operations)
+    raise unless already_written?(preparations)
 
     @entry.update!(state: "published", published_at: Time.current, error_code: nil)
   end
 
-  def already_written?(operations)
-    immutable = operations.drop(1)
+  def area_preparations
+    @entry.prepared["areas"] || { @request.area => @entry.prepared }
+  end
+
+  def already_written?(preparations)
+    immutable = preparations.values.flat_map { |prepared| prepared.fetch("operations").drop(1) }
     values = immutable.map { |operation| @connection.get(operation.fetch("Key")) }
     return false if values.all?(&:nil?)
     unless values.zip(immutable).all? do |value, operation|
@@ -91,6 +116,7 @@ class CsrPublication
 
     attributes = { state: "failed", error_code: code }
     attributes[:prepared] = {} if clear
+    attributes[:consul_versions] = {} if clear
     @entry.update!(attributes)
     CsrAudit.record!("csr_publish", @request, @identity, outcome: "failed", code: code, certificate_id: @entry.id)
     @entry

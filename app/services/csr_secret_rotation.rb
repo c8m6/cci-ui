@@ -24,8 +24,10 @@ class CsrSecretRotation
           # Completed intents also contain encrypted Consul material. They are no longer needed for retries.
           request.csr_certificates.where(state: "published").update_all(prepared: {})
           request.update!(attributes)
-          AuditEvent.create!(action: "csr_rotate", area: area, actor: actor, references: [request.id.to_s],
-            details: { csr_id: request.id, outcome: "succeeded" })
+          request.areas.each do |target_area|
+            AuditEvent.create!(action: "csr_rotate", area: target_area, actor: actor, references: [request.id.to_s],
+              details: { csr_id: request.id, outcome: "succeeded", target_areas: request.areas })
+          end
         end
         requests.count
       end

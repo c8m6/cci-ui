@@ -15,6 +15,26 @@ class OidcConfigurationTest < ActiveSupport::TestCase
     assert_equal({}, OidcConfiguration.load_role_mapping("OIDC_ROLE_MAP" => "  \n  "))
   end
 
+  test "display name claim defaults to preferred_username and accepts supported claims" do
+    assert_equal "preferred_username", OidcConfiguration.display_name_claim({})
+    assert_equal "preferred_username", OidcConfiguration.display_name_claim("OIDC_DISPLAY_NAME_CLAIM" => "")
+    assert_equal "preferred_username", OidcConfiguration.display_name_claim("OIDC_DISPLAY_NAME_CLAIM" => "  ")
+
+    %w[preferred_username name email].each do |claim|
+      assert_equal claim, OidcConfiguration.display_name_claim("OIDC_DISPLAY_NAME_CLAIM" => claim)
+    end
+  end
+
+  test "display name claim rejects unsupported claims without exposing their value" do
+    configured_value = "private_token_claim"
+    error = assert_raises(ArgumentError) do
+      OidcConfiguration.display_name_claim("OIDC_DISPLAY_NAME_CLAIM" => configured_value)
+    end
+
+    assert_equal "OIDC_DISPLAY_NAME_CLAIM must be preferred_username, name or email.", error.message
+    assert_not_includes error.message, configured_value
+  end
+
   test "role mapping rejects invalid JSON shapes without exposing their contents" do
     invalid_values = ["private-invalid-json", "[]", '{"group":{"private":"value"}}', '{"group":[1]}']
 

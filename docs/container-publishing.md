@@ -26,19 +26,30 @@ upload anything locally.
 
 - Push to any branch: build and test, without registry login or publishing.
 - Pull request: build and test, without registry login or publishing.
-- Push any Git tag: build, test, and publish with that exact Git tag as the
-  container tag, for example `v1.2.3` → `my-organization/cci-ui:v1.2.3`.
-- `workflow_dispatch`: build and test the selected ref, including when selecting
-  a tag; manual runs do not publish.
+- Publish a GitHub release: check out its tag, build, test, and publish with
+  that exact release tag as the container tag, for example `v1.2.3` →
+  `my-organization/cci-ui:v1.2.3`.
+- `workflow_dispatch`: build and test the selected ref; manual runs do not
+  publish.
 
 There are no path exclusions: documentation-only changes also build and test.
 BuildKit uses a GitHub Actions cache for unchanged layers.
 
-Each tag push publishes only `DOCKERHUB_IMAGE:<Git tag>`. No additional branch,
-SHA or `latest` aliases are generated. The Git tag must also be a valid Docker
-tag; incompatible names (for example, names containing `/`) fail publishing
-instead of being renamed. Use an image digest for reproducible deployments.
-The image is built for `linux/amd64` on the GitHub Ubuntu runner.
+Each published release creates only `DOCKERHUB_IMAGE:<release tag>`. No
+additional branch, SHA or `latest` aliases are generated. The release tag must
+also be a valid Docker tag; incompatible names (for example, names containing
+`/`) fail publishing instead of being renamed. Use an image digest for
+reproducible deployments. The image is built for `linux/amd64` on the GitHub
+Ubuntu runner.
+
+The release tag is the authoritative application version. The workflow passes
+it to the image as `APP_VERSION`, resolves `APP_REVISION` from the checked-out
+tag and records one UTC `APP_BUILD_TIME`. The same values populate standard
+OCI image labels. Local and non-release builds use `development` as the
+version. At runtime, web and indexer log all three values once in the structured
+`CCI-UI started` event. The sidebar displays only the version. Generated
+GitHub release notes use [release.yml](../.github/release.yml); pull requests
+labeled `skip-changelog` are excluded.
 
 Before publishing, the built image is tested against PostgreSQL and Consul
 using the isolated [compose.ci.yml](../compose.ci.yml) configuration

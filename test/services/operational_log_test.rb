@@ -68,6 +68,8 @@ class OperationalLogTest < ActiveSupport::TestCase
     ApplicationHealth.define_singleton_method(:check) { { "consul" => Errno::ECONNREFUSED.new } }
     ApplicationReadiness.define_singleton_method(:check) { {} }
     events = with_log_output { OperationalLog.startup }.lines.map { |line| JSON.parse(line) }
+    build = events.find { |event| event["operation"] == "application_start" }
+    assert_equal ApplicationBuild.to_h.stringify_keys, build.slice("version", "revision", "build_time")
     failure = events.find { |event| event["message"] == "Startup health check failed" }
     assert_equal "consul", failure["service"]
     assert_includes failure.to_json, "connection refused"

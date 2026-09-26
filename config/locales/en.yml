@@ -175,6 +175,7 @@ en:
     assignment: 2. Set assignment
     target_areas: Target areas
     choose_areas: Select one or more authorized areas.
+    choose_one_area: Select exactly one authorized area.
     tags_placeholder: e.g. Production, Web server
     tags_help: Separate multiple tags with commas.
     optional_certid: Puppet certid (optional)
@@ -330,9 +331,11 @@ en:
       archive_confirmation: Please confirm the effects of archiving.
       consul_only: Puppet status and archiving are only available for Consul certificates. Use the separate deletion action for filesystem certificates.
       sso_failed: SSO sign-in failed. Please try again.
+      no_assigned_rights: Your account was authenticated successfully but has no assigned permissions for CCI-UI. You have been signed out again.
       invalid_dates: Please enter a valid date range.
       overwrite_confirmation: Please explicitly confirm that you want to overwrite the existing certids.
-      choose_area: Please select at least one valid area.
+      choose_area: Select areas allowed by the configured assignment mode.
+      certificate_other_area: This certificate already exists in another area. Single mode does not allow another copy.
       choose_input: Please select files or enter PEM text.
       import_size: Each import may contain at most 20 MB in total.
       no_certificates: No certificates found.
@@ -572,6 +575,7 @@ en:
       stale: "Only the latest submitted certificate can be changed or published."
       overwrite: "Confirm publication under the existing CertID."
       rotation: "Secret rotation requires an exclusive maintenance window and no unresolved publication intents."
+      target_count: "A shared CSR can have at most 21 target areas because of the Consul transaction limit."
     publication_errors:
       issuer_missing: "No issuer is available yet. Add its certificate or make it available in the same area, then retry."
       conflict: "The destination changed or the CertID already exists. Review its current state and explicitly confirm a new version before retrying."

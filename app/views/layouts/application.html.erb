@@ -27,12 +27,12 @@
         <%= link_to certificates_path(area: area), class: "area-link" do %><span class="area-dot"></span><%= area_label(area) %><span class="role-label"><%= current_identity.writer?(area) ? t("ui.writer") : t("ui.reader") %></span><% end %>
       <% end %>
     <% end %>
-    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small></div>
+    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small><div class="sidebar-version"><%= ApplicationBuild.version %></div></div>
   </aside>
   <div class="workspace">
     <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "certificate_requests" => t("csr.title"), "ca_inventories" => t("ca_inventory.title"), "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
       <% if ENV["AUTH_MODE"] == "local" %><span class="badge neutral"><%= t("ui.local_mode") %></span><% end %>
-      <% if current_identity %><span class="account-name"><%= current_identity.name %></span><%= button_to t("ui.logout"), logout_path, method: :delete, class: "text-button" %><% end %>
+      <% if current_identity %><span class="account-name"><%= current_identity.display_name %></span><%= button_to t("ui.logout"), logout_path, method: :delete, class: "text-button" %><% end %>
       <details class="language-menu">
         <summary aria-label="<%= t('ui.language') %>" title="<%= t('ui.language') %>"><%= I18n.locale.to_s.upcase %><span aria-hidden="true">⌄</span></summary>
         <div class="language-options">

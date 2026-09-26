@@ -19,6 +19,7 @@ export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base
 | `CCI_AREAS` | Required, nonempty JSON object mapping stable area IDs to display names. IDs match `[a-z][a-z0-9_]{0,47}`; names contain 1–100 characters and cannot be whitespace-only. |
 | `CCI_LEGACY_PATHS` | JSON object mapping any subset of the configured areas to absolute directories inside the container. Default: `{}` (no disk inventory). Multiple areas may have independent roots. |
 | `CCI_AREA_KEYS` | JSON object mapping area IDs to Base64-encoded, exactly 32-byte encryption keys. Omitted or empty means no map entries. Required for private-key operations unless the fallback below supplies the key. |
+| `CCI_CERTIFICATE_AREA_MODE` | `multiple` (default) allows one imported or CSR-issued certificate in several areas. `single` requires exactly one selected area and rejects a fingerprint already retained in another area. |
 | `<UPPERCASE_AREA_ID>_KEY` | Existing per-area fallback, for example `ZONE_A_KEY`. Used only when the area has no entry in `CCI_AREA_KEYS`. Must be injected into the application process. |
 
 Malformed area/path JSON, unknown path area IDs and relative paths prevent
@@ -54,6 +55,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `OIDC_CLIENT_SECRET` | OIDC client secret, required in OIDC mode. |
 | `OIDC_REDIRECT_URI` | Callback URL, required in OIDC mode. Development Compose defaults to `http://localhost:3000/auth/keycloak/callback`; update it for a different port or hostname. |
 | `OIDC_ROLE_MAP` | JSON object whose keys are exact incoming group/role names and whose values are application role strings or arrays of strings. Unmapped names are accepted if they are valid application roles. Empty, whitespace-only and omitted values are treated as `{}` (no translation). See [JSON format, claim sources and examples](installation.md#oidc_role_map-json-format). |
+| `OIDC_DISPLAY_NAME_CLAIM` | OIDC claim shown as the signed-in user name. Allowed values are `preferred_username`, `name` and `email`. Empty or omitted values default to `preferred_username`. Missing or blank values fall back through `preferred_username`, `name`, `email` and finally the stable OIDC UID. This setting affects display only. |
 | `SECRET_KEY_BASE` | Rails session secret, required in production. Development has a local fallback. Changing it invalidates sessions. |
 | `ALLOWED_HOSTS` | Comma-separated allowed request hostnames. Required in production; development adds `localhost,127.0.0.1` by default. |
 | `RAILS_ENV` | Rails environment. The Compose templates set `development` or `production`. Set explicitly with `docker run`. |
@@ -63,6 +65,13 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
 | `CCI_CA_INVENTORY_ENABLED` | `true` / `1` enables CA discovery after each index pass and the CA certificates page. Default: `false`. Set identically for web and indexer. See [CA inventory](ca-inventory.md). |
 | `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
+
+The image build supplies `APP_VERSION`, `APP_REVISION` and `APP_BUILD_TIME`.
+They identify the release tag, exact source commit and UTC build timestamp.
+Local builds default to `development`, `unknown` and `unknown`. Deployments
+should use the values embedded in the published image rather than overriding
+them at runtime. The application does not require a Git checkout in the
+container.
 
 Consul tokens, OIDC secrets and encryption keys are supplied directly through
 the environment. Optional PuppetDB TLS credentials use the file paths below.
@@ -110,25 +119,30 @@ docker compose -f compose.yml logs -f web indexer
 DEBUG adds source-level index progress and safe Consul write outcomes. For
 Keycloak it records OIDC phases, discovery, token and user-info requests and
 upstream HTTP status. After a successful provider response, logger
-`cci.authorization` records the resolved user, the relevant claim paths that
-were checked and found, role sources, realm roles, client roles for
+`cci.authorization` records the stable user UID, resolved display name and its
+claim source, the relevant claim paths that were checked and found, role sources,
+realm roles and client roles for
 `OIDC_CLIENT_ID`, matching `OIDC_ROLE_MAP` entries, mapped roles, discarded
 roles and effective application roles. It then records `decision` as
 `granted`, `denied` or `continued`, while `reason` contains the concrete state.
 
-The callback itself requires an authenticated identity but no application role.
-A user without roles is therefore accepted with an empty certificate view, and
-the log contains reason `no_roles_received`, followed by an `Authorization granted` event.
-Protected actions log their concrete `reason`, such as `required_role_missing`,
-immediately before CCI-UI returns HTTP 403. Callback failures use distinct
+The callback requires an authenticated identity and at least one effective
+CCI-UI application role. A user without incoming roles is denied with
+`no_roles_received`; a user whose incoming roles do not map to an application
+role is denied with `required_role_missing`. In both cases CCI-UI clears the
+session, shows that no permissions were assigned and returns the user to the
+login page. Protected actions log their concrete `reason` immediately before
+CCI-UI returns HTTP 403. Callback failures use distinct
 reasons including `authentication_failed`, `identity_missing`,
 `required_claim_missing`, `user_not_found` and `user_disabled`. A Keycloak 401
 or 403 instead uses `result` value `upstream_authentication_rejected`, making an
 upstream rejection distinguishable from a CCI-UI decision.
 
-`OIDC_ROLE_MAP` is validated once during application startup. Invalid JSON,
-non-object JSON and values other than strings or arrays of strings stop startup
-with a configuration error that omits the configured content.
+`OIDC_ROLE_MAP` and `OIDC_DISPLAY_NAME_CLAIM` are validated once during
+application startup. Invalid role-map JSON, non-object JSON and values other
+than strings or arrays of strings stop startup with a configuration error that
+omits the configured content. An unsupported display-name claim also stops
+startup and lists the supported claim names.
 
 Malformed OIDC JSON is attributed to the concrete operation and endpoint. The
 log includes the HTTP status, content type and response size, but never the
@@ -285,7 +299,8 @@ app_env=(
   -e DATABASE_URL -e SECRET_KEY_BASE -e ALLOWED_HOSTS
   -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE
   -e OIDC_ISSUER -e OIDC_CLIENT_ID -e OIDC_CLIENT_SECRET
-  -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e INDEX_INTERVAL -e CCI_CA_INVENTORY_ENABLED
+  -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e OIDC_DISPLAY_NAME_CLAIM
+  -e INDEX_INTERVAL -e CCI_CA_INVENTORY_ENABLED
   -e PUPPETDB_ENABLED -e PUPPETDB_URL -e PUPPETDB_QUERY
   -e PUPPETDB_FACT_NAME -e PUPPETDB_FINGERPRINT_FIELD -e PUPPETDB_FINGERPRINT_ALGORITHM
   -e PUPPETDB_CA_FILE -e PUPPETDB_CLIENT_CERT_FILE -e PUPPETDB_CLIENT_KEY_FILE

@@ -55,12 +55,13 @@ diagnostics. See [HA deployment](installation.md#deploying-multiple-web-replicas
 
 | Service | Configuration |
 | --- | --- |
-| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, diagnostics, port and CSR defaults |
+| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, OIDC display name, diagnostics, port and CSR defaults |
 | Indexer | Rails boot, database, Consul read token, inventory, PuppetDB and indexing interval |
 | Migration job | Rails boot and database only |
 
 The indexer deliberately receives no `CCI_AREA_KEYS`, individual area keys,
-`CSR_DEFAULT_*`, `OIDC_ROLE_MAP`, `CCI_SHOW_ERROR_DETAILS` or `PORT`.
+`CSR_DEFAULT_*`, `OIDC_ROLE_MAP`, `OIDC_DISPLAY_NAME_CLAIM`,
+`CCI_SHOW_ERROR_DETAILS` or `PORT`.
 It reads public certificate material and does not decrypt stored private keys.
 Its Consul token needs read access to all configured certid and certificate
 prefixes, including the transaction reads used by CA discovery. PostgreSQL

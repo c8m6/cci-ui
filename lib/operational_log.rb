@@ -8,6 +8,7 @@ require "uri"
 require "logger"
 require_relative "log_context"
 require_relative "container_log_formatter"
+require_relative "application_build"
 
 # Routes application events through the same structured logger as Rails.
 module OperationalLog
@@ -104,6 +105,8 @@ module OperationalLog
   end
 
   def self.startup
+    info(logger: "cci.startup", message: "CCI-UI started", operation: "application_start",
+      **ApplicationBuild.to_h)
     info(logger: "cci.startup", message: "Startup health checks started", operation: "startup_health")
     failures = ApplicationHealth.check.merge(ApplicationReadiness.check)
     failures.each do |service, error|

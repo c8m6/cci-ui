@@ -13,7 +13,10 @@ class AuditEventsController < ApplicationController
     events = events.where(action: params[:event_action]) if params[:event_action].present?
     if params[:q].present?
       query = "%#{AuditEvent.sanitize_sql_like(params[:q].to_s.strip)}%"
-      events = events.where("actor ILIKE :q OR details::text ILIKE :q OR \"references\"::text ILIKE :q", q: query)
+      events = events.where(
+        "actor ILIKE :q OR actor_display_name ILIKE :q OR details::text ILIKE :q OR \"references\"::text ILIKE :q",
+        q: query
+      )
     end
     events = events.where("occurred_at >= ?", audit_date(:from).beginning_of_day) if params[:from].present?
     events = events.where("occurred_at < ?", audit_date(:to).next_day.beginning_of_day) if params[:to].present?

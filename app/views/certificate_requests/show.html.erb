@@ -1,6 +1,6 @@
 <% content_for :title, "CSR ##{@csr.id}" %>
 <%= link_to t("csr.back"), certificate_requests_path, class: "back-link" %>
-<div class="page-heading"><div><h1>CSR #<%= @csr.id %> · <%= @csr.common_name %></h1><p><%= area_label(@csr.area) %> · <%= @csr.certid %></p></div></div>
+<div class="page-heading"><div><h1>CSR #<%= @csr.id %> · <%= @csr.common_name %></h1><p><%= @csr.areas.map { |area| area_label(area) }.to_sentence %> · <%= @csr.certid %></p></div></div>
 <% if @consul_unavailable %><p class="flash flash-error" role="status"><%= t("csr.consul_unavailable") %></p><% end %>
 <section class="panel detail-panel">
   <h2><%= t("ui.summary") %></h2>
@@ -29,7 +29,7 @@
     <dl><dt><%= t("ui.subject") %></dt><dd><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd><%= @certificate.issuer %></dd><dt><%= t("ui.validity") %></dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %> <%= ca_validity_badge(@certificate.attributes) %></dd><dt><%= t("ui.fingerprint") %></dt><dd class="mono"><%= @certificate.fingerprint %></dd></dl>
     <% if @certificate.error_code %><p class="flash flash-error"><%= t("csr.publication_errors.#{@certificate.error_code}") %></p><% end %>
     <% if @certificate.state == "published" %>
-      <p class="badge success"><%= t("csr.published_version", version: @certificate.consul_version) %></p>
+      <% @certificate.consul_versions.each do |area, version| %><p class="badge success"><%= area_label(area) %>: <%= t("csr.published_version", version: version) %></p><% end %>
     <% else %>
       <h3><%= t("csr.add_issuers") %></h3>
       <%= form_with url: issuers_certificate_request_path(@csr), multipart: true, data: { turbo: false } do |form| %>
@@ -42,7 +42,8 @@
       <%= form_with url: publish_certificate_request_path(@csr), data: { turbo: false } do |form| %>
         <%= form.hidden_field :certificate_id, value: @certificate.id %>
         <%= form.hidden_field :certid_index, value: @snapshot&.fetch(:index) || 0 %>
-        <% if @snapshot %><label class="check-label"><%= form.check_box :confirm_overwrite, { required: true }, "1", "0" %> <%= t("csr.confirm_overwrite") %></label><% end %>
+        <% @csr.areas.each do |area| %><%= hidden_field_tag "certid_indices[#{area}]", @snapshots[area]&.fetch(:index) || 0 %><% end %>
+        <% if @snapshots.values.any? %><label class="check-label"><%= form.check_box :confirm_overwrite, { required: true }, "1", "0" %> <%= t("csr.confirm_overwrite") %></label><% end %>
         <p><%= form.submit t("csr.publish"), class: "button primary" %></p>
       <% end %>
     <% end %>
