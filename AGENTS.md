@@ -177,6 +177,7 @@ Preferred commit types are:
 ```text
 feat:
 fix:
+perf:
 refactor:
 docs:
 test:
@@ -197,6 +198,18 @@ chore(release): add build metadata
 
 Commit messages should describe the functional purpose of the change rather
 than listing modified files.
+
+Conventional Commit subjects are the input for automatically generated public
+release notes. Use `feat` for new user-visible behavior, `fix` for user-visible
+corrections, `perf` for meaningful performance improvements, and `refactor`
+only when the improvement is useful to release readers. Use `docs`, `test`, and
+`chore` for internal work that should normally stay out of public release
+notes. Do not select a public type merely to make an internal change appear in
+the notes. Keep internal refactors out of public release notes.
+
+One user-visible result should generally be one logical commit. Put independent
+user-visible results in separate commits so each release-note entry remains
+clear and can be reviewed or reverted independently.
 
 Avoid commit messages such as:
 
@@ -229,8 +242,8 @@ feat(keycloak): add authorization diagnostics
 feat(puppetdb): distinguish no data from no difference
 ```
 
-Release notes should primarily describe pull requests and functional changes,
-not every internal implementation commit.
+Release notes describe the functional results represented by eligible
+Conventional Commit subjects, not every internal implementation commit.
 
 ## Versioning
 
@@ -261,14 +274,13 @@ There must not be two independently maintained version sources.
 The intended release workflow is:
 
 ```text
-Implement changes
-→ create logical commits
-→ push
-→ create pull request
-→ merge pull request
-→ create GitHub release and tag
-→ build container
-→ push versioned container image
+Implement changes on dev
+→ create logical Conventional Commits
+→ merge dev into main
+→ publish a GitHub release and tag from main
+→ generate release notes since the previous release tag
+→ update the published GitHub release
+→ build, test, and publish the versioned container image
 ```
 
 Creating a GitHub release and release tag triggers the container build.
@@ -468,35 +480,31 @@ Do not introduce a separate logging mechanism for build information.
 Release notes must correspond to the changes introduced since the previous
 release.
 
-Use GitHub pull requests and their functional descriptions as the primary
-source for release notes.
-
-Configure GitHub's generated release notes through:
+Use eligible Conventional Commit subjects as their source and configure their
+rendering through:
 
 ```text
-.github/release.yml
+cliff.toml
 ```
 
-Prefer existing repository labels when suitable.
+The release workflow runs `git-cliff` against the tag of the published GitHub
+release. It replaces that release's description with entries from after the
+previous matching release tag through the current tag. Do not maintain a
+parallel `CHANGELOG` or another version source manually.
 
-Keep additional release-note labels minimal and clear.
-
-Suggested categories are:
+Public categories are:
 
 ```text
-New Features
-Bug Fixes
-Improvements
-Documentation
-Other Changes
+feat     → New Features
+fix      → Bug Fixes
+perf     → Performance
+refactor → Improvements
 ```
 
-Allow purely internal changes to be excluded from release notes through an
-appropriate label, for example:
-
-```text
-skip-changelog
-```
+Commits using `docs`, `test`, `chore`, `ci`, `build`, or `style` are excluded,
+as are merge commits, non-Conventional commits, and other unmatched history.
+Useful scopes are retained in the rendered entry and descriptions are
+capitalized.
 
 ## Release note quality
 
@@ -577,6 +585,8 @@ In particular:
 - Codex creates suitable commits after successfully completed tasks.
 - Unrelated changes are separated into different commits.
 - Conventional Commits are used.
+- Eligible Conventional Commit subjects are the source for public release
+  notes.
 - Commits should be individually understandable and revertible.
 - Relevant tests and linting are run before commits are considered complete.
 - Required validation must never be silently skipped.

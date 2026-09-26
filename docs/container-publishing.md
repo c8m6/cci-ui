@@ -28,7 +28,8 @@ upload anything locally.
 - Pull request: build and test, without registry login or publishing.
 - Publish a GitHub release: check out its tag, build, test, and publish with
   that exact release tag as the container tag, for example `v1.2.3` →
-  `my-organization/cci-ui:v1.2.3`.
+  `my-organization/cci-ui:v1.2.3`. A separate job generates release notes for
+  that tag and updates the already-published GitHub release.
 - `workflow_dispatch`: build and test the selected ref; manual runs do not
   publish.
 
@@ -48,8 +49,35 @@ tag and records one UTC `APP_BUILD_TIME`. The same values populate standard
 OCI image labels. Local and non-release builds use `development` as the
 version. At runtime, web and indexer log all three values once in the structured
 `CCI-UI started` event. The sidebar displays only the version. Generated
-GitHub release notes use [release.yml](../.github/release.yml); pull requests
-labeled `skip-changelog` are excluded.
+GitHub release notes use [cliff.toml](../cliff.toml) and Conventional Commit
+subjects from after the previous release tag through the published tag. The
+release-note job checks out the tagged revision with the complete Git history
+and tags, then updates the release using the repository `GITHUB_TOKEN`.
+
+The intended release sequence is:
+
+```text
+develop on dev
+→ create logical Conventional Commits
+→ merge dev into main
+→ publish the GitHub release and tag
+→ GitHub Actions generates notes since the previous release tag
+→ GitHub Actions updates the release description
+→ the tested versioned image is published
+```
+
+`feat`, `fix`, `perf`, and meaningful `refactor` commits appear under **New
+Features**, **Bug Fixes**, **Performance**, and **Improvements**. Useful scopes
+are retained. Merge commits, non-Conventional commits, and commits using
+`docs`, `test`, `chore`, `ci`, `build`, or `style` are omitted. There is no
+manually maintained changelog or second version source.
+
+Release-note generation runs only for the GitHub `release.published` event.
+Creating or editing a draft does not run it, and editing a published release
+does not generate the notes again. Rerun the original workflow job if release
+note generation failed. The release-note job is isolated from the application
+build, test, and container publication job; it alone receives `contents: write`
+permission.
 
 Before publishing, the built image is tested against PostgreSQL and Consul
 using the isolated [compose.ci.yml](../compose.ci.yml) configuration
