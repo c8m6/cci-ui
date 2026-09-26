@@ -66,6 +66,13 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `CCI_CA_INVENTORY_ENABLED` | `true` / `1` enables CA discovery after each index pass and the CA certificates page. Default: `false`. Set identically for web and indexer. See [CA inventory](ca-inventory.md). |
 | `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
 
+The image build supplies `APP_VERSION`, `APP_REVISION` and `APP_BUILD_TIME`.
+They identify the release tag, exact source commit and UTC build timestamp.
+Local builds default to `development`, `unknown` and `unknown`. Deployments
+should use the values embedded in the published image rather than overriding
+them at runtime. The application does not require a Git checkout in the
+container.
+
 Consul tokens, OIDC secrets and encryption keys are supplied directly through
 the environment. Optional PuppetDB TLS credentials use the file paths below.
 Keep area key bytes stable so stored private keys remain decryptable.

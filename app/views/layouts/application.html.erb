@@ -13,6 +13,7 @@
   <a href="#main" class="skip-link"><%= t("ui.skip_content") %></a>
   <aside class="sidebar">
     <%= link_to root_path, class: "brand" do %><span class="brand-icon"><%= icon("shield") %></span>CCI<span class="brand-light">-UI</span><% end %>
+    <div class="brand-version"><%= ApplicationBuild.version %></div>
     <div class="sidebar-caption">Controlled Cryptographic Item</div>
     <% if current_identity %>
       <nav aria-label="<%= t('ui.main_navigation') %>">

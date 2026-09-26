@@ -1,15 +1,522 @@
 # Project conventions
 
+These instructions apply permanently to all work in this repository unless a later explicit instruction overrides them for a specific task.
+
+## General conventions
+
 - Write all project documentation in English, including new documents, updates
   to existing documentation, and comments in documentation examples.
 - Preserve exact UI labels and other literal values when documenting them.
-- Before completing changes, run the full Rails test suite used by CI
-  (`ruby bin/rails db:prepare test`) against the current application image with
-  PostgreSQL and Consul. Fix failures before reporting completion.
-- After completing changes, rebuild and start the development containers with
-  `docker compose -f compose.yml up --build -d --wait` so the current changes are
-  immediately available for manual testing. Verify that the application responds
-  at `http://localhost:3000` and leave the development containers running.
+- Prefer existing project conventions, architecture, helpers, and abstractions
+  over introducing parallel mechanisms.
+- Avoid unnecessary duplication of configuration, business logic, version
+  information, or infrastructure mechanisms.
+- Keep changes focused and avoid unrelated refactoring unless it is required
+  for the requested change.
 
-- Run RuboCop with the `rubocop-rake` plugin for every build. The Dockerfile
-  enforces this before asset compilation. Fix lint failures before continuing.
+## Validation before completion
+
+Before completing changes:
+
+- Run the full Rails test suite used by CI:
+
+  ```bash
+  ruby bin/rails db:prepare test
+  ```
+
+- Run the tests against the current application image with PostgreSQL and
+  Consul.
+- Fix failures caused by the current changes before reporting completion.
+- Do not commit changes that fail relevant tests unexpectedly.
+- Run RuboCop with the `rubocop-rake` plugin for every build.
+- The Dockerfile enforces RuboCop before asset compilation.
+- Fix lint failures before continuing.
+
+After completing changes:
+
+- Rebuild and start the development containers with:
+
+  ```bash
+  docker compose -f compose.yml up --build -d --wait
+  ```
+
+- Verify that the application responds at:
+
+  ```text
+  http://localhost:3000
+  ```
+
+- Leave the development containers running so the current changes are
+  immediately available for manual testing.
+
+## Commit workflow
+
+Codex should create commits automatically after a requested change has been
+completed successfully, unless explicitly instructed not to commit.
+
+A separate instruction such as "commit this" is not required.
+
+Before creating commits:
+
+1. Review all modified, added, and deleted files.
+2. Check whether all changes belong to the same logical topic.
+3. Separate unrelated changes into different commits.
+4. Run the relevant tests and linting.
+5. Check for accidental or unrelated modifications.
+6. Do not commit changes when relevant tests fail unexpectedly.
+
+### Logical commits
+
+Each commit should represent one logically coherent change.
+
+Multiple technical changes may be included in one commit when they serve the
+same functional goal.
+
+For example, the following may belong to one logging-related change:
+
+- structured JSON logging
+- request correlation IDs
+- Keycloak authorization diagnostics
+- PuppetDB diagnostics
+- removal of unnecessary database log noise
+
+Unrelated topics should be committed separately.
+
+For example, do not combine all of the following into one commit without a
+clear functional dependency:
+
+- logging changes
+- CSR functionality
+- unrelated CSS changes
+- unrelated container changes
+
+A commit should ideally be:
+
+- understandable on its own
+- reviewable on its own
+- revertible on its own
+- useful when reading the Git history later
+
+## Conventional Commits
+
+Use Conventional Commit messages.
+
+Preferred commit types are:
+
+```text
+feat:
+fix:
+refactor:
+docs:
+test:
+chore:
+```
+
+Use a meaningful scope when it improves clarity.
+
+Examples:
+
+```text
+feat(logging): add structured oidc diagnostics
+fix(keycloak): handle missing client roles correctly
+feat(csr): add certificate lifecycle handling
+refactor(puppetdb): simplify result comparison
+chore(release): add build metadata
+```
+
+Commit messages should describe the functional purpose of the change rather
+than listing modified files.
+
+Avoid commit messages such as:
+
+```text
+update files
+changes
+fix stuff
+update controllers and views
+```
+
+After creating commits, provide a short summary of the commits that were
+created.
+
+## Pull request conventions
+
+A pull request should represent a larger but still logically coherent unit of
+work.
+
+A pull request may contain multiple logical commits.
+
+Example:
+
+```text
+PR: Improve application logging
+
+Commits:
+feat(logging): unify structured json logging
+feat(logging): add request correlation
+feat(keycloak): add authorization diagnostics
+feat(puppetdb): distinguish no data from no difference
+```
+
+Release notes should primarily describe pull requests and functional changes,
+not every internal implementation commit.
+
+## Versioning
+
+The GitHub release tag is the single authoritative source of the application
+version.
+
+Example:
+
+```text
+v1.4.2
+```
+
+Do not introduce or maintain a second manually synchronized application
+version in files such as:
+
+```text
+VERSION
+version.txt
+```
+
+unless such a file becomes technically necessary for a future tool and is
+generated automatically from the release tag.
+
+There must not be two independently maintained version sources.
+
+## Release workflow
+
+The intended release workflow is:
+
+```text
+Implement changes
+→ create logical commits
+→ push
+→ create pull request
+→ merge pull request
+→ create GitHub release and tag
+→ build container
+→ push versioned container image
+```
+
+Creating a GitHub release and release tag triggers the container build.
+
+If a GitHub release is created with:
+
+```text
+v1.4.2
+```
+
+the resulting container and application must identify themselves as:
+
+```text
+v1.4.2
+```
+
+## Build metadata
+
+The container build should provide the following metadata:
+
+```text
+APP_VERSION
+APP_REVISION
+APP_BUILD_TIME
+```
+
+Their meaning is:
+
+```text
+APP_VERSION
+GitHub release tag, for example v1.4.2
+
+APP_REVISION
+Git commit SHA of the exact source revision used for the build
+
+APP_BUILD_TIME
+UTC timestamp of the container build
+```
+
+The application must not depend on the `.git` directory being available at
+runtime.
+
+The Git repository must not be required inside the production container for
+determining application version information.
+
+## Docker build metadata
+
+The Docker build should accept the build metadata through build arguments and
+make it available to the application.
+
+Use the existing Dockerfile structure and avoid introducing a parallel
+versioning mechanism.
+
+Conceptually:
+
+```dockerfile
+ARG APP_VERSION=development
+ARG APP_REVISION=unknown
+ARG APP_BUILD_TIME=unknown
+
+ENV APP_VERSION=${APP_VERSION}
+ENV APP_REVISION=${APP_REVISION}
+ENV APP_BUILD_TIME=${APP_BUILD_TIME}
+```
+
+Adapt the implementation to the existing Dockerfile rather than duplicating
+existing configuration.
+
+For local development, use sensible fallbacks:
+
+```text
+APP_VERSION=development
+APP_REVISION=unknown
+APP_BUILD_TIME=unknown
+```
+
+## GitHub Actions release metadata
+
+The GitHub Actions workflow responsible for release container builds should
+derive build metadata from the GitHub release context.
+
+For a release tagged:
+
+```text
+v1.4.2
+```
+
+the build should effectively receive:
+
+```text
+APP_VERSION=v1.4.2
+APP_REVISION=<commit sha>
+APP_BUILD_TIME=<UTC build timestamp>
+```
+
+Preserve the existing container image tagging behavior unless a change is
+explicitly required.
+
+Do not create a separate independent version calculation.
+
+## OCI image metadata
+
+Where appropriate, add standard OCI image labels:
+
+```text
+org.opencontainers.image.version
+org.opencontainers.image.revision
+org.opencontainers.image.created
+org.opencontainers.image.source
+```
+
+Use the same build metadata that is already used for the application.
+
+Do not calculate these values separately.
+
+## Application build information
+
+Provide application build information through one central application-level
+abstraction.
+
+Application code should not independently read the environment variables from
+multiple unrelated places.
+
+Expose at least:
+
+```text
+version
+revision
+build_time
+```
+
+Use local development fallbacks:
+
+```text
+version = development
+revision = unknown
+build_time = unknown
+```
+
+## Version display in the UI
+
+Display the current application version in the UI.
+
+The version must appear:
+
+- below the application title
+- on the left side
+- significantly smaller than the application title
+- visually subtle
+- consistent with the existing design
+- without competing with primary navigation
+
+Example:
+
+```text
+CCI-UI
+v1.4.2
+```
+
+Do not permanently display the Git revision or build timestamp directly below
+the application title.
+
+If an existing About, Info, Status, or similar view already exists, it may
+also display:
+
+```text
+Version
+Revision
+Build time
+```
+
+Do not create a large dedicated page only for these values unless explicitly
+requested.
+
+## Build information logging
+
+Log build information once when the application starts.
+
+Use the application's existing structured JSON logging.
+
+Example:
+
+```json
+{
+  "level": "INFO",
+  "message": "CCI-UI started",
+  "version": "v1.4.2",
+  "revision": "a3f928c",
+  "build_time": "2026-09-26T08:35:21Z"
+}
+```
+
+Do not introduce a separate logging mechanism for build information.
+
+## Release notes
+
+Release notes must correspond to the changes introduced since the previous
+release.
+
+Use GitHub pull requests and their functional descriptions as the primary
+source for release notes.
+
+Configure GitHub's generated release notes through:
+
+```text
+.github/release.yml
+```
+
+Prefer existing repository labels when suitable.
+
+Keep additional release-note labels minimal and clear.
+
+Suggested categories are:
+
+```text
+New Features
+Bug Fixes
+Improvements
+Documentation
+Other Changes
+```
+
+Allow purely internal changes to be excluded from release notes through an
+appropriate label, for example:
+
+```text
+skip-changelog
+```
+
+## Release note quality
+
+Release notes should describe meaningful functional changes.
+
+Do not generate release notes that merely list changed files or implementation
+details.
+
+Avoid:
+
+```text
+- changed auth_controller.rb
+- changed logging config
+- updated dockerfile
+```
+
+Prefer:
+
+```text
+- Improved Keycloak authorization diagnostics
+- Added structured JSON logging across the application
+- Added application version information to container builds
+```
+
+Release notes for a version must only contain changes introduced since the
+previous release.
+
+Do not repeat changes from older releases.
+
+## Logging conventions
+
+Use the application's central logging infrastructure for all application
+logging.
+
+Application logs should use one consistent structured JSON format regardless
+of which application component produces the message.
+
+Do not mix structured JSON logging with custom plaintext application logs.
+
+Prefer structured fields for diagnostic information instead of embedding all
+context into the message string.
+
+Do not introduce independent logging mechanisms for individual components
+unless technically unavoidable.
+
+Existing security requirements for logging remain applicable:
+
+- never log passwords
+- never log access tokens
+- never log refresh tokens
+- never log client secrets
+- never log session cookies
+- never log Authorization headers
+- never log private keys
+- never log revoke passwords
+- never log other credentials or secrets
+
+Debug logging may include non-sensitive interpreted information such as:
+
+- usernames
+- client IDs
+- realms
+- effective roles
+- required roles
+- HTTP status codes
+- decision results
+- request IDs
+- operation names
+
+Never log complete JWTs solely for debugging purposes.
+
+## Long-term applicability
+
+These conventions are permanent repository instructions.
+
+In particular:
+
+- Codex creates suitable commits after successfully completed tasks.
+- Unrelated changes are separated into different commits.
+- Conventional Commits are used.
+- Commits should be individually understandable and revertible.
+- Relevant tests and linting are run before commits are considered complete.
+- The development environment is rebuilt and verified after completed changes.
+- GitHub release tags are the single authoritative application version source.
+- Application versions are not maintained manually in parallel.
+- Release versions are injected into container builds.
+- The version is displayed subtly below the application title on the left.
+- Build version, revision, and build time remain technically traceable.
+- Release notes describe changes since the previous release.
+- Existing project structures and conventions are preferred over parallel
+  implementations.
+
+A later explicit instruction may override these conventions for a specific
+task.

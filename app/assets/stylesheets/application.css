@@ -75,11 +75,16 @@ margin-right:10px}
 .brand-icon .icon{
 width:27px;
 height:27px}
+.brand-version{
+font-size:10px;
+line-height:1;
+color:#92adb1;
+margin:5px 0 0 50px}
 .sidebar-caption{
 font-size:9px;
 letter-spacing:1.5px;
 color:#92adb1;
-margin:16px 0 42px 3px;
+margin:12px 0 42px 3px;
 font-weight:600}
 .section-caption{
 margin:38px 0 16px 12px}
