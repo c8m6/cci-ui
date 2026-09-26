@@ -37,7 +37,7 @@ Consul instance. The one-shot `migrate` service prepares the database before web
 `data/` is mounted at `/legacy`, read/write for web and read-only for the indexer. The development Compose defaults set
 `CCI_AREAS` to the two example zones and `CCI_LEGACY_PATHS` to `{"zone_a":"/legacy"}`.
 The indexer runs every 60 seconds, so a newly connected collection may initially
-appear empty. Neither `quelle/` nor `data/` is copied into the application image.
+appear empty. The local `data/` directory is not copied into the application image.
 
 Local mode provides Reader, Writer, Key Exporter and Auditor
 identities for each configured area, plus combined identities. This mode is

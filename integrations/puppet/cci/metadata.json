@@ -2,7 +2,7 @@
   "name": "local-cci",
   "version": "0.1.0",
   "author": "CCI-UI",
-  "license": "proprietary",
+  "license": "AGPL-3.0-only",
   "summary": "Idempotente Bereitstellung von Zertifikaten aus Consul",
   "source": "local",
   "dependencies": [],
