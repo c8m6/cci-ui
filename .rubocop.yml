@@ -10,7 +10,6 @@ AllCops:
     - log/**/*
     - vendor/**/*
     - data/**/*
-    - quelle/**/*
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes

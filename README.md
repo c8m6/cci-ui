@@ -194,8 +194,8 @@ German paths when upgrading.
 
 Tests generate their own certificates and use a separate PostgreSQL database
 and Consul namespace. Private keys from `data/` are not copied into test fixtures
-or Docker images. The legacy application under `quelle/`, local certificate
-files, runtime data and secrets are excluded from version control.
+or Docker images. Local certificate files, runtime data and secrets are excluded
+from version control and Docker images.
 
 ## Optional CA inventory
 
@@ -209,3 +209,15 @@ For migration jobs, replica startup ordering and load-balancer probes, see
 
 For a complete production Compose template with inline values, external services
 and a reduced indexer environment, see [inline Compose configuration](docs/compose-full.md).
+
+## Contributing
+
+Contributions and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the contribution workflow and licensing requirements.
+
+## License
+
+CCI-UI is licensed under GNU Affero General Public License version 3 only. Its
+SPDX identifier is `AGPL-3.0-only`. See [LICENSE](LICENSE) for the complete
+license terms. Third-party dependencies and referenced services remain under
+their respective licenses.

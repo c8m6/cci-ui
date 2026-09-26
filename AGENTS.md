@@ -14,6 +14,21 @@ These instructions apply permanently to all work in this repository unless a lat
 - Keep changes focused and avoid unrelated refactoring unless it is required
   for the requested change.
 
+## Licensing
+
+- Project-owned code and documentation are licensed under `AGPL-3.0-only`.
+- New project-owned source code must remain compatible with
+  `AGPL-3.0-only`.
+- Do not introduce copied code, dependencies, assets, fonts, images, or other
+  third-party material without checking its license and provenance.
+- Preserve all third-party copyright, attribution, and license notices.
+- Do not remove or weaken existing project licensing information.
+- Do not change the project license without an explicit instruction.
+- Review license compatibility when introducing a dependency or bundled
+  third-party asset.
+- If license compatibility or provenance is uncertain, report it instead of
+  assuming compatibility.
+
 ## Documentation
 
 - Keep the project documentation up to date with every change.
