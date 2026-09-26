@@ -2,10 +2,13 @@
 
 # Interprets area roles independently of the authentication provider.
 class Identity
-  attr_reader :name, :roles
+  attr_reader :uid, :display_name, :roles
+  alias name uid
 
-  def initialize(name:, roles:)
-    @name = name.to_s
+  def initialize(roles:, uid: nil, name: nil, display_name: nil)
+    @uid = (uid || name).to_s
+    candidate = display_name.to_s.strip
+    @display_name = candidate.empty? ? @uid : candidate
     @roles = Array(roles) & AreaConfiguration.roles
   end
 

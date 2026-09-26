@@ -9,6 +9,7 @@ if mode == "oidc"
   require Rails.root.join("lib/keycloak_http_logging")
   require Rails.root.join("lib/oidc_configuration")
   Rails.application.config.x.oidc_role_mapping = OidcConfiguration.load_role_mapping
+  Rails.application.config.x.oidc_display_name_claim = OidcConfiguration.display_name_claim
   OmniAuth::Strategies::OpenIDConnect.prepend(KeycloakLogging)
   # Keep provider exceptions out of Rails request dumps in every environment.
   OmniAuth.config.failure_raise_out_environments = []

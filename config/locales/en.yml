@@ -330,6 +330,7 @@ en:
       archive_confirmation: Please confirm the effects of archiving.
       consul_only: Puppet status and archiving are only available for Consul certificates. Use the separate deletion action for filesystem certificates.
       sso_failed: SSO sign-in failed. Please try again.
+      no_assigned_rights: Your account was authenticated successfully but has no assigned permissions for CCI-UI. You have been signed out again.
       invalid_dates: Please enter a valid date range.
       overwrite_confirmation: Please explicitly confirm that you want to overwrite the existing certids.
       choose_area: Please select at least one valid area.

@@ -332,6 +332,7 @@ de:
       archive_confirmation: Bitte die Auswirkungen der Archivierung bestätigen.
       consul_only: Puppet-Status und Archivierung sind nur für Consul-Zertifikate verfügbar. Dateizertifikate haben eine separate Löschfunktion.
       sso_failed: SSO-Anmeldung fehlgeschlagen. Bitte erneut versuchen.
+      no_assigned_rights: Ihr Benutzerkonto wurde erfolgreich authentifiziert, verfügt aber über keine zugewiesenen Rechte für CCI-UI. Sie wurden wieder abgemeldet.
       invalid_dates: Bitte einen gültigen Zeitraum angeben.
       overwrite_confirmation: Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden CertIDs überschreiben
         möchten.

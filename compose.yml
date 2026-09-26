@@ -78,6 +78,7 @@ services:
       PORT: ${PORT:-3000}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       OIDC_ROLE_MAP: ${OIDC_ROLE_MAP:-{}}
+      OIDC_DISPLAY_NAME_CLAIM: ${OIDC_DISPLAY_NAME_CLAIM:-preferred_username}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:3000/auth/keycloak/callback}

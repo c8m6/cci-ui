@@ -6,11 +6,12 @@ class OidcAuthorization
     def allowed? = reason.nil?
   end
 
-  def initialize(auth:, auth_mode:, client_id:, role_mapping:)
+  def initialize(auth:, auth_mode:, client_id:, role_mapping:, display_name_claim:)
     @auth = auth
     @auth_mode = auth_mode
     @client_id = client_id
     @role_mapping = role_mapping
+    @display_name_claim = display_name_claim
   end
 
   def call
@@ -25,15 +26,23 @@ class OidcAuthorization
     return denied("required_claim_missing", "uid_missing", info: info, missing_claims: ["omniauth.uid"]) if user.empty?
     return denied("user_disabled", "enabled_claim_false", info: info, user: user) if info["enabled"] == false
 
+    display_name, display_name_source = resolve_display_name(info, user)
     role_details = role_details(info)
     mapped_roles = role_details.fetch(:incoming_roles).flat_map do |role|
       Array(@role_mapping.fetch(role, role))
     end.uniq
-    identity = Identity.new(name: user, roles: mapped_roles)
+    identity = Identity.new(uid: user, display_name: display_name, roles: mapped_roles)
     details = base_details.merge(claim_details(info), role_details,
-      user: user, identity_source: "omniauth.uid", mapped_roles: mapped_roles,
+      user: user, identity_source: "omniauth.uid", display_name: display_name,
+      display_name_source: display_name_source, mapped_roles: mapped_roles,
       accepted_application_roles: AreaConfiguration.roles, required_roles: [],
       effective_roles: identity.roles, discarded_roles: mapped_roles - identity.roles)
+    unless identity.roles.any?
+      reason = role_details.fetch(:incoming_roles).empty? ? "no_roles_received" : "required_role_missing"
+      failure_detail = reason == "no_roles_received" ? "role_claims_empty" : "no_application_roles"
+      return Result.new(identity: identity, details: details, reason: reason, failure_detail: failure_detail)
+    end
+
     Result.new(identity: identity, details: details, reason: nil, failure_detail: nil)
   end
 
@@ -42,6 +51,16 @@ class OidcAuthorization
   def raw_info
     value = @auth.extra&.raw_info
     value.respond_to?(:to_h) ? value.to_h.deep_stringify_keys : nil
+  end
+
+  def resolve_display_name(info, uid)
+    candidates = [@display_name_claim, "preferred_username", "name", "email"].uniq
+    candidates.each do |claim|
+      value = info[claim]
+      return [value.strip, claim] if value.is_a?(String) && !value.strip.empty?
+    end
+
+    [uid, "omniauth.uid"]
   end
 
   def role_details(info)
@@ -83,7 +102,8 @@ class OidcAuthorization
 
   def relevant_claim_values(info)
     {
-      "sub" => info["sub"], "preferred_username" => info["preferred_username"], "email" => info["email"],
+      "sub" => info["sub"], "preferred_username" => info["preferred_username"],
+      "name" => info["name"], "email" => info["email"],
       "enabled" => info["enabled"], "groups" => info["groups"],
       "realm_access.roles" => nested(info, "realm_access", "roles"),
       "resource_access.#{@client_id}.roles" => nested(info, "resource_access", @client_id, "roles")
@@ -91,8 +111,8 @@ class OidcAuthorization
   end
 
   def checked_claim_paths
-    ["sub", "preferred_username", "email", "enabled", "groups", "realm_access.roles",
-      "resource_access.#{@client_id}.roles"]
+    ["sub", @display_name_claim, "preferred_username", "name", "email", "enabled", "groups",
+      "realm_access.roles", "resource_access.#{@client_id}.roles"].uniq
   end
 
   def denied(reason, failure_detail, info: nil, user: nil, missing_claims: nil)

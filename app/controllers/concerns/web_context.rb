@@ -14,7 +14,8 @@ module WebContext
     data = session[:identity]
     return unless data && session[:authenticated_at].to_i > 1.hour.ago.to_i
 
-    @current_identity ||= Identity.new(name: data["name"], roles: data["roles"])
+    uid = data["uid"].presence || data["name"]
+    @current_identity ||= Identity.new(uid: uid, display_name: data["display_name"], roles: data["roles"])
   end
 
   private
