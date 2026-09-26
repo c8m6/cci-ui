@@ -19,6 +19,7 @@ export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base
 | `CCI_AREAS` | Required, nonempty JSON object mapping stable area IDs to display names. IDs match `[a-z][a-z0-9_]{0,47}`; names contain 1–100 characters and cannot be whitespace-only. |
 | `CCI_LEGACY_PATHS` | JSON object mapping any subset of the configured areas to absolute directories inside the container. Default: `{}` (no disk inventory). Multiple areas may have independent roots. |
 | `CCI_AREA_KEYS` | JSON object mapping area IDs to Base64-encoded, exactly 32-byte encryption keys. Omitted or empty means no map entries. Required for private-key operations unless the fallback below supplies the key. |
+| `CCI_CERTIFICATE_AREA_MODE` | `multiple` (default) allows one imported or CSR-issued certificate in several areas. `single` requires exactly one selected area and rejects a fingerprint already retained in another area. |
 | `<UPPERCASE_AREA_ID>_KEY` | Existing per-area fallback, for example `ZONE_A_KEY`. Used only when the area has no entry in `CCI_AREA_KEYS`. Must be injected into the application process. |
 
 Malformed area/path JSON, unknown path area IDs and relative paths prevent

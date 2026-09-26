@@ -51,6 +51,7 @@ services:
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       CCI_AREAS: '${CCI_AREAS:-{"zone_a":"Zone A","zone_b":"Zone B"}}'
+      CCI_CERTIFICATE_AREA_MODE: ${CCI_CERTIFICATE_AREA_MODE:-multiple}
       CCI_LEGACY_PATHS: '${CCI_LEGACY_PATHS:-{"zone_a":"/legacy"}}'
       CCI_AREA_KEYS: ${CCI_AREA_KEYS:-}
       CSR_DEFAULT_KEY_ALGORITHM: ${CSR_DEFAULT_KEY_ALGORITHM:-RSA}

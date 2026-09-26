@@ -96,6 +96,7 @@ services:
       # Each value must be an existing or newly generated Base64 32-byte key.
       # Keep the same keys on every web replica and across restarts.
       CCI_AREA_KEYS: '{"zone_a":"REPLACE_ZONE_A_BASE64_KEY","zone_b":"REPLACE_ZONE_B_BASE64_KEY"}'
+      CCI_CERTIFICATE_AREA_MODE: "multiple"
       # Alternatively omit the map and set ZONE_A_KEY / ZONE_B_KEY here.
       OIDC_ROLE_MAP: '{"cci-readers":["zone_a_reader","zone_b_reader"],"cci-writers":["zone_a_writer","zone_b_writer"],"cci-auditors":["zone_a_auditor","zone_b_auditor"],"cci-exporters":["zone_a_key_exporter","zone_b_key_exporter"],"cci-csr":["zone_a_csr","zone_b_csr"]}'
       OIDC_DISPLAY_NAME_CLAIM: "preferred_username"

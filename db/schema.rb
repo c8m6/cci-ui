@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_24_000300) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_26_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -18,6 +18,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_000300) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.string "actor", null: false
+    t.text "actor_display_name"
     t.string "area", null: false
     t.datetime "created_at", null: false
     t.jsonb "details", default: {}, null: false
@@ -54,8 +55,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_000300) do
     t.jsonb "sans", default: [], null: false
     t.string "secret_id", null: false
     t.jsonb "subject_fields", default: {}, null: false
+    t.jsonb "target_areas", default: [], null: false
     t.datetime "updated_at", null: false
     t.index ["area", "created_at"], name: "index_certificate_requests_on_area_and_created_at"
+    t.index ["target_areas"], name: "index_certificate_requests_on_target_areas", using: :gin
     t.index ["secret_id"], name: "index_certificate_requests_on_secret_id", unique: true
   end
 
@@ -108,6 +111,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_000300) do
   create_table "csr_certificates", force: :cascade do |t|
     t.bigint "certificate_request_id", null: false
     t.integer "consul_version"
+    t.jsonb "consul_versions", default: {}, null: false
     t.datetime "created_at", null: false
     t.string "error_code"
     t.string "fingerprint", null: false

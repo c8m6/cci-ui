@@ -439,7 +439,7 @@ align-items:center;
 font-size:11px;
 color:#637b7e;
 white-space:nowrap}
-input[type=checkbox]{
+input[type=checkbox],input[type=radio]{
 accent-color:var(--teal)}
 .pagination{
 display:flex;

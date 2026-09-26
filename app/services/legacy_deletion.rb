@@ -24,7 +24,7 @@ class LegacyDeletion
     end
   end
 
-  def call(token:, actor:)
+  def call(token:, actor:, actor_display_name: nil)
     CatalogIndexer.synchronize do
       files = plan
       expected = verifier.verified(token.to_s)
@@ -34,7 +34,7 @@ class LegacyDeletion
         record.source_id.rpartition("#").first == relative
       end
       AuditEvent.record_mutation!(action: "delete", area: @record.area, actor: actor,
-        references: records.map(&:source_id), details: audit_details(records, files)) do
+        actor_display_name: actor_display_name, references: records.map(&:source_id), details: audit_details(records, files)) do
         retire(records, files)
       end
     end

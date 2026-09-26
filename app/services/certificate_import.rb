@@ -13,11 +13,11 @@ class CertificateImport
   end
 
   def self.preview(files:, pem:, password:, areas:, tags:, certid:, owner:)
-    raise Certificates::Error, I18n.t("errors.app.choose_area") if areas.empty? || (areas - AreaConfiguration.ids).any?
-
+    areas = CertificateAreaConfiguration.validate_selection!(areas)
     certs, keys = parse_upload(files, pem, password, certid)
 
-    LegacyStore.reject_duplicates!(certs.map { |cert| Certificates::Codec.fingerprint(cert) })
+    fingerprints = certs.map { |cert| Certificates::Codec.fingerprint(cert) }
+    validate_fingerprints!(fingerprints, areas: areas)
     token = SecureRandom.hex(24)
     entries = areas.flat_map do |area|
       certs.map do |cert|
@@ -32,29 +32,36 @@ class CertificateImport
   def self.commit(token:, owner:, identity:, confirm_overwrite: false)
     raise Certificates::Error, I18n.t("errors.app.invalid_preview") unless token.match?(/\A[0-9a-f]{48}\z/)
 
-    payload = ImportDraft.transaction do
+    CatalogIndexer.synchronize do
+      CatalogIndexer.new.consul
+      payload = consume_draft(token, owner, identity, confirm_overwrite)
+      result = commit_entries(payload, token, identity)
+      CatalogIndexer.new.consul
+      result
+    end
+  end
+
+  def self.consume_draft(token, owner, identity, confirm_overwrite)
+    ImportDraft.transaction do
       draft = ImportDraft.lock.find_by(token: token, owner: owner)
       raise Certificates::Error, I18n.t("errors.app.expired_preview") unless draft && draft.expires_at > Time.current
 
       data = JSON.parse(draft.payload)
       validate_draft(data, identity, confirm_overwrite)
-
-      LegacyStore.reject_duplicates!(data.fetch("entries").map { |entry| entry.fetch("fingerprint") }.uniq)
+      validate_fingerprints!(data.fetch("entries").map { |entry| entry.fetch("fingerprint") }.uniq,
+        areas: data.fetch("areas"))
       draft.destroy!
       data
     end
+  end
+
+  def self.commit_entries(payload, token, identity)
     successes = []
     errors = []
     payload.fetch("entries").each do |entry|
       area = entry.fetch("area")
       begin
-        cert = OpenSSL::X509::Certificate.new(entry.fetch("pem"))
-        key = entry["key"] && OpenSSL::PKey.read(Certificates::Vault.decrypt(entry["key"], area: area,
-          id: "preview:#{token}:#{entry.fetch("fingerprint")}"))
-        id = ConsulStore.save(area: area, cert: cert, key: key,
-          tags: entry.fetch("tags"), certid: entry.fetch("certid"), actor: identity.name, client: "cci-ui",
-          expected_certid_index: entry.fetch("certid_index"))
-        successes << id
+        successes << commit_entry(entry, token, identity)
       rescue Certificates::Error, ConsulConnection::Error => e
         OperationalLog.failure(logger: "cci.certificates", message: "Certificate import entry failed", error: e,
           operation: "import_certificate", area: area)
@@ -62,8 +69,22 @@ class CertificateImport
         errors << "#{AreaConfiguration.label(area)} / #{entry.fetch("name")}: #{message}"
       end
     end
-    CatalogIndexer.refresh_consul
     [successes, errors]
+  end
+
+  def self.commit_entry(entry, token, identity)
+    area = entry.fetch("area")
+    cert = OpenSSL::X509::Certificate.new(entry.fetch("pem"))
+    key = entry["key"] && OpenSSL::PKey.read(Certificates::Vault.decrypt(entry["key"], area: area,
+      id: "preview:#{token}:#{entry.fetch("fingerprint")}"))
+    ConsulStore.save(area: area, cert: cert, key: key, tags: entry.fetch("tags"), certid: entry.fetch("certid"),
+      actor: identity.uid, actor_display_name: identity.display_name, client: "cci-ui",
+      expected_certid_index: entry.fetch("certid_index"))
+  end
+
+  def self.validate_fingerprints!(fingerprints, areas:)
+    LegacyStore.reject_duplicates!(fingerprints)
+    fingerprints.each { |fingerprint| CertificateAreaConfiguration.validate_fingerprint!(fingerprint, areas: areas) }
   end
 
   # Parse all inputs before rejecting unmatched keys or ambiguous CertID assignment.
@@ -98,7 +119,8 @@ class CertificateImport
 
   # Recheck permissions and renewal confirmation when consuming the draft.
   def self.validate_draft(data, identity, confirm_overwrite)
-    raise Certificates::Error, I18n.t("errors.app.write_areas") unless data.fetch("areas").all? { |area| identity.writer?(area) }
+    areas = CertificateAreaConfiguration.validate_selection!(data.fetch("areas"))
+    raise Certificates::Error, I18n.t("errors.app.write_areas") unless areas.all? { |area| identity.writer?(area) }
     unless data.fetch("entries").all? { |entry| entry["certid_index"].is_a?(Integer) && entry["certid_index"] >= 0 }
       raise Certificates::Error, I18n.t("errors.app.old_preview")
     end

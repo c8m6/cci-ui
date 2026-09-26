@@ -176,6 +176,7 @@ de:
     assignment: 2. Zuordnung festlegen
     target_areas: Zielbereiche
     choose_areas: Wählen Sie einen oder mehrere berechtigte Bereiche aus.
+    choose_one_area: Wählen Sie genau einen berechtigten Bereich aus.
     tags_placeholder: z. B. Produktion, Webserver
     tags_help: Mehrere Tags durch Komma trennen.
     optional_certid: Puppet-CertID (optional)
@@ -336,7 +337,8 @@ de:
       invalid_dates: Bitte einen gültigen Zeitraum angeben.
       overwrite_confirmation: Bitte bestätigen Sie ausdrücklich, dass Sie die bestehenden CertIDs überschreiben
         möchten.
-      choose_area: Bitte mindestens einen gültigen Bereich auswählen.
+      choose_area: Bitte eine für den konfigurierten Zuordnungsmodus gültige Bereichsauswahl treffen.
+      certificate_other_area: Dieses Zertifikat ist bereits in einem anderen Bereich vorhanden. Der Single-Modus erlaubt keine weitere Kopie.
       choose_input: Bitte Dateien auswählen oder PEM eingeben.
       import_size: Insgesamt höchstens 20 MB pro Import.
       no_certificates: Keine Zertifikate gefunden.
@@ -576,6 +578,7 @@ de:
       stale: "Nur das zuletzt hinterlegte Zertifikat kann geändert oder veröffentlicht werden."
       overwrite: "Bitte die Veröffentlichung unter der vorhandenen CertID bestätigen."
       rotation: "Die Secret-Rotation erfordert ein exklusives Wartungsfenster ohne ungeklärte Veröffentlichungen."
+      target_count: "Ein gemeinsamer CSR kann wegen des Consul-Transaktionslimits höchstens 21 Zielbereiche haben."
     publication_errors:
       issuer_missing: "Der Aussteller fehlt noch. Bitte das Ausstellerzertifikat ergänzen oder in derselben Area bereitstellen und erneut versuchen."
       conflict: "Das Ziel wurde geändert oder die CertID ist bereits vorhanden. Bitte den aktuellen Stand prüfen und eine neue Version ausdrücklich bestätigen."

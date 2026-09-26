@@ -16,7 +16,7 @@
   <div class="table-scroll"><table class="audit-table"><thead><tr><th><%= t("ui.time_user") %></th><th><%= t("ui.area_action") %></th><th><%= t("ui.affected_certificates") %></th><th><%= t("ui.details") %></th></tr></thead><tbody>
     <% @events.each do |event| %>
       <tr>
-        <td><time datetime="<%= event.occurred_at.iso8601 %>" class="nowrap"><%= l(event.occurred_at.in_time_zone, format: :long) %></time><div class="audit-actor"><%= event.actor %></div></td>
+        <td><time datetime="<%= event.occurred_at.iso8601 %>" class="nowrap"><%= l(event.occurred_at.in_time_zone, format: :long) %></time><div class="audit-actor"><% if event.actor_display_name.present? && event.actor_display_name != event.actor %><strong><%= event.actor_display_name %></strong><div class="mono small"><%= event.actor %></div><% else %><%= event.actor %><% end %></div></td>
         <td><span class="area-pill"><%= area_label(event.area) %></span><div><%= AuditEvent.action_label(event.action) %></div></td>
         <td>
           <% Array(event.details["certificates"]).each do |cert| %>

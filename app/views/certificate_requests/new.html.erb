@@ -5,7 +5,12 @@
   <p><%= t("csr.form_hint") %></p>
   <%= form_with url: certificate_requests_path, scope: :csr, class: "csr-form" do |form| %>
     <div class="csr-fields">
-      <label><%= t("ui.area") %><%= form.select :area, current_identity.csr_areas.map { |area| [area_label(area), area] } %></label>
+      <fieldset class="area-choices"><legend><%= t("ui.target_areas") %></legend>
+        <% current_identity.csr_areas.each_with_index do |area, index| %>
+          <label class="check-label"><%= tag.input type: CertificateAreaConfiguration.multiple? ? "checkbox" : "radio", name: "csr[areas][]", value: area, id: "csr_area_#{area}", checked: index.zero? %> <%= area_label(area) %></label>
+        <% end %>
+      </fieldset>
+      <p class="muted small"><%= t(CertificateAreaConfiguration.multiple? ? "ui.choose_areas" : "ui.choose_one_area") %></p>
       <label><%= t("ui.certid") %><%= form.text_field :certid, required: true, maxlength: 120, pattern: "[a-zA-Z0-9_.-]+" %></label>
       <label><%= t("csr.common_name") %><%= form.text_field :common_name, required: true, maxlength: 64 %></label>
       <% %w[country state locality organization organizational_unit email].each do |field| %>

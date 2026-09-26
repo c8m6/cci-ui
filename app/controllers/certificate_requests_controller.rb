@@ -18,7 +18,7 @@ class CertificateRequestsController < ApplicationController
   def index
     scope = CertificateRequest.visible_to(current_identity)
     @open_requests = scope.where.missing(:csr_certificates).order(created_at: :desc)
-    @issued = CsrCertificate.joins(:certificate_request).where(certificate_requests: { area: current_identity.csr_areas })
+    @issued = CsrCertificate.joins(:certificate_request).merge(CertificateRequest.visible_to(current_identity))
                             .includes(:certificate_request).order(created_at: :desc)
     respond_to do |format|
       format.html
@@ -35,7 +35,9 @@ class CertificateRequestsController < ApplicationController
   end
 
   def create
-    csr = CsrWorkflow.create(csr_params.to_h, identity: current_identity)
+    input = csr_params.to_h
+    input["areas"] = [input.delete("area")] if input["areas"].blank?
+    csr = CsrWorkflow.create(input, identity: current_identity)
     respond_to do |format|
       format.html { redirect_to certificate_request_path(csr), notice: t("csr.created"), status: :see_other }
       format.json { render json: public_request(csr), status: :created }
@@ -44,7 +46,9 @@ class CertificateRequestsController < ApplicationController
 
   def show
     @certificate = @csr.latest_certificate
-    @snapshot = ConsulStore.certid_snapshot(@csr.area, @csr.certid)
+    @snapshots = {}
+    @snapshots = @csr.areas.to_h { |area| [area, ConsulStore.certid_snapshot(area, @csr.certid)] }
+    @snapshot = @snapshots[@csr.area]
     show_response
   rescue ConsulConnection::Error
     @consul_unavailable = true
@@ -81,8 +85,9 @@ class CertificateRequestsController < ApplicationController
     index = params[:certid_index].to_s
     CsrNames.fail!(:confirmation) unless index.match?(/\A\d+\z/)
 
+    indices = params[:certid_indices]&.permit!&.to_h
     CsrPublication.new(entry, identity: current_identity).call(expected_index: index.to_i,
-      confirm_overwrite: params[:confirm_overwrite] == "1")
+      expected_indices: indices, confirm_overwrite: params[:confirm_overwrite] == "1")
     publication_response(entry)
   end
 
@@ -101,7 +106,7 @@ class CertificateRequestsController < ApplicationController
 
   def csr_params
     params.require(:csr).permit(:area, :certid, :common_name, :sans, :country, :state, :locality, :organization,
-      :organizational_unit, :email, :key_algorithm, :key_size, :digest, :comment)
+      :organizational_unit, :email, :key_algorithm, :key_size, :digest, :comment, areas: [])
   end
 
   def upload_data
@@ -139,11 +144,11 @@ class CertificateRequestsController < ApplicationController
 
   def public_request(csr)
     csr.attributes.slice("id", "area", "certid", "common_name", "sans", "subject_fields", "key_algorithm",
-      "key_size", "digest", "comment", "created_by", "created_at")
+      "key_size", "digest", "comment", "created_by", "created_at").merge("areas" => csr.areas)
   end
 
   def public_certificate(cert)
     cert.attributes.slice("id", "certificate_request_id", "subject", "issuer", "fingerprint", "sans",
-      "not_before", "not_after", "state", "error_code", "consul_version", "published_at")
+      "not_before", "not_after", "state", "error_code", "consul_version", "consul_versions", "published_at")
   end
 end

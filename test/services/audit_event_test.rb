@@ -37,7 +37,8 @@ class AuditEventTest < ActiveSupport::TestCase
 
   test "mixed area export writes separate audit records in one transaction" do
     records = %w[zone_a zone_b].map { |area| store(issue(name: "#{area}.test").first, area: area) }
-    identity = Identity.new(name: "mixed-export-user", roles: %w[zone_a_writer zone_b_writer])
+    identity = Identity.new(name: "mixed-export-user", display_name: "Mixed Export User",
+      roles: %w[zone_a_writer zone_b_writer])
     assert_difference "AuditEvent.count", 2 do
       content, filename, = CertificateExport.call(records, identity: identity, format: "pem",
         include_key: false, include_chain: false, password: "")
@@ -46,6 +47,8 @@ class AuditEventTest < ActiveSupport::TestCase
     end
     events = AuditEvent.where(action: "export_public").order(:area)
     assert_equal %w[zone_a zone_b], events.map(&:area)
+    assert_equal ["mixed-export-user"], events.map(&:actor).uniq
+    assert_equal ["Mixed Export User"], events.map(&:actor_display_name).uniq
     assert_equal 1, events.map(&:occurred_at).uniq.size
     events.zip(records).each do |event, record|
       assert_equal([record.fingerprint], event.details["certificates"].map do |cert|

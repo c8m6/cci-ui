@@ -3,6 +3,17 @@
 require "test_helper"
 
 class AuditEventsTest < ActionDispatch::IntegrationTest
+  test "audit list shows and searches display name together with stable UID" do
+    AuditEvent.create!(area: "zone_a", action: "export_public", actor: "stable-user-42",
+      actor_display_name: "Example User")
+    post local_login_path, params: { identity: "zone_a_auditor" }
+    get audit_events_path, params: { q: "Example User" }
+
+    assert_response :success
+    assert_select ".audit-actor strong", text: "Example User"
+    assert_select ".audit-actor .mono", text: "stable-user-42"
+  end
+
   test "audit roles are independent and restricted to their area" do
     zone_a = store(issue(name: "zone_a-audit.test").first)
     store(issue(name: "zone_b-audit.test").first, area: "zone_b")
