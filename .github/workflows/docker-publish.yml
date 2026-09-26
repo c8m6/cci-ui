@@ -16,6 +16,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  release_notes:
+    name: Generate GitHub release notes
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+      - name: Generate notes from Conventional Commits
+        uses: orhun/git-cliff-action@v4.8.0
+        with:
+          version: v2.13.1
+          config: cliff.toml
+          args: --current --strip all
+          github_token: ${{ github.token }}
+        env:
+          OUTPUT: release-notes.md
+      - name: Update published GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+
   app:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -30,15 +57,17 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
-            test -n "$RELEASE_TAG"
-            echo "APP_VERSION=$RELEASE_TAG" >> "$GITHUB_ENV"
-          else
-            echo "APP_VERSION=development" >> "$GITHUB_ENV"
-          fi
-          echo "APP_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-          echo "APP_BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
-          echo "APP_SOURCE=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" >> "$GITHUB_ENV"
+          {
+            if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+              test -n "$RELEASE_TAG"
+              echo "APP_VERSION=$RELEASE_TAG"
+            else
+              echo "APP_VERSION=development"
+            fi
+            echo "APP_REVISION=$(git rev-parse HEAD)"
+            echo "APP_BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "APP_SOURCE=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          } >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v4
       - name: Build application image
         uses: docker/build-push-action@v7
