@@ -14,6 +14,32 @@ These instructions apply permanently to all work in this repository unless a lat
 - Keep changes focused and avoid unrelated refactoring unless it is required
   for the requested change.
 
+## Documentation
+
+- Keep the project documentation up to date with every change.
+- Review the existing documentation for every task and update all affected
+  documentation as part of the same change.
+- Documentation must remain consistent with the actual implementation,
+  configuration, architecture, deployment, operation, APIs, user workflows,
+  and development procedures.
+- Prefer updating existing documentation over creating new documents when an
+  appropriate document already exists.
+- Do not leave documentation describing obsolete behavior, configuration, UI,
+  workflows, or architecture.
+- Documentation updates belong to the same logical commit as the change they
+  describe unless there is a clear reason to separate them.
+
+### Screenshots
+
+- When a change visibly affects the user interface, review all documentation
+  screenshots that show the affected UI.
+- Update affected screenshots so they reflect the current user interface.
+- Do not leave outdated screenshots in the documentation.
+- Preserve the existing screenshot location, naming conventions, dimensions,
+  and documentation structure where practical.
+- Only update screenshots affected by the change; do not regenerate unrelated
+  screenshots unnecessarily.
+
 ## Validation before completion
 
 Before completing changes:
@@ -37,7 +63,12 @@ Before completing changes:
 - Run RuboCop with the `rubocop-rake` plugin for every build.
 - The Dockerfile enforces RuboCop before asset compilation.
 - Fix lint failures before continuing.
-- Do not silently skip required tests, linting, or validation steps.
+- Verify that the project documentation reflects the completed change.
+- Verify that screenshots affected by visible UI changes have been updated.
+- Documentation and required screenshot updates are part of the definition of
+  done and must not be silently skipped.
+- Do not silently skip required tests, linting, documentation, screenshot
+  updates, or other validation steps.
 - If a required validation step cannot be executed because of an environment
   limitation or unavailable dependency:
   - clearly report which validation step could not be executed;
@@ -72,8 +103,8 @@ changes and all required validation:
 
 When running in an ephemeral environment, such as Codex Cloud:
 
-- The same test, linting, and code-quality requirements apply as in a persistent
-  local development environment.
+- The same test, linting, documentation, screenshot, and code-quality
+  requirements apply as in a persistent local development environment.
 - Start PostgreSQL, Consul, the application, containers, or other required
   services when needed to execute tests or perform validation.
 - Do not keep development containers or services running solely for later
@@ -101,8 +132,9 @@ Before creating commits:
 2. Check whether all changes belong to the same logical topic.
 3. Separate unrelated changes into different commits.
 4. Run the relevant tests and linting.
-5. Check for accidental or unrelated modifications.
-6. Do not commit changes when relevant tests fail unexpectedly.
+5. Check that affected documentation and screenshots are up to date.
+6. Check for accidental or unrelated modifications.
+7. Do not commit changes when relevant tests fail unexpectedly.
 
 ### Logical commits
 
@@ -548,6 +580,12 @@ In particular:
 - Commits should be individually understandable and revertible.
 - Relevant tests and linting are run before commits are considered complete.
 - Required validation must never be silently skipped.
+- Project documentation is reviewed and kept up to date with every change.
+- Documentation remains consistent with the actual implementation and
+  operation of the application.
+- Visible UI changes require affected documentation screenshots to be updated.
+- Documentation and required screenshot updates are part of the definition of
+  done.
 - Tests use isolated test data and do not depend on production data or secrets.
 - Certificate-related tests use deterministic fixtures or synthetic
   certificates, CSRs, keys, and related test data.
