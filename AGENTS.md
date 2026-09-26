@@ -26,13 +26,29 @@ Before completing changes:
 
 - Run the tests against the current application image with PostgreSQL and
   Consul.
+- Tests must use isolated test data and must not depend on production data,
+  production certificates, production private keys, production credentials,
+  or other production secrets.
+- When certificate-related test data is required, use deterministic test
+  fixtures or generate synthetic certificates, CSRs, keys, and related data
+  specifically for the test environment.
 - Fix failures caused by the current changes before reporting completion.
 - Do not commit changes that fail relevant tests unexpectedly.
 - Run RuboCop with the `rubocop-rake` plugin for every build.
 - The Dockerfile enforces RuboCop before asset compilation.
 - Fix lint failures before continuing.
+- Do not silently skip required tests, linting, or validation steps.
+- If a required validation step cannot be executed because of an environment
+  limitation or unavailable dependency:
+  - clearly report which validation step could not be executed;
+  - explain the blocking dependency or environment limitation;
+  - do not report the change as fully validated;
+  - do not treat an unexecuted validation step as successful.
 
-After completing changes:
+### Persistent local development environments
+
+When running in a persistent local development environment, after completing
+changes and all required validation:
 
 - Rebuild and start the development containers with:
 
@@ -48,6 +64,29 @@ After completing changes:
 
 - Leave the development containers running so the current changes are
   immediately available for manual testing.
+- If the application does not become healthy or does not respond at
+  `http://localhost:3000`, investigate and fix failures caused by the current
+  changes before reporting completion.
+
+### Ephemeral or cloud environments
+
+When running in an ephemeral environment, such as Codex Cloud:
+
+- The same test, linting, and code-quality requirements apply as in a persistent
+  local development environment.
+- Start PostgreSQL, Consul, the application, containers, or other required
+  services when needed to execute tests or perform validation.
+- Do not keep development containers or services running solely for later
+  manual testing after the task has completed.
+- Stop or discard temporary services when they are no longer required.
+- The inability to leave development containers running after task completion
+  is not a validation failure.
+- Environment limitations are not a reason to silently omit required
+  validation.
+- Clearly report any required validation that could not be performed and the
+  reason why it could not be performed.
+- A task must not be reported as fully validated when a required validation
+  step was skipped, failed, or could not be executed.
 
 ## Commit workflow
 
@@ -508,7 +547,16 @@ In particular:
 - Conventional Commits are used.
 - Commits should be individually understandable and revertible.
 - Relevant tests and linting are run before commits are considered complete.
-- The development environment is rebuilt and verified after completed changes.
+- Required validation must never be silently skipped.
+- Tests use isolated test data and do not depend on production data or secrets.
+- Certificate-related tests use deterministic fixtures or synthetic
+  certificates, CSRs, keys, and related test data.
+- In persistent local development environments, the development environment is
+  rebuilt, verified, and left running after completed changes.
+- In ephemeral or cloud environments, the same validation requirements apply,
+  but services do not need to remain running after task completion.
+- Tasks are not reported as fully validated when required validation was
+  skipped, failed, or could not be executed.
 - GitHub release tags are the single authoritative application version source.
 - Application versions are not maintained manually in parallel.
 - Release versions are injected into container builds.
