@@ -53,7 +53,7 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | `OIDC_CLIENT_ID` | OIDC client identifier, required in OIDC mode. |
 | `OIDC_CLIENT_SECRET` | OIDC client secret, required in OIDC mode. |
 | `OIDC_REDIRECT_URI` | Callback URL, required in OIDC mode. Development Compose defaults to `http://localhost:3000/auth/keycloak/callback`; update it for a different port or hostname. |
-| `OIDC_ROLE_MAP` | JSON object whose keys are exact incoming group/role names and whose values are application role strings or arrays of strings. Unmapped names are accepted if they are valid application roles. Default: `{}` (no translation). See [JSON format, claim sources and examples](installation.md#oidc_role_map-json-format). |
+| `OIDC_ROLE_MAP` | JSON object whose keys are exact incoming group/role names and whose values are application role strings or arrays of strings. Unmapped names are accepted if they are valid application roles. Empty, whitespace-only and omitted values are treated as `{}` (no translation). See [JSON format, claim sources and examples](installation.md#oidc_role_map-json-format). |
 | `SECRET_KEY_BASE` | Rails session secret, required in production. Development has a local fallback. Changing it invalidates sessions. |
 | `ALLOWED_HOSTS` | Comma-separated allowed request hostnames. Required in production; development adds `localhost,127.0.0.1` by default. |
 | `RAILS_ENV` | Rails environment. The Compose templates set `development` or `production`. Set explicitly with `docker run`. |

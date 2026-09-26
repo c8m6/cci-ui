@@ -11,6 +11,8 @@ class OidcConfigurationTest < ActiveSupport::TestCase
     assert_equal "zone_a_reader", mapping.fetch("group-a")
     assert_equal %w[zone_a_writer zone_b_reader], mapping.fetch("group-b")
     assert_equal({}, OidcConfiguration.load_role_mapping({}))
+    assert_equal({}, OidcConfiguration.load_role_mapping("OIDC_ROLE_MAP" => ""))
+    assert_equal({}, OidcConfiguration.load_role_mapping("OIDC_ROLE_MAP" => "  \n  "))
   end
 
   test "role mapping rejects invalid JSON shapes without exposing their contents" do

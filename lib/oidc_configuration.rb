@@ -5,7 +5,8 @@ require "json"
 # Parses OIDC environment settings without exposing their contents in errors.
 module OidcConfiguration
   def self.load_role_mapping(environment = ENV)
-    mapping = JSON.parse(environment.fetch("OIDC_ROLE_MAP", "{}").to_s)
+    raw = environment.fetch("OIDC_ROLE_MAP", "").to_s
+    mapping = JSON.parse(raw.strip.empty? ? "{}" : raw)
     raise ArgumentError unless mapping.is_a?(Hash)
 
     valid = mapping.all? do |source, roles|
