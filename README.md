@@ -63,7 +63,8 @@ intermediates to the selected certificate, with validity badges and links.
 Metadata, reported PuppetDB hosts, status and archive controls, versions and Hiera
 configuration remain below the hierarchy. This dark-theme example enables both
 OCSP and CRL diagnostics with **Good** results, plus all five public trust profiles
-showing **Not trusted** for the private demonstration CA hierarchy.
+and the additional Chrome policy showing **Not trusted** for the private
+demonstration CA hierarchy. All eight checks are enabled and have stored results.
 
 ![Certificate details with successful synthetic OCSP and CRL results, three PuppetDB hosts and Consul status controls in the dark theme](docs/screenshots/details.png)
 
@@ -167,7 +168,7 @@ and [fact formats and synchronization](docs/puppetdb.md).
 - [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)
 - [Puppet integration and idempotence](docs/puppet.md)
 - [PuppetDB host inventory](docs/puppetdb.md)
-- [Optional revocation and public CA trust diagnostics](docs/certificate-diagnostics.md)
+- [Optional revocation, public CA trust and Chrome policy diagnostics](docs/certificate-diagnostics.md)
 - [Documentation screenshot capture script](script/screenshots/capture.cjs)
 
 ## Code checks and tests

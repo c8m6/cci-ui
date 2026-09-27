@@ -61,7 +61,7 @@ module CertificateDiagnostics
 
     def schedule_check(area, check, inventory)
       connection = CertificateDiagnosticResult.connection
-      profile = check.start_with?("trust_") ? Profiles.version(check, @config) : ""
+      profile = @config.trust.profiles.key?(check) ? Profiles.version(check, @config) : ""
       input = Digest::SHA256.hexdigest(inventory + @config.version(check) + profile)
       values = [area, check, input].map { |value| connection.quote(value) }
       connection.execute(<<~SQL)
@@ -89,7 +89,9 @@ module CertificateDiagnostics
 
       material = Material.new(record)
       http = Http.new(@config, deadline: @deadline)
-      outcome = if job.check_id.start_with?("trust_")
+      outcome = if job.check_id == "chrome_policy"
+                  ChromePolicy.new(material, @config).call
+                elsif job.check_id.start_with?("trust_")
                   Trust.new(material, @config).call(job.check_id)
                 else
                   Revocation.new(material, @config, http: http, area: job.area).call(job.check_id)

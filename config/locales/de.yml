@@ -586,12 +586,16 @@ de:
       publication: "Die Veröffentlichung ist bei der Prüfung oder Secret-Entschlüsselung fehlgeschlagen. Bitte Area-Schlüssel und Ausstellerdaten prüfen."
 
   diagnostics:
+    combined: "Basisprüfung: %{baseline}; einschließlich zusätzlicher Regeln: %{policy}"
     trust_scope: "Nur öffentliches Standard-CA-/Pfadvertrauen; keine Hostnamen-, Live-Server- oder vollständige Browserprüfung."
     groups:
+      policy: "Zusätzliche Chrome-Regeln"
       revocation: "Widerruf"
       browsers: "Browser-CA-Vertrauen"
       system: "Betriebssystem-CA-Vertrauen"
     scopes:
+      chrome_policy: "Zusätzliche klassische Chrome-Root-Regeln mit verifizierten eingebetteten SCTs; keine vollständige CT-/Browserprüfung"
+      chrome_baseline_active: "Chrome-CA-/Pfadbasisprüfung; der angezeigte Status berücksichtigt zusätzlich die Chrome-Regeln"
       chrome_baseline: "Chrome-Root-Store-Basisprüfung; zusätzliche Chrome-Regeln sind deaktiviert"
       mozilla_baseline: "NSS-TLS-Vertrauen und Ausschlusszeitpunkte; kein vollständiger Firefox-Verifier"
       microsoft_baseline: "Öffentliches Microsoft-TLS-Programm und gemeldete Einschränkungen; kein vollständiger Edge-Verifier"
@@ -600,6 +604,7 @@ de:
     title: "Diagnose der Zertifikatsverwendung"
     scope: "Optionale Hintergrundprüfungen. Diese Ergebnisse ändern weder den Zertifikatsstatus noch das Puppet-Verhalten."
     checks:
+      chrome_policy: "Zusätzliche Chrome-Regeln"
       trust_chrome: "Chrome-CA-Vertrauen"
       trust_firefox: "Firefox-CA-Vertrauen"
       trust_edge: "Edge-CA-Vertrauen"
@@ -621,6 +626,11 @@ de:
     evidence: "Nachweisdetails"
     data_version: "Datenversion"
     fields:
+      ct_error: "CT-Quellenfehler"
+      ct_version: "CT-Datenversion"
+      ct_checked_at: "CT-Quelle verifiziert am"
+      ct_profile: "CT-Log-Liste"
+      baseline: "Ergebnis der Basisprüfung"
       profile: "Profil / Release"
       source: "Autoritative Quelle"
       scope: "Prüfumfang"
@@ -631,6 +641,9 @@ de:
       issuer: "Aussteller-SHA-256"
       this_update: "Nachweis ausgestellt"
     reasons:
+      chrome_policy_incomplete: "Zusätzliche Chrome-Regeln ungeklärt; verifizierte SCT-Nachweise oder unterstützte Metadaten fehlen"
+      chrome_policy_rejected: "Zusätzliche Chrome-Root-Regeln schließen dieses Zertifikat aus"
+      chrome_policy_satisfied: "Anwendbare zusätzliche Chrome-Root-Regeln erfüllt"
       source_unavailable: "Öffentlicher Vertrauensdatensatz nicht verfügbar"
       source_expired: "Öffentlicher Vertrauensdatensatz ist veraltet"
       source_verification_failed: "Öffentliche Vertrauensquelle konnte nicht verifiziert werden"
@@ -646,7 +659,7 @@ de:
       pending: "Hintergrundprüfung ausstehend"
       good: "Verifizierter aktueller Nachweis ohne Widerruf"
       revoked: "Verifizierter Widerrufsnachweis"
-      not_applicable: "Für selbstsignierte Zertifikate nicht anwendbar"
+      not_applicable: "Für dieses CA- oder selbstsignierte Zertifikat nicht anwendbar"
       missing_issuer: "Ausstellerzertifikat in diesem Bereich nicht verfügbar"
       missing_url: "Keine unterstützte HTTP(S)-Responder-URL"
       deadline: "Zeitlimit der Anfrage oder des Prüflaufs überschritten"

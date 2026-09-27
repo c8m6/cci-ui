@@ -156,3 +156,70 @@ The project remains `AGPL-3.0-only`. Runtime source references:
 
 The adapters implement CCI-UI's read-only diagnostics. They do not redistribute
 vendor programs, alter TLS trust for the application, or claim vendor endorsement.
+
+## Additional Chrome policy
+
+`CCI_CHROME_POLICY_ENABLED=false` independently controls an additional layer and
+requires `CCI_TRUST_CHROME_ENABLED=true`. Its check interval is
+`CCI_CHROME_POLICY_INTERVAL=86400`. It shares the selected Chrome release's roots
+and schema, with separately scheduled signed CT metadata:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `CCI_CHROME_POLICY_TARGET` | `v3` | Supported Google CT log-list format |
+| `CCI_CHROME_POLICY_UPDATE_INTERVAL` | `86400` | CT source refresh interval, seconds |
+| `CCI_CHROME_POLICY_MAX_AGE` | `604800` | Maximum signed publication and cache age, seconds |
+
+The supported classical X.509 schema is the one shipped with Chrome
+`154.0.8037.57`, SHA-256
+`79fc7fd7fa70b6337405e0fb7639e1621f66618b144930cf59ce630538b105be`.
+An unrecognized schema or trust-affecting field produces unknown. Roots are bound
+by certificate SHA-256, never display name. Every field within a constraint set
+must pass; one accepted alternative set suffices. Implemented rules cover:
+
+- Inclusive minimum and exclusive maximum browser versions, including partial versions.
+- All DNS SANs within the permitted DNS subtrees, including strict subdomain constraints.
+- Inclusive validity-start upper bounds and exclusive lower bounds.
+- Root expiry and X.509 constraint enforcement according to the anchor's flags.
+  Chrome baseline path construction also honors these flags; other profiles retain
+  their normal isolated X.509 validation. Non-anchor certificate constraints remain enforced.
+- SCT upper-bound rules and rules requiring all verified SCTs after a boundary.
+  MTC index fields are ignored for classical X.509 as specified by the schema.
+
+The [signed CT log list](https://googlechrome.github.io/CertificateTransparency/log_lists.html)
+and its signature are downloaded from `https://www.gstatic.com/ct/log_list/v3/`.
+The fetched signing key must match SPKI SHA-256
+`f1d8b68e50210d8e73d9a3e97f571773c52d7f28c0b1a71beee81d8562e6fd85`;
+the RSA/SHA-256 signature covers the exact JSON bytes. The list version, signed
+publication time and source verification time are retained. Unknown formats, key
+rotation, altered signatures and stale lists cannot become verified evidence.
+A mismatched list/signature pair is discarded for the next bounded retry. Updates
+are atomic and use the same shared durable cache, freshness rules and lease fencing
+as trust profiles. New Chrome or CT data invalidates previous policy results.
+
+Embedded RFC 6962 v1 SCTs are parsed with length bounds and verified over the
+reconstructed precertificate, the actual issuer SPKI hash and SCT extensions.
+RSA/SHA-256 and ECDSA/SHA-256 signatures are supported. Log IDs are checked against
+their public keys. Qualified, usable and readonly logs are eligible; retired logs
+require an embedded timestamp strictly before retirement. Pending/rejected logs
+are excluded. The log's temporal interval applies to certificate expiry, and
+future SCTs are rejected. Both ordinary and tiled log entries in the signed list
+supply keys. See the [official log-state semantics](https://googlechrome.github.io/CertificateTransparency/log_states.html).
+
+Only certificate-embedded SCT evidence is available. Dedicated precertificate
+signing-certificate reconstruction, TLS/OCSP-carried SCTs and live-server probes
+are not implemented. If the available verified evidence cannot satisfy a required
+SCT rule, the result stays unknown where unavailable external evidence could
+change the answer. A verified timestamp violating an all-after rule is conclusive.
+Malformed or unverifiable evidence never supplies an accepted timestamp. CA
+certificates retain baseline anchor/path evaluation; leaf-specific additional
+rules are not applied to them and report not applicable.
+
+When enabled, the displayed `Chrome CA trust` status combines baseline and policy:
+a successful baseline cannot remain green while the policy is pending, stale,
+unknown or rejected. Details retain the successful baseline, selected path and
+policy outcome. When disabled, its row is hidden and Chrome is explicitly labeled
+baseline-only. Neither this layer nor its CT metadata is a full Chrome verifier,
+full CT compliance check, CRLSet implementation or platform-policy simulation.
+The CT list is used solely for offline diagnostics/auditing under its published
+usage policy, never to enforce application TLS connections or submit certificates.

@@ -3,17 +3,18 @@
 module CertificateDiagnostics
   # Certificate-level CA/path trust, never a website or hostname probe.
   class Trust
-    def initialize(material, config, profile: nil)
+    def initialize(material, config, profile: nil, policy: nil)
       @material = material
       @config = config
       @profile = profile
+      @policy = policy
     end
 
     def call(check)
       profile = @profile || Profiles.load(check, @config)
       roots = profile.fetch("roots")
       paths = TrustPaths.new(@material.certificate, @material.candidates,
-        roots.values.map { |entry| OpenSSL::X509::Certificate.new(entry.fetch("pem")) })
+        roots.values.map { |entry| OpenSSL::X509::Certificate.new(entry.fetch("pem")) }, anchor_rules: roots)
       outcomes = paths.paths.map { |path| evaluate_path(path, roots) }
       selected = select_outcome(outcomes, paths)
       result(profile, selected)
@@ -36,7 +37,12 @@ module CertificateDiagnostics
       return { state: "unknown", reason: reason } if reason == "unsupported_policy"
       return { state: "untrusted", reason: reason } if reason
 
-      { state: "good", reason: TrustPaths.ca?(@material.certificate) ? "ca_path_trusted" : "tls_path_trusted",
+      policy = @policy&.evaluate(path, root)
+      evidence = { path: path.map { |cert| Certificates::Codec.fingerprint(cert) } }
+      return policy.merge(evidence) if policy && policy[:state] != "good"
+
+      reason = TrustPaths.ca?(@material.certificate) ? "ca_path_trusted" : "tls_path_trusted"
+      { state: "good", reason: @policy ? "chrome_policy_satisfied" : reason,
         path: path.map { |cert| Certificates::Codec.fingerprint(cert) },
         path_expiry: path.flat_map { |cert| [cert.not_before, cert.not_after] }.select { |date| date > Time.current }.min }
     end

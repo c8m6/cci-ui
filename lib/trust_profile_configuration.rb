@@ -4,7 +4,7 @@
 class TrustProfileConfiguration
   DEFAULTS = { "trust_chrome" => "154.0.8037.57", "trust_firefox" => "156.0.1",
                "trust_edge" => "windows-macos", "trust_apple" => "macos-15-2024051500",
-               "trust_ubuntu" => "noble-updates" }.freeze
+               "trust_ubuntu" => "noble-updates", "chrome_policy" => "v3" }.freeze
   LIMITS = { "request_timeout" => 10, "max_bytes" => 20_971_520, "expanded_max_bytes" => 67_108_864 }.freeze
 
   attr_reader :profiles, :limits

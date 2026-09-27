@@ -38,6 +38,7 @@ services:
       CCI_OCSP_ENABLED: "true"
       CCI_CRL_ENABLED: "true"
       CCI_TRUST_CHROME_ENABLED: "true"
+      CCI_CHROME_POLICY_ENABLED: "true"
       CCI_TRUST_FIREFOX_ENABLED: "true"
       CCI_TRUST_EDGE_ENABLED: "true"
       CCI_TRUST_APPLE_ENABLED: "true"

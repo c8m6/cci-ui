@@ -128,6 +128,7 @@ TrustProfileConfiguration::DEFAULTS.each_key do |check|
     metadata: { "target" => config.trust[check]["target"], "version" => version })
   CertificateDiagnosticResult.create!(area: portal.area, fingerprint: portal.fingerprint, check_id: check,
     state: "untrusted", reason: "private_root", checked_at: checked_at, last_attempt_at: checked_at,
-    expires_at: checked_at + 6.hours, next_due_at: checked_at + 6.hours, data_version: version,
+    expires_at: checked_at + 6.hours, next_due_at: checked_at + 6.hours,
+    data_version: CertificateDiagnostics::Profiles.version(check, config),
     details: { "profile" => "Synthetic #{check.delete_prefix("trust_")} profile", "source" => "Synthetic demonstration data" })
 end

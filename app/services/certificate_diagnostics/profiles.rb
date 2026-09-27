@@ -7,9 +7,9 @@ module CertificateDiagnostics
 
     def self.version(check, config)
       row = record(check)
-      return "unavailable" unless row&.metadata&.fetch("target", nil) == config.trust[check]["target"]
-
-      row.metadata.fetch("version", "unavailable")
+      matches = row&.metadata&.fetch("target", nil) == config.trust[check]["target"]
+      version = matches ? row.metadata.fetch("version", "unavailable") : "unavailable"
+      check == "chrome_policy" ? Digest::SHA256.hexdigest(version + self.version("trust_chrome", config)) : version
     end
 
     def self.load(check, config)
@@ -46,15 +46,16 @@ module CertificateDiagnostics
       now = Time.current
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       data = acquire(check, settings)
-      validate(data)
+      validate(data) unless check == "chrome_policy"
       source_time = Time.iso8601(data.delete("acquired_at") || now.iso8601)
+      source_time = [source_time, Time.iso8601(data.fetch("timestamp"))].min if check == "chrome_policy"
       payload = JSON.generate(data)
       meta = { "target" => settings["target"], "version" => Digest::SHA256.hexdigest(payload),
                "checked_at" => source_time.iso8601, "last_attempt_at" => now.iso8601,
                "next_due_at" => (now + settings["update_interval"]).iso8601 }
       save(check, payload: payload, expires_at: source_time + settings["max_age"], metadata: meta)
       OperationalLog.info(logger: "cci.diagnostics", message: "Public trust profile updated", check: check,
-        roots: data.fetch("roots").size, data_version: meta["version"],
+        roots: data.fetch("roots", {}).size, data_version: meta["version"],
         duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(1))
     rescue StandardError => e
       failed(check, settings, e)
@@ -64,6 +65,7 @@ module CertificateDiagnostics
       download = Sources::Download.new(@config, deadline: @deadline)
       options = { target: settings["target"], max_age: [settings["update_interval"], settings["max_age"]].min }
       data = case check
+             when "chrome_policy" then Sources::CtLogs.new(download, **options, freshness: settings["max_age"]).call
              when "trust_chrome" then Sources::Chrome.new(download, **options).call
              when "trust_firefox" then Sources::Mozilla.new(download, **options).call
              when "trust_edge" then Sources::Ccadb.new(download, **options).call

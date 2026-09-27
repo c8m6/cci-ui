@@ -583,12 +583,16 @@ en:
       publication: "Publication failed during validation or secret decryption. Check the area key and issuer material before retrying."
 
   diagnostics:
+    combined: "Baseline: %{baseline}; including additional policy: %{policy}"
     trust_scope: "Public default CA/path trust only; no hostname, live-server or complete browser-policy test."
     groups:
+      policy: "Additional Chrome policy"
       revocation: "Revocation"
       browsers: "Browser CA trust"
       system: "Operating system CA trust"
     scopes:
+      chrome_policy: "Additional classical Chrome root-store rules with verified embedded SCT evidence; not full CT/browser policy"
+      chrome_baseline_active: "Chrome CA/path baseline; the displayed state also requires the additional policy result"
       chrome_baseline: "Chrome root-store baseline; additional Chrome policy is disabled"
       mozilla_baseline: "NSS TLS trust and distrust cutoffs; not the full Firefox verifier"
       microsoft_baseline: "Microsoft public TLS program and reported restrictions; not the full Edge verifier"
@@ -597,6 +601,7 @@ en:
     title: "Certificate usage diagnostics"
     scope: "Optional background checks. These results do not change certificate status or Puppet behavior."
     checks:
+      chrome_policy: "Additional Chrome policy"
       trust_chrome: "Chrome CA trust"
       trust_firefox: "Firefox CA trust"
       trust_edge: "Edge CA trust"
@@ -618,6 +623,11 @@ en:
     evidence: "Evidence details"
     data_version: "Data version"
     fields:
+      ct_error: "CT source error"
+      ct_version: "CT data version"
+      ct_checked_at: "CT source verified at"
+      ct_profile: "CT log list"
+      baseline: "Baseline result"
       profile: "Profile / release"
       source: "Authoritative source"
       scope: "Evaluation scope"
@@ -628,6 +638,9 @@ en:
       issuer: "Issuer SHA-256"
       this_update: "Evidence issued"
     reasons:
+      chrome_policy_incomplete: "Additional Chrome rules unresolved; required verified SCT evidence or supported metadata unavailable"
+      chrome_policy_rejected: "Additional Chrome root rules reject this certificate"
+      chrome_policy_satisfied: "Applicable additional Chrome root rules satisfied"
       source_unavailable: "Public trust dataset unavailable"
       source_expired: "Public trust dataset is stale"
       source_verification_failed: "Public trust source could not be verified"
@@ -643,7 +656,7 @@ en:
       pending: "Awaiting background check"
       good: "Verified current non-revocation evidence"
       revoked: "Verified revocation evidence"
-      not_applicable: "Not applicable to a self-signed certificate"
+      not_applicable: "Not applicable to this CA or self-signed certificate"
       missing_issuer: "Issuer certificate unavailable in this area"
       missing_url: "No supported HTTP(S) responder URL"
       deadline: "Request or pass deadline exceeded"

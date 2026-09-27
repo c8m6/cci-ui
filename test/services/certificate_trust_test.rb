@@ -89,8 +89,10 @@ class CertificateTrustTest < ActiveSupport::TestCase
 
   test "profile sources are independently configured and invalid settings fail early" do
     TrustProfileConfiguration::DEFAULTS.each_key do |check|
-      config = CertificateDiagnosticsConfiguration.new("CCI_#{check.upcase}_ENABLED" => "true")
-      assert_equal [check], config.enabled
+      settings = { "CCI_#{check.upcase}_ENABLED" => "true" }
+      settings["CCI_TRUST_CHROME_ENABLED"] = "true" if check == "chrome_policy"
+      config = CertificateDiagnosticsConfiguration.new(settings)
+      assert_equal settings.keys.size, config.enabled.size
       assert_equal 86_400, config.interval(check)
     end
     %w[CCI_TRUST_APPLE_TARGET CCI_TRUST_UBUNTU_TARGET CCI_TRUST_FIREFOX_MAX_AGE CCI_TRUST_REQUEST_TIMEOUT].each do |name|

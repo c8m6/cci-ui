@@ -549,3 +549,9 @@ an HTTP proxy URL on both web and indexer. This routes diagnostic and vendor-sou
 HTTP/HTTPS requests; destination DNS and address checks still run locally. See the
 [proxy configuration](certificate-diagnostics.md#optional-outbound-proxy) for
 authentication, CONNECT and compatibility details.
+
+To enable additional Chrome root rules, set `CCI_CHROME_POLICY_ENABLED=true`
+together with `CCI_TRUST_CHROME_ENABLED=true`. Permit HTTPS egress to
+`www.gstatic.com` (directly or through the diagnostic proxy) for signed CT metadata.
+All source retrieval remains in the indexer. Unsupported schemas or unavailable
+required SCT evidence produce neutral results, including the combined Chrome badge.

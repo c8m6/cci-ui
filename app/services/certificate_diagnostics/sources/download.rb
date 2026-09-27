@@ -31,6 +31,10 @@ module CertificateDiagnostics
         bytes
       end
 
+      def invalidate(url)
+        CertificateDiagnosticCache.where(cache_id: "source:#{Digest::SHA256.hexdigest(url)}").delete_all
+      end
+
       def [](key)
         @config.trust.limits.fetch(key.to_s) { @config[key] }
       end

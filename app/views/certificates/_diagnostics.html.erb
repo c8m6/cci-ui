@@ -6,7 +6,9 @@
     <p class="muted"><%= t("diagnostics.scope") %></p>
     <% config.groups.each do |group, checks| %>
       <h3><%= t("diagnostics.groups.#{group}") %></h3>
-      <% if group != "revocation" %><p class="muted"><%= t("diagnostics.trust_scope") %></p><% end %>
+      <% if group != "revocation" %>
+        <p class="muted"><%= t(group == "policy" ? "diagnostics.scopes.chrome_policy" : "diagnostics.trust_scope") %></p>
+      <% end %>
       <dl class="certificate-diagnostics">
         <% checks.each do |check| %>
           <%= render "diagnostic_result", config: config, check: check, results: results %>

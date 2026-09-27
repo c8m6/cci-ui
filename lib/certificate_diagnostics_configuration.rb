@@ -20,6 +20,10 @@ class CertificateDiagnosticsConfiguration
       stem = "CCI_#{check.upcase}"
       [check, { enabled: boolean(environment, "#{stem}_ENABLED"), interval: positive(environment, "#{stem}_INTERVAL", interval) }]
     end
+    if enabled?("chrome_policy") && !enabled?("trust_chrome")
+      raise ArgumentError, "CCI_CHROME_POLICY_ENABLED requires CCI_TRUST_CHROME_ENABLED=true."
+    end
+
     @limits = LIMITS.to_h { |key, default| [key, positive(environment, "CCI_DIAGNOSTICS_#{key.upcase}", default)] }
     @allowed_networks = environment.fetch("CCI_DIAGNOSTICS_ALLOWED_NETWORKS", "").split(",").map do |value|
       IPAddr.new(value.strip)
@@ -35,11 +39,13 @@ class CertificateDiagnosticsConfiguration
 
   def groups
     { "revocation" => %w[ocsp crl], "browsers" => %w[trust_chrome trust_firefox trust_edge trust_apple],
-      "system" => %w[trust_ubuntu] }.transform_values { |checks| checks & enabled }.reject { |_, checks| checks.empty? }
+      "system" => %w[trust_ubuntu], "policy" => %w[chrome_policy] }
+      .transform_values { |checks| checks & enabled }.reject { |_, checks| checks.empty? }
   end
 
   def version(check)
     profile = trust.profiles[check]
+    profile = [profile, trust.profiles["trust_chrome"]] if check == "chrome_policy"
     Digest::SHA256.hexdigest([check, checks.fetch(check), limits, allowed_networks.map(&:to_s), http_proxy&.to_s, profile].to_json)
   end
 
