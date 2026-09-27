@@ -5,15 +5,15 @@ module CertificateDiagnostics
   class Material
     attr_reader :certificate, :candidates, :identity
 
-    def self.inventory_version(area)
-      Digest::SHA256.hexdigest(Certificate.retained.where(area: area).distinct.order(:fingerprint).pluck(:fingerprint).join)
+    def self.inventory_version(area, fingerprint)
+      Inventory.new(area).version(fingerprint)
     end
 
     def initialize(record)
       @record = record
       loaded = CertificateMaterial.load(record)
       @certificate = loaded.fetch(:certificate)
-      @identity = self.class.inventory_version(record.area)
+      @identity = self.class.inventory_version(record.area, record.fingerprint)
       @candidates = loaded.fetch(:chain)
       # Walk every issuer candidate, including alternate and cross-signed paths.
       frontier = [certificate, *candidates]
@@ -36,7 +36,7 @@ module CertificateDiagnostics
 
     def current?
       current = Certificate.retained.find_by(id: @record.id, fingerprint: @record.fingerprint, area: @record.area)
-      current && self.class.inventory_version(current.area) == identity &&
+      current && self.class.inventory_version(current.area, current.fingerprint) == identity &&
         CertificateMaterial.load(current).fetch(:certificate).to_der == certificate.to_der
     rescue Certificates::Error
       false

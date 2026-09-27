@@ -26,14 +26,19 @@ CRLs are cached in PostgreSQL per area, issuer fingerprint and URL digest.
 `bin/indexer` runs a bounded diagnostic phase after the catalogue lock is released,
 including after catalogue failures. A separate PostgreSQL lease with an owner token
 serializes diagnostic phases; it expires after the pass budget plus ten seconds.
-Late workers cannot publish through another owner's lease. Downloads hold no database
+Late workers cannot publish or change scheduling through another owner's lease.
+Lease validity is checked after acquiring the short database row lock. Downloads hold no database
 transaction or catalogue lock. Individual check failures do not stop other checks.
 
 Jobs are deduplicated by area, SHA-256 fingerprint and check ID. All retained
 versions, including archived/inactive versions, are eligible. Oldest due jobs run
-first, with active, unarchived material winning ties. Inventory fingerprint changes
-and configuration changes schedule work immediately; ordinary catalogue timestamp
-updates do not. Checks disabled for an indexer pass become due on re-enabling.
+first, with active, unarchived material winning ties. Invalidation preserves the
+original due time of already waiting jobs, including after re-enabling. Each
+certificate's dependency identity includes all area-local issuer candidates
+reachable within the chain-depth limit, including alternate paths. Adding,
+replacing or removing a relevant issuer and changing configuration schedules work
+immediately; unrelated arrivals and ordinary catalogue timestamp updates do not.
+Checks disabled for an indexer pass become due on re-enabling.
 Recreate both processes when changing environment settings. A disable/re-enable
 cycle that never reaches an indexer pass cannot be observed by persisted scheduling.
 

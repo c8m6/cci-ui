@@ -13,4 +13,12 @@ class CertificateDiagnosticCache < ApplicationRecord
   def self.release(key, token)
     where(cache_id: key, lease_token: token).update_all(lease_token: nil, lease_until: nil)
   end
+
+  def self.with_lease(key, token)
+    transaction do
+      lease = lock.find_by(cache_id: key, lease_token: token)
+      # Check the clock after acquiring the row lock, including any lock wait.
+      yield if lease && lease.lease_until > Time.current
+    end
+  end
 end

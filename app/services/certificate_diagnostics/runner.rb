@@ -17,11 +17,13 @@ module CertificateDiagnostics
     end
 
     def run
-      CertificateDiagnosticResult.where.not(check_id: @config.enabled).update_all(suspended: true)
-      return if @config.enabled.empty?
-
       @token = CertificateDiagnosticCache.acquire(LEASE, seconds: @config[:pass_budget] + 10)
       return unless @token
+
+      CertificateDiagnosticCache.with_lease(LEASE, @token) do
+        CertificateDiagnosticResult.where.not(check_id: @config.enabled).update_all(suspended: true)
+      end
+      return if @config.enabled.empty?
 
       @deadline = monotonic + @config[:pass_budget]
       Timeout.timeout(@config[:pass_budget], Error, "deadline") do
@@ -48,38 +50,45 @@ module CertificateDiagnostics
 
     def schedule
       AreaConfiguration.ids.each do |area|
-        version = Material.inventory_version(area)
-        @config.enabled.each { |check| schedule_check(area, check, version) }
+        versions = Inventory.new(area).versions
+        @config.enabled.each { |check| schedule_check(area, check, versions) }
       end
       # Deleted source records are never evaluated, even if they had a due job.
-      CertificateDiagnosticResult.where(<<~SQL.squish).delete_all
-        NOT EXISTS (SELECT 1 FROM certificates c WHERE c.deleted_at IS NULL
-          AND c.area = certificate_diagnostic_results.area
-          AND c.fingerprint = certificate_diagnostic_results.fingerprint)
-      SQL
+      CertificateDiagnosticCache.with_lease(LEASE, @token) do
+        CertificateDiagnosticResult.where(<<~SQL.squish).delete_all
+          NOT EXISTS (SELECT 1 FROM certificates c WHERE c.deleted_at IS NULL
+            AND c.area = certificate_diagnostic_results.area
+            AND c.fingerprint = certificate_diagnostic_results.fingerprint)
+        SQL
+      end
     end
 
     def schedule_check(area, check, inventory)
       connection = CertificateDiagnosticResult.connection
       profile = @config.trust.profiles.key?(check) ? Profiles.version(check, @config) : ""
-      input = Digest::SHA256.hexdigest(inventory + @config.version(check) + profile)
-      values = [area, check, input].map { |value| connection.quote(value) }
-      connection.execute(<<~SQL)
+      configuration = @config.version(check) + profile
+      inputs = inventory.transform_values { |version| Digest::SHA256.hexdigest(version + configuration) }
+      values = [area, check, inputs.to_json, Time.current].map { |value| connection.quote(value) }
+      sql = <<~SQL
         INSERT INTO certificate_diagnostic_results
           (area, fingerprint, check_id, input_version, next_due_at, priority, created_at, updated_at)
-        SELECT area, fingerprint, #{values[1]}, #{values[2]}, CURRENT_TIMESTAMP,
-          bool_or(active AND NOT archived), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        FROM certificates WHERE area = #{values[0]} AND deleted_at IS NULL GROUP BY area, fingerprint
+        SELECT area, fingerprint, #{values[1]}, inputs.value, #{values[3]},
+          bool_or(active AND NOT archived), #{values[3]}, #{values[3]}
+        FROM certificates JOIN jsonb_each_text(#{values[2]}::jsonb) inputs ON inputs.key = fingerprint
+        WHERE area = #{values[0]} AND deleted_at IS NULL GROUP BY area, fingerprint, inputs.value
         ON CONFLICT (area, fingerprint, check_id) DO UPDATE SET
           priority = EXCLUDED.priority,
           next_due_at = CASE WHEN certificate_diagnostic_results.suspended OR
             certificate_diagnostic_results.input_version IS DISTINCT FROM EXCLUDED.input_version
-            THEN CURRENT_TIMESTAMP ELSE certificate_diagnostic_results.next_due_at END,
+            THEN LEAST(certificate_diagnostic_results.next_due_at, EXCLUDED.next_due_at)
+            ELSE certificate_diagnostic_results.next_due_at END,
           expires_at = CASE WHEN certificate_diagnostic_results.suspended OR
             certificate_diagnostic_results.input_version IS DISTINCT FROM EXCLUDED.input_version
-            THEN CURRENT_TIMESTAMP ELSE certificate_diagnostic_results.expires_at END,
+            THEN LEAST(certificate_diagnostic_results.expires_at, EXCLUDED.next_due_at)
+            ELSE certificate_diagnostic_results.expires_at END,
           input_version = EXCLUDED.input_version, suspended = false
       SQL
+      CertificateDiagnosticCache.with_lease(LEASE, @token) { connection.execute(sql) }
     end
 
     def evaluate(job)
@@ -120,15 +129,13 @@ module CertificateDiagnostics
         attrs[:details] = (attrs[:details] || {}).merge("configuration" => @config.version(job.check_id))
       end
       attrs[:revoked_at] = now if outcome[:state] == "revoked" && !job.revoked_at
-      persist(job, attrs, now)
+      persist(job, attrs)
     end
 
-    def persist(job, attrs, now)
+    def persist(job, attrs)
       # Fence late workers after crash recovery. This short transaction contains
       # only database operations, and serializes against lease acquisition.
-      CertificateDiagnosticCache.transaction do
-        lease = CertificateDiagnosticCache.lock.find_by(cache_id: LEASE, lease_token: @token)
-        return unless lease && lease.lease_until > now
+      CertificateDiagnosticCache.with_lease(LEASE, @token) do
         return unless Certificate.retained.exists?(area: job.area, fingerprint: job.fingerprint)
 
         job.update!(attrs)

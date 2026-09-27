@@ -99,10 +99,7 @@ module CertificateDiagnostics
     end
 
     def save(check, **attrs)
-      CertificateDiagnosticCache.transaction do
-        lease = CertificateDiagnosticCache.lock.find_by(cache_id: Runner::LEASE, lease_token: @token)
-        return unless lease && lease.lease_until > Time.current
-
+      CertificateDiagnosticCache.with_lease(Runner::LEASE, @token) do
         CertificateDiagnosticCache.find_or_initialize_by(cache_id: "profile:#{check}").update!(attrs)
       end
     end
