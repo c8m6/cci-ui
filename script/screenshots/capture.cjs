@@ -93,7 +93,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
-    assert.equal(await page.$$eval('.certificate-diagnostics .badge', nodes => nodes.length), 2);
+    assert.equal(await page.$$eval('#diagnostics-heading', nodes => nodes.length), 0);
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));

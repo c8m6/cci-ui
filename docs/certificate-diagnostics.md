@@ -1,6 +1,8 @@
 # Certificate usage diagnostics
 
 Diagnostics are optional, read-only observations on the certificate detail page.
+Only enabled checks appear. When all checks are disabled, the entire diagnostics
+section is hidden; disabled checks show no status, even if earlier evidence is stored.
 They do not change date status, summary counts, imports, CSR publication, exports,
 activation, archiving or Puppet behavior. German and English statuses include text
 as well as color. A self-signed certificate receives a neutral not-applicable
