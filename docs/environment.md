@@ -375,3 +375,11 @@ Public trust profiles use independent `CCI_TRUST_CHROME`, `CCI_TRUST_FIREFOX`,
 `_INTERVAL`, `_TARGET`, `_UPDATE_INTERVAL` and `_MAX_AGE` settings. All default to
 disabled with daily check/source intervals. See the [exact source targets,
 network limits and freshness rules](certificate-diagnostics.md#public-default-ca-trust-profiles).
+
+### Diagnostic HTTP proxy
+
+`CCI_DIAGNOSTICS_HTTP_PROXY` defaults to empty (direct). Set an explicit HTTP proxy
+URL to route OCSP, CRL and public trust-source HTTP/HTTPS requests through it.
+Optional percent-encoded Basic credentials are supported; HTTPS uses CONNECT with
+normal TLS verification. Ambient proxy variables are ignored. See
+[proxy behavior and address restrictions](certificate-diagnostics.md#optional-outbound-proxy).

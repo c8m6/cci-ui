@@ -37,6 +37,7 @@ module CertificateDiagnostics
 
       # Vendor downloads never inherit the internal PKI responder allowlist.
       def allowed_networks = []
+      def http_proxy = @config.http_proxy
 
       private
 

@@ -61,15 +61,40 @@ startup. All-disabled deployments make no diagnostic requests.
 | `CCI_DIAGNOSTICS_REDIRECTS` | `3` | Maximum redirects |
 | `CCI_DIAGNOSTICS_EVIDENCE_MAX_AGE` | `21600` | Conservative maximum evidence age, also without nextUpdate |
 | `CCI_DIAGNOSTICS_CLOCK_SKEW` | `300` | Allowed future clock skew, seconds |
+| `CCI_DIAGNOSTICS_HTTP_PROXY` | empty (direct) | Explicit HTTP proxy URL for HTTP and HTTPS diagnostic/source requests |
 | `CCI_DIAGNOSTICS_ALLOWED_NETWORKS` | empty | Comma-separated internal responder IPs/CIDRs |
 
-Requests use only HTTP/HTTPS on ports 80/443, with no credentials or ambient proxy.
+Requests use only HTTP/HTTPS on ports 80/443, with no destination credentials.
+Ambient `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` variables are ignored.
 Every DNS answer and redirect is validated, and the selected address is pinned for
 the TCP connection (TLS still verifies the original hostname). Loopback, link-local,
 metadata, unspecified and multicast destinations are always blocked. Private and
 reserved ranges require explicit allowlisting. Compressed HTTP responses are
 rejected rather than decompressed. There is no AIA issuer downloading. Existing
 area-local public certificates and supplied chains provide issuer candidates.
+
+### Optional outbound proxy
+
+Set `CCI_DIAGNOSTICS_HTTP_PROXY=http://proxy.example.test:3128` on web and indexer
+(the Compose templates forward the same value). An empty value retains direct
+connections. This setting covers OCSP, CRL and all public trust-source downloads;
+it does not configure Consul, PuppetDB or Keycloak. HTTPS destinations use CONNECT
+and retain normal certificate/hostname verification and SNI. The proxy itself uses
+HTTP; HTTPS proxy endpoints and automatic bypass rules are not supported.
+
+Optional Basic proxy authentication uses `http://user:password@proxy.example.test:3128`;
+percent-encode reserved characters in credentials. Keep real credentials out of
+tracked files. Errors and logs contain sanitized reason codes, never the URL or
+credentials. Basic proxy credentials travel over the connection to the HTTP proxy.
+
+DNS resolution stays local. Every destination and redirect is checked against the
+existing address policy before contacting the proxy. Both HTTP absolute request
+URIs and HTTPS CONNECT use the selected validated IP, so the proxy does not resolve
+the destination hostname again. HTTP retains the original Host header. The proxy
+must support IP destinations with an original hostname Host header; this includes
+proxies that use CONNECT for HTTPS. The configured proxy endpoint itself may be on
+an internal network. It does not extend the responder allowlist, and vendor source
+downloads still require public destinations. Size, redirect and time limits apply.
 
 ## Public default CA trust profiles
 

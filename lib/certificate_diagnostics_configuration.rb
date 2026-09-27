@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "ipaddr"
+require "uri"
 require_relative "trust_profile_configuration"
 
 # One validated contract shared by the web presentation and the indexer.
@@ -10,10 +11,11 @@ class CertificateDiagnosticsConfiguration
              "connect_timeout" => 3, "max_bytes" => 5_242_880, "redirects" => 3,
              "evidence_max_age" => 21_600, "clock_skew" => 300 }.freeze
 
-  attr_reader :checks, :limits, :allowed_networks, :trust
+  attr_reader :checks, :limits, :allowed_networks, :trust, :http_proxy
 
   def initialize(environment = ENV)
     @trust = TrustProfileConfiguration.new(environment)
+    @http_proxy = proxy(environment["CCI_DIAGNOSTICS_HTTP_PROXY"])
     @checks = CHECKS.to_h do |check, interval|
       stem = "CCI_#{check.upcase}"
       [check, { enabled: boolean(environment, "#{stem}_ENABLED"), interval: positive(environment, "#{stem}_INTERVAL", interval) }]
@@ -38,10 +40,23 @@ class CertificateDiagnosticsConfiguration
 
   def version(check)
     profile = trust.profiles[check]
-    Digest::SHA256.hexdigest([check, checks.fetch(check), limits, allowed_networks.map(&:to_s), profile].to_json)
+    Digest::SHA256.hexdigest([check, checks.fetch(check), limits, allowed_networks.map(&:to_s), http_proxy&.to_s, profile].to_json)
   end
 
   private
+
+  def proxy(value)
+    return if value.to_s.strip.empty?
+
+    uri = URI.parse(value.strip)
+    valid = uri.is_a?(URI::HTTP) && uri.scheme == "http" && uri.hostname && !uri.hostname.empty? &&
+            uri.port.between?(1, 65_535) && ["", "/"].include?(uri.path) && !uri.query && !uri.fragment
+    raise URI::InvalidURIError unless valid
+
+    uri
+  rescue URI::InvalidURIError, URI::InvalidComponentError
+    raise ArgumentError, "CCI_DIAGNOSTICS_HTTP_PROXY must be an HTTP proxy URL with an optional port and credentials.", cause: nil
+  end
 
   def boolean(environment, name)
     case environment.fetch(name, "false").strip.downcase

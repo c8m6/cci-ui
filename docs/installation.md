@@ -543,3 +543,9 @@ verification tools; Ubuntu packages are read, never installed at runtime. Config
 only the desired profiles and recreate web and indexer together. Back up PostgreSQL
 to preserve validated source caches and diagnostic history. See
 [public trust profiles](certificate-diagnostics.md#public-default-ca-trust-profiles).
+
+For restricted outbound networks, optionally set `CCI_DIAGNOSTICS_HTTP_PROXY` to
+an HTTP proxy URL on both web and indexer. This routes diagnostic and vendor-source
+HTTP/HTTPS requests; destination DNS and address checks still run locally. See the
+[proxy configuration](certificate-diagnostics.md#optional-outbound-proxy) for
+authentication, CONNECT and compatibility details.

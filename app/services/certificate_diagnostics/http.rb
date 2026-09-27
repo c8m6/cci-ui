@@ -29,7 +29,8 @@ module CertificateDiagnostics
       Timeout.timeout(seconds, Error, "deadline") { redirects(url, body, content_type) }
     rescue URI::InvalidURIError, IPAddr::InvalidAddressError
       raise Error, "invalid_url"
-    rescue SocketError, Resolv::ResolvError, SystemCallError, IOError, OpenSSL::SSL::SSLError, Timeout::Error
+    rescue SocketError, Resolv::ResolvError, SystemCallError, IOError, OpenSSL::SSL::SSLError, Timeout::Error,
+      Net::HTTPExceptions, Net::HTTPBadResponse
       raise Error, "network_error"
     end
 
@@ -72,15 +73,26 @@ module CertificateDiagnostics
       raise Error, "invalid_url" unless [80, 443].include?(uri.port)
     end
 
-    def request(uri, address, body, content_type)
-      http = Net::HTTP.new(uri.hostname, uri.port, nil)
+    def connection(uri, address)
+      proxy = @config.http_proxy
+      # Plain HTTP uses a pinned absolute-form destination with the original Host.
+      # HTTPS CONNECT uses ipaddr, while TLS SNI and verification use uri.hostname.
+      host = proxy && uri.scheme == "http" ? address : uri.hostname
+      credentials = [proxy&.user, proxy&.password].map { |part| part && URI::DEFAULT_PARSER.unescape(part) }
+      http = Net::HTTP.new(host, uri.port, proxy&.hostname, proxy&.port, *credentials)
       http.ipaddr = address
       http.use_ssl = uri.scheme == "https"
+      http
+    end
+
+    def request(uri, address, body, content_type)
+      http = connection(uri, address)
       http.verify_mode = OpenSSL::SSL::VERIFY_PEER
       http.open_timeout = @config[:connect_timeout]
       http.read_timeout = http.write_timeout = @config[:request_timeout]
       http.max_retries = 0
       request = (body ? Net::HTTP::Post : Net::HTTP::Get).new(uri.request_uri)
+      request["Host"] = uri.host + (uri.port == uri.default_port ? "" : ":#{uri.port}")
       request["Accept-Encoding"] = "identity"
       request["Content-Type"] = content_type if content_type
       request.body = body if body
