@@ -533,3 +533,5 @@ replicas. Use additive migrations first and defer incompatible removals until
 the old version has stopped. Extra migration versions from a newer replica
 do not by themselves make an older replica unready. Test actual database,
 Consul and load-balancer failover in your environment before production use.
+
+See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.

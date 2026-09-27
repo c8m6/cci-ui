@@ -86,3 +86,5 @@ For system-trusted Consul/PuppetDB certificates, empty the corresponding
 without mutual TLS, empty both client certificate/key settings together.
 Keep `PUPPETDB_TOKEN` empty unless your endpoint requires it. Set
 `CCI_LEGACY_PATHS` to `{}` and remove legacy mounts if no disk inventory exists.
+
+See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.

@@ -164,6 +164,7 @@ and [fact formats and synchronization](docs/puppetdb.md).
 - [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)
 - [Puppet integration and idempotence](docs/puppet.md)
 - [PuppetDB host inventory](docs/puppetdb.md)
+- [Optional OCSP and CRL certificate diagnostics](docs/certificate-diagnostics.md)
 - [Documentation screenshot capture script](script/screenshots/capture.cjs)
 
 ## Code checks and tests

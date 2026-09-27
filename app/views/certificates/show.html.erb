@@ -22,6 +22,7 @@
 </dl></section><% if !@material || current_identity.export?(@certificate.area) %><section class="panel detail-panel"><% if @material %>
 <% if current_identity.export?(@certificate.area) %><h2><%= t("ui.export") %></h2><%= form_with url: export_certificates_path, data: { turbo: false }, class: "detail-export" do |form| %><%= hidden_field_tag "ids[]", @certificate.id %><%= render "export_fields", form: form, writer: current_identity.export_key?(@certificate.area) %><% if @certificate.source == "filesystem" && current_identity.export_key?(@certificate.area) %><%= form.password_field :source_password, placeholder: t("ui.source_password_placeholder"), aria: { label: t("ui.source_password_label") }, autocomplete: "off" %><% end %><%= form.submit t("ui.download_certificate"), class: "button primary" %><% end %>
 <% end %><% else %><h2><%= t("ui.source_unavailable") %></h2><p><%= t("ui.source_unavailable_description") %></p><p class="muted"><%= @material_error %></p><% end %></section><% end %></div>
+<%= render "diagnostics", certificate: @certificate %>
 <% if puppetdb_enabled? %><%= render "puppetdb_hosts", certificate: @certificate %><% end %>
 <% if @certificate.source == "consul" && current_identity.writer?(@certificate.area) %>
   <section class="panel detail-panel"><h2><%= t("ui.puppet_status") %></h2>

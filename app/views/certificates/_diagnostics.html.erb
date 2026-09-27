@@ -1,0 +1,28 @@
+<% config = CertificateDiagnosticsConfiguration.new %>
+<% results = CertificateDiagnosticResult.where(area: certificate.area, fingerprint: certificate.fingerprint).index_by(&:check_id) %>
+<section class="panel detail-panel" aria-labelledby="diagnostics-heading">
+  <h2 id="diagnostics-heading"><%= t("diagnostics.title") %></h2>
+  <p class="muted"><%= t("diagnostics.scope") %></p>
+  <dl class="certificate-diagnostics">
+    <% config.checks.each_key do |check| %>
+      <% result = results[check] %>
+      <% state = config.enabled?(check) ? (result&.display_state(config) || "pending") : "disabled" %>
+      <dt><%= t("diagnostics.checks.#{check}") %></dt>
+      <dd>
+        <span class="badge <%= { "good" => "success", "revoked" => "danger", "untrusted" => "danger" }.fetch(state, "neutral") %>"><%= t("diagnostics.states.#{state}") %></span>
+        <% if result && state != "disabled" %>
+          <span><%= t("diagnostics.reasons.#{result.reason || 'pending'}") %></span>
+          <% if result.checked_at %><small><%= t("diagnostics.checked", time: l(result.checked_at, format: :long)) %></small><% end %>
+          <% if result.last_error %><small><%= t("diagnostics.refresh_failed", reason: t("diagnostics.reasons.#{result.last_error}")) %></small><% end %>
+          <% if result.revoked_at %><small><%= t("diagnostics.revoked_history", time: l(result.revoked_at, format: :long)) %></small><% end %>
+          <% if result.details.present? %>
+            <details><summary><%= t("diagnostics.evidence") %></summary>
+              <dl><dt><%= t("diagnostics.data_version") %></dt><dd><%= result.data_version %></dd>
+              <% result.details.each do |key, value| %><dt><%= t("diagnostics.fields.#{key}") %></dt><dd class="break-word"><%= value.is_a?(Array) ? value.join(", ") : value %></dd><% end %></dl>
+            </details>
+          <% end %>
+        <% end %>
+      </dd>
+    <% end %>
+  </dl>
+</section>

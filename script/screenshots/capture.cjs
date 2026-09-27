@@ -10,6 +10,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
   });
   try {
     const page = await browser.newPage();
+    await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
     await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
     await page.emulateTimezone('Europe/Berlin');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
@@ -92,6 +93,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
+    assert.equal(await page.$$eval('.certificate-diagnostics .badge', nodes => nodes.length), 2);
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));

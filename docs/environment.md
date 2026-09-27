@@ -367,3 +367,5 @@ The Compose web and indexer services receive the same defaults. See
 
 For a complete production Compose template with inline values, external services
 and a reduced indexer environment, see [inline Compose configuration](compose-full.md).
+
+See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.

@@ -273,14 +273,16 @@ rollout status, Consul data or audit events. See [PuppetDB integration](puppetdb
 
 Certificate metadata can be rebuilt after PostgreSQL loss only while its source
 material still exists. Retained catalog entries for absent sources, UI audit
-history and pending import previews require a PostgreSQL backup. Consul backups must include
+history, persisted diagnostic evidence and pending import previews require a PostgreSQL backup. Consul backups must include
 certids, public certificate versions and encrypted keys.
 Consul snapshots and area secrets are both needed to recover new private keys. Do not bake secrets into images.
 Rotation with multiple simultaneously active encryption keys is not implemented;
 existing secrets must not simply be replaced.
 
 Chains are assembled using issuer/subject matching and signature verification.
-This does not validate trust stores, OCSP or CRLs. JKS reads versions 1 and 2
+Chain assembly does not validate trust stores or revocation. Independent, optional
+background OCSP and CRL checks are described in [certificate usage diagnostics](certificate-diagnostics.md).
+JKS reads versions 1 and 2
 and writes version 2; store and key passwords must match. PKCS#12 supports
 multiple keys and certificates, AES/PBES2 and 3DES. RC2 and unknown bag types
 produce an error rather than being silently ignored.
