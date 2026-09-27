@@ -109,3 +109,13 @@ future.sign(future_key, OpenSSL::Digest.new("SHA256"))
 end
 CatalogIndexer.new.filesystem
 CaInventoryRefresh.run
+
+# Persist synthetic successful observations for the detail screenshot. This
+# disposable stack has no diagnostic indexer and never contacts responders.
+checked_at = Time.current
+%w[ocsp crl].each do |check|
+  CertificateDiagnosticResult.create!(area: portal.area, fingerprint: portal.fingerprint, check_id: check,
+    state: "good", reason: "good", checked_at: checked_at, last_attempt_at: checked_at,
+    expires_at: checked_at + 6.hours, next_due_at: checked_at + 6.hours, data_version: "revocation-v1",
+    details: { issuer: Certificates::Codec.fingerprint(issuing), this_update: checked_at.iso8601 })
+end

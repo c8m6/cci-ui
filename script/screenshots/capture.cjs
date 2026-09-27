@@ -93,7 +93,9 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
-    assert.equal(await page.$$eval('#diagnostics-heading', nodes => nodes.length), 0);
+    assert.deepEqual(await page.$$eval('.certificate-diagnostics > dt', nodes => nodes.map(node => node.textContent.trim())), ['OCSP', 'CRL']);
+    assert.deepEqual(await page.$$eval('.certificate-diagnostics .badge.success', nodes => nodes.map(node => node.textContent.trim())), ['Good', 'Good']);
+    assert.equal(await page.$$eval('.certificate-diagnostics > dd > small', nodes => nodes.filter(node => node.textContent.startsWith('Checked:')).length), 2);
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));
@@ -126,7 +128,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
     if (process.env.CAPTURE_DETAILS_ONLY === '1') {
       assert.deepEqual(errors, []);
-      console.log('Updated details.png; nested chain, selected certificate and export/status controls verified.');
+      console.log('Updated details.png; chain, successful OCSP/CRL diagnostics and export/status controls verified.');
       return;
     }
 
