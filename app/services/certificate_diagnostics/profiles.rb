@@ -15,10 +15,24 @@ module CertificateDiagnostics
     def self.load(check, config)
       row = record(check)
       raise Error, "source_unavailable" unless row&.payload && row.metadata["target"] == config.trust[check]["target"]
-      raise Error, "source_expired" unless row.expires_at && row.expires_at > Time.current
 
-      JSON.parse(row.payload).merge("version" => row.metadata.fetch("version"), "expires_at" => row.expires_at,
+      expiry = row.source_expires_at(max_age: config.trust[check]["max_age"], timestamp: "checked_at")
+      raise Error, "source_expired" unless expiry && expiry > Time.current
+
+      JSON.parse(row.payload).merge("version" => row.metadata.fetch("version"), "expires_at" => expiry,
         "source_checked_at" => row.metadata.fetch("checked_at"), "source_error" => row.metadata["last_error"])
+    end
+
+    def self.evidence_expired?(check, details, config, now)
+      return false unless config.trust.profiles.key?(check)
+
+      sources = { "source_checked_at" => check == "chrome_policy" ? "trust_chrome" : check }
+      sources["ct_checked_at"] = "chrome_policy" if check == "chrome_policy"
+      sources.any? do |field, profile|
+        details[field] && Time.iso8601(details[field]) + config.trust[profile]["max_age"] <= now
+      end
+    rescue ArgumentError, TypeError
+      true
     end
 
     def initialize(config, deadline:, token:)
@@ -34,7 +48,7 @@ module CertificateDiagnostics
         row = self.class.record(check)
         meta = row&.metadata || {}
         time = meta["next_due_at"] && Time.iso8601(meta["next_due_at"])
-        [check, time || Time.at(0)] if !time || time <= Time.current || meta.fetch("attempted_target", meta["target"]) != settings["target"]
+        [check, time || Time.at(0)] if !time || time <= Time.current || meta.fetch("attempted_settings", meta["settings"]) != settings
       end.min_by(&:last)
       update(due.first) if due
     end
@@ -47,10 +61,10 @@ module CertificateDiagnostics
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       data = acquire(check, settings)
       validate(data) unless check == "chrome_policy"
-      source_time = Time.iso8601(data.delete("acquired_at") || now.iso8601)
+      source_time = Time.iso8601(data.fetch("acquired_at"))
       source_time = [source_time, Time.iso8601(data.fetch("timestamp"))].min if check == "chrome_policy"
-      payload = JSON.generate(data)
-      meta = { "target" => settings["target"], "version" => Digest::SHA256.hexdigest(payload),
+      payload = JSON.generate(data.except("acquired_at"))
+      meta = { "target" => settings["target"], "settings" => settings, "version" => Digest::SHA256.hexdigest(payload),
                "checked_at" => source_time.iso8601, "last_attempt_at" => now.iso8601,
                "next_due_at" => (now + settings["update_interval"]).iso8601 }
       save(check, payload: payload, expires_at: source_time + settings["max_age"], metadata: meta)
@@ -92,7 +106,7 @@ module CertificateDiagnostics
       failures = meta.fetch("failures", 0) + 1
       delay = [300 * (2**[failures - 1, 5].min), settings["update_interval"]].min
       reason = error.is_a?(Error) ? error.message : "source_verification_failed"
-      meta.merge!("attempted_target" => settings["target"], "last_attempt_at" => Time.current.iso8601,
+      meta.merge!("attempted_settings" => settings, "last_attempt_at" => Time.current.iso8601,
         "last_error" => reason, "failures" => failures, "next_due_at" => (Time.current + delay).iso8601)
       save(check, metadata: meta)
       OperationalLog.warn(logger: "cci.diagnostics", message: "Public trust profile refresh failed", check: check, reason: reason)

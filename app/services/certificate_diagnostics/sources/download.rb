@@ -7,9 +7,9 @@ module CertificateDiagnostics
     class Download
       attr_reader :verified_at
 
-      def initialize(config, deadline:)
+      def initialize(config, deadline:, http: nil)
         @config = config
-        @deadline = deadline
+        @http = http || Http.new(self, deadline: deadline)
       end
 
       def get(url, max_age:)
@@ -17,12 +17,13 @@ module CertificateDiagnostics
 
         key = "source:#{Digest::SHA256.hexdigest(url)}"
         cached = CertificateDiagnosticCache.find_by(cache_id: key)
-        if cached&.expires_at && cached.expires_at > Time.current
-          remember_time(Time.iso8601(cached.metadata.fetch("fetched_at", cached.created_at.iso8601)))
+        expiry = cached&.source_expires_at(max_age: max_age, timestamp: "fetched_at")
+        if expiry && expiry > Time.current
+          remember_time(Time.iso8601(cached.metadata.fetch("fetched_at")))
           return cached.payload
         end
 
-        bytes = Http.new(self, deadline: @deadline).fetch(url)
+        bytes = @http.fetch(url)
         fetched_at = Time.current
         remember_time(fetched_at)
         CertificateDiagnosticCache.find_or_initialize_by(cache_id: key).update!(payload: bytes,

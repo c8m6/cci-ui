@@ -18,7 +18,8 @@ class TrustProfileCacheTest < ActiveSupport::TestCase
     @token = CertificateDiagnosticCache.acquire(CertificateDiagnostics::Runner::LEASE, seconds: 60)
     @service = FixtureProfiles.new(@config, deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30, token: @token)
     cert, = issue(ca: true)
-    @service.data = { "roots" => { Certificates::Codec.fingerprint(cert) => { "pem" => cert.to_pem } } }
+    @service.data = { "roots" => { Certificates::Codec.fingerprint(cert) => { "pem" => cert.to_pem } },
+                      "acquired_at" => Time.current.iso8601 }
   end
 
   test "atomic profile refresh preserves prior payload age and version on failure" do

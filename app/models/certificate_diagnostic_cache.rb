@@ -2,6 +2,14 @@
 
 # Durable shared evidence and a fenced, expiring indexer-phase lease.
 class CertificateDiagnosticCache < ApplicationRecord
+  def source_expires_at(max_age:, timestamp:)
+    return unless expires_at && metadata[timestamp]
+
+    [expires_at, Time.iso8601(metadata.fetch(timestamp)) + max_age].min
+  rescue ArgumentError, TypeError
+    nil
+  end
+
   def self.acquire(key, seconds:)
     create_or_find_by!(cache_id: key)
     token = SecureRandom.uuid

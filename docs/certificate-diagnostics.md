@@ -153,6 +153,14 @@ valid profile, original expiry and last error, with bounded backoff. Profile con
 changes make certificate checks due. Old results are displayed as stale until
 re-evaluated against the new version. Source/profile details include the exact
 release, source, verification time, snapshot digest and successful chain fingerprints.
+The current maximum source age applies when loading existing profile and
+raw-artifact caches. Stored results are also marked stale at that limit as soon
+as they are rendered, without network requests.
+Age is measured from the original fetch/verification time, or the earlier signed
+publication time for CT metadata. Reusing or reparsing cached bytes and failed
+refreshes never advance that time. Shortening the age or source-update interval
+schedules a source refresh; a failed refresh keeps the prior dataset for history
+but cannot make evidence exceeding the new age limit usable again.
 
 ### Provenance and licenses
 

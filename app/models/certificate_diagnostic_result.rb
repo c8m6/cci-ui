@@ -7,6 +7,7 @@ class CertificateDiagnosticResult < ApplicationRecord
     return "pending" unless checked_at
     return "stale" if expires_at && expires_at <= now
     return "stale" if details["configuration"] && details["configuration"] != config.version(check_id)
+    return "stale" if CertificateDiagnostics::Profiles.evidence_expired?(check_id, details, config, now)
 
     return "stale" if outdated_profile?(config)
 
