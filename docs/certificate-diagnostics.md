@@ -110,6 +110,12 @@ anchor. Area-local public material supplies untrusted intermediate candidates.
 Alternate and cross-signed paths are considered, with bounded depth and search.
 A chain ending in a private self-signed root is untrusted; missing intermediate
 material is unknown. Signature, time, key usage, CA and path constraints are checked.
+Successful evidence expires no later than the selected path's next certificate
+validity transition or the anchor's scheduled `disabled_at` time. It becomes stale
+at that exact boundary even without another indexer pass, which is also scheduled
+for the boundary. Re-evaluation can select an alternative still-trusted path.
+Issuance cutoffs (`distrust_after`) compare the leaf's fixed notBefore date; they
+are not wall-clock expiry dates for certificates issued before the cutoff.
 
 ### Source targets and policy coverage
 

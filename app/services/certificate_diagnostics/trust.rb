@@ -44,7 +44,15 @@ module CertificateDiagnostics
       reason = TrustPaths.ca?(@material.certificate) ? "ca_path_trusted" : "tls_path_trusted"
       { state: "good", reason: @policy ? "chrome_policy_satisfied" : reason,
         path: path.map { |cert| Certificates::Codec.fingerprint(cert) },
-        path_expiry: path.flat_map { |cert| [cert.not_before, cert.not_after] }.select { |date| date > Time.current }.min }
+        path_expiry: path_expiry(path, root) }
+    end
+
+    def path_expiry(path, root)
+      dates = path.flat_map { |cert| [cert.not_before, cert.not_after] }
+      dates << Time.iso8601(root["disabled_at"]) if root["disabled_at"]
+      # Issuance cutoffs such as distrust_after compare the leaf's fixed
+      # notBefore, so passing that wall-clock date does not change its trust.
+      dates.select { |date| date > Time.current }.min
     end
 
     def restriction(root)

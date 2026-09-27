@@ -100,6 +100,58 @@ class CertificateTrustTest < ActiveSupport::TestCase
     end
   end
 
+  test "vendor disable boundary expires persisted trust and schedules reevaluation exactly at the cutoff" do
+    cutoff = 1.minute.from_now
+    @profile["roots"][fp(@root)]["disabled_at"] = cutoff.iso8601
+    outcome = evaluate
+    assert_equal "good", outcome[:state]
+    assert_equal cutoff, outcome[:expires_at]
+    record = store(@leaf, chain: [@issuer, @root])
+    CertificateDiagnosticCache.create!(cache_id: "profile:trust_firefox", metadata: {
+      "target" => @config.trust["trust_firefox"]["target"], "version" => @profile["version"]
+    })
+    runner = CertificateDiagnostics::Runner.new(@config)
+    runner.instance_variable_set(:@token, CertificateDiagnosticCache.acquire(CertificateDiagnostics::Runner::LEASE, seconds: 120))
+    job = CertificateDiagnosticResult.create!(area: record.area, fingerprint: record.fingerprint,
+      check_id: "trust_firefox", next_due_at: Time.current)
+    runner.send(:publish, job, outcome, @leaf)
+    assert_equal cutoff, job.reload.next_due_at
+    assert_equal "good", job.display_state(@config, cutoff - 1)
+    assert_equal "stale", job.display_state(@config, cutoff)
+    assert_equal "stale", job.display_state(@config, cutoff + 1)
+    travel_to cutoff
+    assert_equal "vendor_distrust", evaluate[:reason]
+    assert_equal "valid", record.status_key
+  end
+
+  test "a disabled anchor does not reject an alternative still valid path" do
+    second, second_key = issue(name: "Second public root", ca: true)
+    cross = OpenSSL::X509::Certificate.new(@issuer.to_der)
+    cross.issuer = second.subject
+    cross.sign(second_key, "SHA256")
+    @profile["roots"][fp(second)] = { "pem" => second.to_pem }
+    cutoff = 1.minute.from_now
+    @profile["roots"][fp(@root)]["disabled_at"] = cutoff.iso8601
+    candidates = [@issuer, cross]
+    assert_equal cutoff, evaluate(@leaf, candidates)[:expires_at]
+    travel_to cutoff
+    result = evaluate(@leaf, candidates)
+    assert_equal "good", result[:state]
+    assert_equal fp(second), result[:details]["root"]
+    assert_operator result[:expires_at], :>, cutoff
+  end
+
+  test "chain date transitions bound trust while issuance cutoffs do not expire already issued certificates" do
+    cutoff = 1.minute.from_now
+    @profile["roots"][fp(@root)]["distrust_after"] = cutoff.iso8601
+    assert_equal @profile["expires_at"], evaluate[:expires_at]
+    @issuer.not_after = cutoff
+    @issuer.sign(@key, "SHA256")
+    assert_equal cutoff, evaluate[:expires_at]
+    travel_to cutoff
+    assert_equal "untrusted", evaluate[:state]
+  end
+
   test "NSS server trust selection joins DER identities and retains distrust cutoffs" do
     octal = ->(bytes) { bytes.bytes.map { |byte| format('\\%03o', byte) }.join }
     data = <<~DATA
