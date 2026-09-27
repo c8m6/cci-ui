@@ -369,3 +369,9 @@ For a complete production Compose template with inline values, external services
 and a reduced indexer environment, see [inline Compose configuration](compose-full.md).
 
 See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.
+
+Public trust profiles use independent `CCI_TRUST_CHROME`, `CCI_TRUST_FIREFOX`,
+`CCI_TRUST_EDGE`, `CCI_TRUST_APPLE` and `CCI_TRUST_UBUNTU` stems with `_ENABLED`,
+`_INTERVAL`, `_TARGET`, `_UPDATE_INTERVAL` and `_MAX_AGE` settings. All default to
+disabled with daily check/source intervals. See the [exact source targets,
+network limits and freshness rules](certificate-diagnostics.md#public-default-ca-trust-profiles).

@@ -70,3 +70,64 @@ metadata, unspecified and multicast destinations are always blocked. Private and
 reserved ranges require explicit allowlisting. Compressed HTTP responses are
 rejected rather than decompressed. There is no AIA issuer downloading. Existing
 area-local public certificates and supplied chains provide issuer candidates.
+
+## Public default CA trust profiles
+
+Chrome, Firefox, Edge, Safari/Apple and Ubuntu are independent optional checks.
+Browser results are grouped separately from Ubuntu and revocation results. A green
+result means an isolated public CA path passed TLS-server-purpose validation (or
+explicit CA anchor/path validation for a CA certificate). This does not test a
+hostname, live server, revocation, or the vendor's entire verifier. No host,
+container, company, Consul transport or locally inventoried CA becomes a trust
+anchor. Area-local public material supplies untrusted intermediate candidates.
+Alternate and cross-signed paths are considered, with bounded depth and search.
+A chain ending in a private self-signed root is untrusted; missing intermediate
+material is unknown. Signature, time, key usage, CA and path constraints are checked.
+
+### Source targets and policy coverage
+
+| Check / variable stem | Default target | Authoritative data and interpretation |
+| --- | --- | --- |
+| `trust_chrome` / `CCI_TRUST_CHROME` | `154.0.8037.57` | Matching Chromium release tag: `root_store.certs`, `additional.certs`, `root_store.textproto`, `root_store.proto` and `LICENSE`. Only TLS anchors are selected. This is that release's baseline, not Chromium `main` or a claim about the roots deployed on every current client. |
+| `trust_firefox` / `CCI_TRUST_FIREFOX` | `156.0.1` | Firefox release's NSS `TAG-INFO` and `certdata.txt`; this target contains `NSS_3_128_RTM`. Select server-auth trusted delegators by certificate hash, including `CKA_NSS_SERVER_DISTRUST_AFTER` cutoffs. Other Firefox-specific policies are outside baseline scope. |
+| `trust_edge` / `CCI_TRUST_EDGE` | `windows-macos` | Microsoft's public TLS-server-authentication CCADB report, for the Microsoft root-program architecture of Edge 112+ on Windows/macOS. Check PEM fingerprints, inclusion, server-auth exclusions, issuance cutoffs and disable dates. A nonempty TLD restriction that cannot be interpreted yields unknown. The report snapshot digest identifies the dataset; it is not a claim about the exact component installed on a user's device. |
+| `trust_apple` / `CCI_TRUST_APPLE` | `macos-15-2024051500` | Apple's macOS 15 source revision `9c061d71693f4b9ccdddea087ff0428755604bf0`, Root Store `2024051500`, combined with Apple's current TLS-purpose CCADB report. Only roots from that OS release are candidates. Missing purpose metadata or unrecognized reported restrictions yield unknown. This conservative intersection does not reproduce every Apple platform policy or later asset update. |
+| `trust_ubuntu` / `CCI_TRUST_UBUNTU` | `noble-updates` | Ubuntu 24.04 LTS `noble-updates/main` official `ca-certificates` package (verified during implementation: `20260601~24.04.1`). Verify InRelease's signature against archive signer `F6ECB3762474EDA9D21B7022871920D1991BC93C`, signed package-index SHA-256 and package SHA-256. Read the default Mozilla certificate selection without installing the package or using Debian roots. Actual package version is recorded with each update. |
+
+Chrome and Firefox targets accept numeric release versions; unavailable tags produce
+unknown. Apple, Edge and Ubuntu accept only the explicitly supported target above.
+Ubuntu repository metadata must be current (at most seven days old), not future-dated,
+and within `Valid-Until` when provided. Package decompression is bounded and package
+paths are read in memory, never extracted into the application filesystem.
+
+For each stem above, configure `_ENABLED` (default `false`), `_INTERVAL` (86400
+seconds), `_TARGET` (table), `_UPDATE_INTERVAL` (86400 seconds), and `_MAX_AGE`
+(604800 seconds). Every profile has its own update schedule. Source network settings
+are `CCI_TRUST_REQUEST_TIMEOUT=10`, `CCI_TRUST_MAX_BYTES=20971520`, and
+`CCI_TRUST_EXPANDED_MAX_BYTES=67108864`. Existing connection, redirect and per-pass
+budgets still apply. All settings are validated and forwarded to web and indexer.
+
+One due source is refreshed per indexer phase, before bounded certificate work.
+Raw artifacts and validated profiles share the durable PostgreSQL diagnostic cache.
+Multi-file acquisition can resume after a deadline; replacement of a validated
+profile is atomic and fenced by the indexer lease. Failed updates retain the last
+valid profile, original expiry and last error, with bounded backoff. Profile content
+changes make certificate checks due. Old results are displayed as stale until
+re-evaluated against the new version. Source/profile details include the exact
+release, source, verification time, snapshot digest and successful chain fingerprints.
+
+### Provenance and licenses
+
+No public root bundle or third-party implementation is copied into the repository.
+Original downloaded artifacts (including source notices) are retained in the cache.
+The project remains `AGPL-3.0-only`. Runtime source references:
+
+- [Chrome source and schema](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.57/net/cert/root_store.proto): Chromium BSD-style notice; source license is cached with the profile.
+- [NSS release](https://firefox-source-docs.mozilla.org/security/nss/releases/nss_3_128.html): MPL-2.0 notice remains in the original certdata artifact.
+- [Microsoft source authority](https://learn.microsoft.com/en-us/security/trusted-root/participants-list) and [Edge architecture](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-security-cert-verification).
+- [Apple macOS 15 store](https://support.apple.com/en-us/121672) and [Apple certificate source](https://github.com/apple-oss-distributions/security_certificates/tree/9c061d71693f4b9ccdddea087ff0428755604bf0). Apple source code is not incorporated; certificate artifacts retain their provenance. The archive does not provide a blanket certificate redistribution license, so these files are not bundled or republished by CCI-UI.
+- [CCADB reports](https://www.ccadb.org/resources), attributed to the Common CA Database under [CDLA-Permissive-2.0](https://www.ccadb.org/rootstores/usage). Reports and their license reference are retained with the source data.
+- [Ubuntu package](https://packages.ubuntu.com/noble-updates/ca-certificates): package copyright notice is retained. New external command-line dependencies are GnuPG (`gpg`/`gpgv`, GPL-3.0-or-later), XZ (upstream mixed public-domain/BSD/GPL terms) and Zstandard (BSD/GPL dual licensing); their distribution notices remain installed under `/usr/share/doc`. They are invoked as separate programs. Ruby CSV uses Ruby/BSD-2-Clause licensing and is an explicit dependency.
+
+The adapters implement CCI-UI's read-only diagnostics. They do not redistribute
+vendor programs, alter TLS trust for the application, or claim vendor endorsement.

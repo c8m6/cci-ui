@@ -93,9 +93,10 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
-    assert.deepEqual(await page.$$eval('.certificate-diagnostics > dt', nodes => nodes.map(node => node.textContent.trim())), ['OCSP', 'CRL']);
+    assert.deepEqual(await page.$$eval('.certificate-diagnostics > dt', nodes => nodes.map(node => node.textContent.trim())), ['OCSP', 'CRL', 'Chrome CA trust', 'Firefox CA trust', 'Edge CA trust', 'Safari / Apple CA trust', 'Ubuntu CA trust']);
     assert.deepEqual(await page.$$eval('.certificate-diagnostics .badge.success', nodes => nodes.map(node => node.textContent.trim())), ['Good', 'Good']);
-    assert.equal(await page.$$eval('.certificate-diagnostics > dd > small', nodes => nodes.filter(node => node.textContent.startsWith('Checked:')).length), 2);
+    assert.equal(await page.$$eval('.certificate-diagnostics > dd > small', nodes => nodes.filter(node => node.textContent.startsWith('Checked:')).length), 7);
+    assert.equal(await page.$$eval('.certificate-diagnostics .badge.danger', nodes => nodes.length), 5);
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));

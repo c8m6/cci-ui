@@ -3,3 +3,11 @@ Copyright (C) 2026 Christian Meißner
 
 Original project:
 https://github.com/c8m6/cci-ui
+
+Optional public trust diagnostics acquire vendor data at runtime. No vendor root
+bundle or implementation is incorporated into this repository. CCADB data is
+attributed to the Common CA Database (CCADB), CDLA-Permissive-2.0:
+https://www.ccadb.org/rootstores/usage
+Source provenance, notices, external tool licenses and scope limits are documented
+in docs/certificate-diagnostics.md. Original source artifacts are retained in the
+diagnostic cache. The project license remains AGPL-3.0-only.

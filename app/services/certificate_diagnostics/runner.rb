@@ -25,6 +25,7 @@ module CertificateDiagnostics
 
       @deadline = monotonic + @config[:pass_budget]
       Timeout.timeout(@config[:pass_budget], Error, "deadline") do
+        Profiles.new(@config, deadline: @deadline, token: @token).refresh
         schedule
         due.limit(@config[:batch_size]).each do |job|
           break if monotonic >= @deadline
@@ -60,7 +61,8 @@ module CertificateDiagnostics
 
     def schedule_check(area, check, inventory)
       connection = CertificateDiagnosticResult.connection
-      input = Digest::SHA256.hexdigest(inventory + @config.version(check))
+      profile = check.start_with?("trust_") ? Profiles.version(check, @config) : ""
+      input = Digest::SHA256.hexdigest(inventory + @config.version(check) + profile)
       values = [area, check, input].map { |value| connection.quote(value) }
       connection.execute(<<~SQL)
         INSERT INTO certificate_diagnostic_results
@@ -87,7 +89,11 @@ module CertificateDiagnostics
 
       material = Material.new(record)
       http = Http.new(@config, deadline: @deadline)
-      outcome = Revocation.new(material, @config, http: http, area: job.area).call(job.check_id)
+      outcome = if job.check_id.start_with?("trust_")
+                  Trust.new(material, @config).call(job.check_id)
+                else
+                  Revocation.new(material, @config, http: http, area: job.area).call(job.check_id)
+                end
       return unless material.current?
 
       publish(job, outcome, material.certificate)
@@ -100,15 +106,16 @@ module CertificateDiagnostics
 
     def publish(job, outcome, cert)
       now = Time.current
-      conclusive = %w[good revoked].include?(outcome[:state])
+      conclusive = %w[good revoked untrusted].include?(outcome[:state])
       expiry = outcome[:expires_at]
       transition = cert && [cert.not_before, cert.not_after].select { |time| time > now }.min
       expiry = [expiry, transition].compact.min
       delay = conclusive ? @config.interval(job.check_id) : [300 * (2**[job.failures, 5].min), @config.interval(job.check_id)].min
       attrs = { last_attempt_at: now, next_due_at: [now + delay, expiry].compact.select { |time| time > now }.min,
                 last_error: conclusive ? nil : outcome[:reason], failures: conclusive ? 0 : job.failures + 1 }
-      if conclusive || !%w[good revoked].include?(job.state)
+      if conclusive || !%w[good revoked untrusted].include?(job.state)
         attrs.merge!(outcome.slice(:state, :reason, :data_version, :details)).merge!(checked_at: now, expires_at: expiry)
+        attrs[:details] = (attrs[:details] || {}).merge("configuration" => @config.version(job.check_id))
       end
       attrs[:revoked_at] = now if outcome[:state] == "revoked" && !job.revoked_at
       persist(job, attrs, now)

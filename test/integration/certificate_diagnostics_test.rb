@@ -53,4 +53,26 @@ class CertificateDiagnosticsRenderingTest < ActionDispatch::IntegrationTest
     end
     assert_equal 2, CertificateDiagnosticResult.count
   end
+  test "each public profile renders independently in both languages without acquiring sources" do
+    record = store(issue.first)
+    ENV["CCI_OCSP_ENABLED"] = ENV["CCI_CRL_ENABLED"] = "false"
+    names = TrustProfileConfiguration::DEFAULTS.keys.to_h { |check| ["CCI_#{check.upcase}_ENABLED", ENV.fetch("CCI_#{check.upcase}_ENABLED", nil)] }
+    names.each_key { |name| ENV[name] = "false" }
+    post local_login_path, params: { identity: "zone_a_reader" }
+    names.each_key do |name|
+      ENV[name] = "true"
+      %w[en de].each do |locale|
+        get certificate_path(record, locale: locale)
+        assert_response :success
+        assert_select ".certificate-diagnostics > dt", count: 1
+        assert_select ".certificate-diagnostics .badge.neutral", count: 1
+        assert_not_includes response.body, "translation missing"
+      end
+      ENV[name] = "false"
+    end
+    assert_empty CertificateDiagnosticResult.all
+    assert_empty CertificateDiagnosticCache.all
+  ensure
+    names&.each { |name, value| ENV[name] = value }
+  end
 end

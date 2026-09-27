@@ -535,3 +535,11 @@ do not by themselves make an older replica unready. Test actual database,
 Consul and load-balancer failover in your environment before production use.
 
 See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.
+
+Public CA diagnostics require indexer egress to the selected official source hosts
+(GitHub raw/codeload, CCADB, or Ubuntu archive/keyserver). They do not affect web
+readiness. The application image includes the package-decompression and signature
+verification tools; Ubuntu packages are read, never installed at runtime. Configure
+only the desired profiles and recreate web and indexer together. Back up PostgreSQL
+to preserve validated source caches and diagnostic history. See
+[public trust profiles](certificate-diagnostics.md#public-default-ca-trust-profiles).
