@@ -57,6 +57,40 @@ class CertificateDiagnosticsTest < ActiveSupport::TestCase
     @http.bytes = list.to_der
   end
 
+  def ocsp_with_extension(level:, critical:)
+    extension = OpenSSL::X509::Extension.new("1.2.3.4.5.6", OpenSSL::ASN1::Null.new(nil).to_der, critical)
+    basic = OpenSSL::OCSP::BasicResponse.new
+    basic.add_status(OpenSSL::OCSP::CertificateId.new(@leaf, @root), OpenSSL::OCSP::V_CERTSTATUS_GOOD,
+      0, nil, Time.current - 60, Time.current + 3600, level == :single ? [extension] : [])
+    basic.sign(@root, @key, [@root], 0, OpenSSL::Digest.new("SHA256"))
+    signed = OpenSSL::ASN1.decode(basic.to_der)
+    data = signed.value.first
+    data.value.find { |node| node.is_a?(OpenSSL::ASN1::GeneralizedTime) }.value = Time.current
+    if level == :response
+      extensions = OpenSSL::ASN1::Sequence.new([OpenSSL::ASN1.decode(extension.to_der)])
+      data.value << OpenSSL::ASN1::ASN1Data.new([extensions], 1, :CONTEXT_SPECIFIC)
+    end
+    signed.value[2] = OpenSSL::ASN1::BitString.new(@key.sign("SHA256", data.to_der))
+    basic = OpenSSL::OCSP::BasicResponse.new(signed.to_der)
+    @http.bytes = OpenSSL::OCSP::Response.create(OpenSSL::OCSP::RESPONSE_STATUS_SUCCESSFUL, basic).to_der
+  end
+
+  test "signed OCSP extensions are checked at both response levels without rejecting noncritical extensions" do
+    travel_to Time.current.change(usec: 0) do
+      %i[response single].each do |level|
+        ocsp_with_extension(level: level, critical: false)
+        assert_equal "good", check("ocsp")[:state], level.to_s
+        ocsp_with_extension(level: level, critical: true)
+        outcome = check("ocsp")
+        assert_equal "unknown", outcome[:state], level.to_s
+        assert_equal "unsupported_ocsp_extension", outcome[:reason]
+        %i[en de].each do |locale|
+          assert I18n.exists?("diagnostics.reasons.#{outcome[:reason]}", locale)
+        end
+      end
+    end
+  end
+
   test "OCSP requires current signed exact evidence and handles all statuses" do
     { OpenSSL::OCSP::V_CERTSTATUS_GOOD => "good", OpenSSL::OCSP::V_CERTSTATUS_REVOKED => "revoked",
       OpenSSL::OCSP::V_CERTSTATUS_UNKNOWN => "unknown" }.each do |status, state|

@@ -13,7 +13,9 @@ revocation result. No private keys or encryption secrets are loaded.
 OCSP accepts a signed response only after OpenSSL verifies its signature, responder
 authorization (including delegated OCSP signing), exact certificate/issuer ID and
 freshness. The issuer is an explicit, isolated verification anchor; a private CA
-need not belong to a browser store. CRLs must have the matching issuer, valid
+need not belong to a browser store. Unsupported critical extensions in either
+the signed response or its matching SingleResponse produce unknown; unknown
+noncritical extensions are ignored. CRLs must have the matching issuer, valid
 signature and current dates. Only direct fullName HTTP(S) distribution points
 without reason masks are supported. Delta, indirect and issuing-distribution-point
 CRLs are explicitly unknown. Absence from a partial list never produces green.

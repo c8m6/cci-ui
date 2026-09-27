@@ -650,6 +650,7 @@ de:
       source_tool_unavailable: "Werkzeug zur Quellenprüfung nicht verfügbar"
       unsupported_schema: "Nicht unterstütztes Quellenformat oder Schema"
       unsupported_policy: "Herstellereinschränkung kann nicht vollständig geprüft werden"
+      unsupported_ocsp_extension: "OCSP-Antwort enthält eine nicht unterstützte kritische Erweiterung"
       missing_intermediate: "Ausstellerkette unvollständig; öffentliches Vertrauen unbestimmt"
       private_root: "Kein Pfad zu einem öffentlichen Vertrauensanker dieses Profils"
       invalid_path: "Zertifikatspfad verletzt Signatur-, Gültigkeits-, Verwendungs- oder CA-Regeln"

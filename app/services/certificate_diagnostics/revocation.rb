@@ -42,6 +42,7 @@ module CertificateDiagnostics
       single = basic.find_response(cert_id)
       raise Error, "wrong_certificate" unless single
 
+      validate_ocsp_extensions(basic, single)
       expiry = freshness(single.this_update, single.next_update)
       validate_produced_at(basic, single)
 
@@ -66,6 +67,18 @@ module CertificateDiagnostics
     end
 
     private
+
+    def validate_ocsp_extensions(basic, single)
+      # Ruby exposes SingleResponse extensions, but responseExtensions only in DER.
+      data = OpenSSL::ASN1.decode(basic.to_der).value.first
+      # responseExtensions is the optional final field; responderID may also use tag 1.
+      wrapper = data.value.last
+      wrapper = nil unless wrapper.tag_class == :CONTEXT_SPECIFIC && wrapper.tag == 1
+      response_extensions = wrapper ? wrapper.value.first.value.map { |ext| OpenSSL::X509::Extension.new(ext.to_der) } : []
+      # No OCSP extension semantics are implemented. Noncritical extensions may
+      # be ignored; a signature alone cannot authorize ignoring critical ones.
+      raise Error, "unsupported_ocsp_extension" if (response_extensions + single.extensions).any?(&:critical?)
+    end
 
     def validate_produced_at(basic, single)
       # producedAt is signed and must not postdate now or predate thisUpdate.

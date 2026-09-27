@@ -647,6 +647,7 @@ en:
       source_tool_unavailable: "Source verification tool unavailable"
       unsupported_schema: "Unsupported source format or schema"
       unsupported_policy: "Vendor restriction cannot be fully evaluated"
+      unsupported_ocsp_extension: "OCSP response contains an unsupported critical extension"
       missing_intermediate: "Issuer chain incomplete; public trust is undetermined"
       private_root: "No path to a public profile trust anchor"
       invalid_path: "Certificate path fails signature, validity, usage or CA constraints"
