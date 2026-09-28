@@ -21,7 +21,7 @@ class Certificate < ApplicationRecord
   def status_key
     return "future" if not_before > Time.current
     return "expired" if not_after <= Time.current
-    return "expiring" if not_after < 30.days.from_now
+    return "expiring" if not_after < CertificateExpiryConfiguration.warning_days.days.from_now
 
     "valid"
   end

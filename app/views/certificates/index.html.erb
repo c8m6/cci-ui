@@ -3,7 +3,7 @@
 <% if current_identity.any_writer? %><%= link_to new_import_path, class: "button primary" do %><%= icon("upload") %> <%= t("ui.import_certificates") %><% end %><% end %></div>
 <section class="stats" aria-label="<%= t('ui.inventory_summary') %>">
   <div class="stat-card"><span><%= t("ui.current_certificates") %></span><strong><%= number_with_delimiter(@stats[:total]) %></strong><small><%= t("ui.authorized_areas") %></small></div>
-  <div class="stat-card"><span><i class="dot warning"></i> <%= t("ui.expiring") %></span><strong><%= @stats[:expiring] %></strong><small><%= t("ui.next_30_days") %></small></div>
+  <div class="stat-card"><span><i class="dot warning"></i> <%= t("ui.expiring") %></span><strong><%= @stats[:expiring] %></strong><small><%= t("ui.expiry_warning_days", count: CertificateExpiryConfiguration.warning_days) %></small></div>
   <div class="stat-card"><span><i class="dot danger"></i> <%= t("ui.expired") %></span><strong><%= @stats[:expired] %></strong><small><%= t("ui.check_renewal") %></small></div>
 </section>
 <section class="panel catalog" data-controller="selection" data-selection-messages-value="<%= t("ui.selected").to_json %>">

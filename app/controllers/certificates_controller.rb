@@ -5,8 +5,7 @@ class CertificatesController < ApplicationController
   def index
     visible = Certificate.visible_to(current_identity)
     @stats = { total: visible.where(active: true, archived: false).count,
-               expiring: visible.where(active: true, archived: false).where("not_after > ? AND not_after < ?", Time.current,
-                 30.days.from_now).count,
+               expiring: CertificateSearch.filter_validity(visible.where(active: true, archived: false), "soon").count,
                expired: visible.where(active: true, archived: false).where("not_after <= ?", Time.current).count }
     results = CertificateSearch.call(visible, params)
     @total = results.count
