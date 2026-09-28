@@ -153,6 +153,12 @@ keeps the last successful associations when PuppetDB is unavailable. See
 [configuration and anonymized examples](docs/environment.md#optional-puppetdb-host-inventory)
 and [fact formats and synchronization](docs/puppetdb.md).
 
+## Integrations
+
+[Zabbix certificate monitoring](docs/integrations/zabbix.md) provides automatic
+discovery and expiration alerts with a ready-to-import Zabbix 7.4 template.
+See [Integrations](docs/integrations/README.md) for setup and security details.
+
 ## Documentation
 
 - [Filesystem deletion and recovery](docs/legacy-deletion.md)

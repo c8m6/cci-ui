@@ -41,6 +41,18 @@ The development Compose template supplies example defaults for `CCI_AREAS`
 overriding areas, also override paths, for example with `{}`. Production Compose
 requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 
+## Zabbix monitoring integration
+
+| Variable | Meaning and application default |
+| --- | --- |
+| `CCI_ZABBIX_INTEGRATION_ENABLED` | `false` by default. Only `true` (case insensitive) enables the read-only endpoint. |
+| `CCI_ZABBIX_INTEGRATION_TOKEN` | Dedicated high-entropy bearer token, empty by default. Enabled integrations without a token remain unavailable. |
+
+Both variables belong to the web deployment environment. See
+[Integrations → Zabbix](integrations/zabbix.md) for authentication, inventory scope,
+the complete template and setup instructions. Zabbix thresholds are configured
+in the template macros, independently of UI expiration warnings.
+
 ## Connections, authentication and runtime
 
 | Variable | Meaning and application default |

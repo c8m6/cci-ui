@@ -161,6 +161,13 @@ established. Immediate role revocation and Keycloak backchannel logout are not
 yet implemented. Local mode uses test identities generated from configuration
 and is prohibited in production.
 
+The optional `GET /integrations/zabbix` endpoint uses a stateless API controller
+and its own environment-configured bearer token, independently of Keycloak.
+It reads an allowlist of public catalogue fields across configured areas and
+never loads private material or creates a session. Renewal mode is derived from
+existing writer/user provenance. See [Integrations → Zabbix](integrations/zabbix.md)
+for inventory selection, authentication and monitoring policy.
+
 Consul machine credentials are separate ACL tokens, independent of UI Reader
 roles. Compilers need read access to their area's CertID metadata and certificates, plus
 its private-key path and decryption secret when distributing keys. Tokens are

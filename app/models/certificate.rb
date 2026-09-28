@@ -8,6 +8,15 @@ class Certificate < ApplicationRecord
   scope :retained, -> { where(deleted_at: nil) }
   scope :visible_to, ->(identity) { retained.where(area: identity.areas, source: %w[filesystem consul]) }
 
+  # Provenance is the existing lifecycle signal supplied by certificate writers.
+  def renewal_mode
+    provenance = [client, created_by].compact.join(" ").downcase
+    return "acme" if provenance.include?("acme")
+    return "puppet" if provenance.include?("puppet")
+
+    "manual"
+  end
+
   def puppetdb_refresh_failed? = puppetdb_error_at.present?
 
   def require_retained!
