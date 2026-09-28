@@ -135,6 +135,10 @@ docker compose -f compose.production.yml up -d --force-recreate web indexer
 
 See the [environment reference](environment.md) for all supported variables,
 a `docker run` example without configuration files, and deployment settings.
+For optional certificate expiration monitoring, see
+[Integrations → Zabbix](integrations/zabbix.md). Configure its dedicated bearer
+token on every web replica and keep the endpoint disabled when unused.
+
 Preserve area IDs: they determine Consul paths, encryption, roles and audit ownership.
 Removed local mappings block material reads but retain their catalog rows.
 Certificate metadata and audit history are never removed by an indexing pass.

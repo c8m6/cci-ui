@@ -55,13 +55,13 @@ diagnostics. See [HA deployment](installation.md#deploying-multiple-web-replicas
 
 | Service | Configuration |
 | --- | --- |
-| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, OIDC display name, diagnostics, port and CSR defaults |
+| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, OIDC display name, diagnostics, port, CSR defaults and optional Zabbix integration |
 | Indexer | Rails boot, database, Consul read token, inventory, PuppetDB and indexing interval |
 | Migration job | Rails boot and database only |
 
 The indexer deliberately receives no `CCI_AREA_KEYS`, individual area keys,
 `CSR_DEFAULT_*`, `OIDC_ROLE_MAP`, `OIDC_DISPLAY_NAME_CLAIM`,
-`CCI_SHOW_ERROR_DETAILS` or `PORT`.
+`CCI_SHOW_ERROR_DETAILS`, `CCI_ZABBIX_INTEGRATION_*` or `PORT`.
 It reads public certificate material and does not decrypt stored private keys.
 Its Consul token needs read access to all configured certid and certificate
 prefixes, including the transaction reads used by CA discovery. PostgreSQL
@@ -73,6 +73,10 @@ the four OIDC connection settings are required for boot even though these
 processes do not serve requests. The shared boot anchor documents this
 dependency explicitly. `RAILS_MAX_THREADS` also controls the database pool.
 `LOG_LEVEL` is shared so web, indexer and migration output use the same threshold.
+
+The Zabbix endpoint is disabled by default. Set the two
+`CCI_ZABBIX_INTEGRATION_*` values on web only when enabling
+[Zabbix monitoring](integrations/zabbix.md).
 
 Legacy storage is mounted read/write for web and read-only for the indexer.
 TLS mounts are read-only. Web receives PuppetDB connection settings because

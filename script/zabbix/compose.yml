@@ -1,0 +1,40 @@
+# Disposable Zabbix 7.4.5 validation only. No production data or credentials.
+name: cci-zabbix-validation
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: synthetic-zabbix-test
+      POSTGRES_DB: zabbix
+    healthcheck:
+      test: [CMD, pg_isready, -U, zabbix]
+      interval: 2s
+      retries: 30
+  server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.4.5
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: synthetic-zabbix-test
+      POSTGRES_DB: zabbix
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.4.5
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: synthetic-zabbix-test
+      POSTGRES_DB: zabbix
+      ZBX_SERVER_HOST: server
+    ports:
+      - 127.0.0.1:18074:8080
+    depends_on:
+      - server
+  fixture:
+    image: ${TEST_IMAGE:-cci-ui:ci}
+    command: ["bundle", "exec", "puma", "-b", "tcp://0.0.0.0:3000", "/fixtures/inventory.ru"]
+    volumes:
+      - ./inventory.ru:/fixtures/inventory.ru:ro

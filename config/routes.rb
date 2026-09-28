@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
+  get "/integrations/zabbix", to: "integrations/zabbix#show"
   get "/up", to: "rails/health#show", as: :rails_health_check
   get "/ready", to: "health#ready"
   get "/health", to: "health#show"

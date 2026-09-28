@@ -1,0 +1,422 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: a1d21ef112a147398a3599cb1f9cb437
+    name: Templates/Applications
+  templates:
+  - uuid: 6588904591884b7e82f30de2ccf3ae7f
+    template: CCI Certificates
+    name: CCI Certificates
+    description: 'Read-only CCI certificate monitoring. Target: Zabbix 7.4.5. Configure URL and secret token on
+      one monitoring host. No agent interface required.'
+    groups:
+    - name: Templates/Applications
+    items:
+    - uuid: dc851bdc6f7842ddba203abeb916ecfe
+      name: 'CCI: Certificate inventory'
+      type: HTTP_AGENT
+      key: cci.certificates.raw
+      delay: 1h
+      history: 1d
+      value_type: TEXT
+      url: '{$CCI.URL}/integrations/zabbix'
+      request_method: GET
+      status_codes: '200'
+      follow_redirects: 'NO'
+      verify_peer: 'YES'
+      verify_host: 'YES'
+      timeout: 30s
+      headers:
+      - name: Authorization
+        value: Bearer {$CCI.ZABBIX.TOKEN}
+      - name: Accept
+        value: application/json
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var data;\ntry { data = JSON.parse(value); } catch (e) { throw \"Invalid CCI JSON response\"; }\nfunction\
+          \ integer(n) { return typeof n === \"number\" && isFinite(n) && Math.floor(n) === n && Math.abs(n) <=\
+          \ 9007199254740991; }\nif (!data || data.version !== 1 || !integer(data.generated_at) || !Array.isArray(data.certificates))\
+          \ {\n    throw \"Unsupported CCI schema or invalid inventory\";\n}\nvar now = Math.floor(Date.now() /\
+          \ 1000);\nif (data.generated_at < now - 7200 || data.generated_at > now + 300) {\n    throw \"Stale CCI\
+          \ response or clock skew\";\n}\nvar ids = {};\nfor (var i = 0; i < data.certificates.length; i++) {\n\
+          \    var c = data.certificates[i];\n    if (!c || !integer(c.id) || c.id <= 0 || ids[c.id] ||\n      \
+          \  typeof c.common_name !== \"string\" || typeof c.issuer !== \"string\" ||\n        typeof c.serial_number\
+          \ !== \"string\" || !integer(c.valid_from) ||\n        !integer(c.valid_until) || c.valid_until < 0 ||\
+          \ c.valid_from < 0 ||\n        c.valid_until < c.valid_from || [\"manual\", \"acme\", \"puppet\"].indexOf(c.renewal)\
+          \ === -1) {\n        throw \"Invalid CCI certificate metadata\";\n    }\n    ids[c.id] = true;\n}\nreturn\
+          \ value;"
+      tags:
+      - tag: component
+        value: certificate
+      - tag: source
+        value: cci
+      description: One authenticated request for the entire inventory. Rejects malformed, stale or unsupported responses
+        before discovery. See item errors for HTTP, TLS and authentication failures.
+      triggers:
+      - uuid: 7621c596143540ef99031dfb8a806a27
+        expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=1
+        name: 'CCI: No valid monitoring data for 2 hours'
+        priority: HIGH
+        description: Check endpoint reachability, HTTP status (401 means authentication failed), TLS trust, token
+          configuration and preprocessing errors. Invalid JSON/schema and stale responses do not count as successful
+          data.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+    - uuid: 45d56955391842dcba14f79acfe0d7d7
+      name: 'CCI: Number of certificates'
+      type: DEPENDENT
+      key: cci.certificates.count
+      value_type: UNSIGNED
+      history: 30d
+      trends: 365d
+      master_item:
+        key: cci.certificates.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.certificates.length()
+      tags:
+      - tag: component
+        value: certificate
+      - tag: source
+        value: cci
+      triggers:
+      - uuid: 07d06bf1cc8e4cc6bcd7a2acd7e18b43
+        expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0 and (last(/CCI Certificates/cci.certificates.count)<{$CCI.CERT.MIN.COUNT}
+          or (last(/CCI Certificates/cci.certificates.count)=0 and max(/CCI Certificates/cci.certificates.count,30d)>0))
+        name: 'CCI: Certificate inventory below expectation'
+        priority: WARNING
+        description: Inventory became empty after containing certificates in the last 30 days, or is below the configured
+          minimum. An initially empty inventory is allowed by default.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+    discovery_rules:
+    - uuid: 08902e5dc399464f88b9ebff893ff6a8
+      name: 'CCI: Certificate discovery'
+      type: DEPENDENT
+      key: cci.certificates.discovery
+      lifetime_type: DELETE_AFTER
+      lifetime: 30d
+      enabled_lifetime_type: DISABLE_AFTER
+      enabled_lifetime: 1d
+      master_item:
+        key: cci.certificates.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.certificates
+      lld_macro_paths:
+      - lld_macro: '{#CERTID}'
+        path: $.id
+      - lld_macro: '{#CERTCN}'
+        path: $.common_name
+      - lld_macro: '{#ISSUER}'
+        path: $.issuer
+      - lld_macro: '{#RENEWAL}'
+        path: $.renewal
+      item_prototypes:
+      - uuid: aa5abd5215334850a596d0289e607503
+        name: 'Certificate {#CERTCN} ({#CERTID}): Valid until'
+        type: DEPENDENT
+        key: cci.cert.valid_until[{#CERTID}]
+        value_type: UNSIGNED
+        history: 30d
+        master_item:
+          key: cci.certificates.raw
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.certificates[?(@.id == {#CERTID})].valid_until.first()
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+        units: unixtime
+        trends: '0'
+      - uuid: 9dbfbc064efa4a09be9eec99a897c650
+        name: 'Certificate {#CERTCN} ({#CERTID}): Valid from'
+        type: DEPENDENT
+        key: cci.cert.valid_from[{#CERTID}]
+        value_type: UNSIGNED
+        history: 30d
+        master_item:
+          key: cci.certificates.raw
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.certificates[?(@.id == {#CERTID})].valid_from.first()
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+        units: unixtime
+        trends: '0'
+      - uuid: 334d6e867f514c78bfeddc89992f939f
+        name: 'Certificate {#CERTCN} ({#CERTID}): Issuer'
+        type: DEPENDENT
+        key: cci.cert.issuer[{#CERTID}]
+        value_type: TEXT
+        history: 30d
+        master_item:
+          key: cci.certificates.raw
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.certificates[?(@.id == {#CERTID})].issuer.first()
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: 41ec7b70ddd54b0884dc1a8f53c0c9ff
+        name: 'Certificate {#CERTCN} ({#CERTID}): Renewal mode'
+        type: DEPENDENT
+        key: cci.cert.renewal[{#CERTID}]
+        value_type: TEXT
+        history: 30d
+        master_item:
+          key: cci.certificates.raw
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.certificates[?(@.id == {#CERTID})].renewal.first()
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: 9d2194758dd84771b4bdede9961e1664
+        name: 'Certificate {#CERTCN} ({#CERTID}): Serial number'
+        type: DEPENDENT
+        key: cci.cert.serial[{#CERTID}]
+        value_type: TEXT
+        history: 30d
+        master_item:
+          key: cci.certificates.raw
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.certificates[?(@.id == {#CERTID})].serial_number.first()
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      trigger_prototypes:
+      - uuid: 8c934d8e80804888b2ac4f0b077d4cca
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.WARN} and last(/CCI
+          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.MANUAL.HIGH} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.WARN}'
+        priority: WARNING
+        discover: NO_DISCOVER
+        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
+          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: c817c86a7a1445e192678d5cdc789a90
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.HIGH} and last(/CCI
+          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.MANUAL.CRIT} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.HIGH}'
+        priority: HIGH
+        discover: NO_DISCOVER
+        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
+          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: 99935ed94f204bea8899b672b5956d5d
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.CRIT} and nodata(/CCI
+          Certificates/cci.certificates.raw,2h)=0
+        name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.CRIT}'
+        priority: DISASTER
+        discover: NO_DISCOVER
+        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
+          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: be6a23dc63d24496a5e81f7570e1e17c
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.AUTO.WARN} and last(/CCI
+          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.AUTO.HIGH} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.WARN}'
+        priority: WARNING
+        discover: NO_DISCOVER
+        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
+          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: 8aa26dc678964f2cad57ac09e66145ef
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.AUTO.HIGH} and last(/CCI
+          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.AUTO.CRIT} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.HIGH}'
+        priority: HIGH
+        discover: NO_DISCOVER
+        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
+          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      - uuid: 0e8299551b6d48f39663f062f3d48caa
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.AUTO.CRIT} and nodata(/CCI
+          Certificates/cci.certificates.raw,2h)=0
+        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.CRIT}'
+        priority: DISASTER
+        discover: NO_DISCOVER
+        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
+          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        tags:
+        - tag: component
+          value: certificate
+        - tag: source
+          value: cci
+        - tag: renewal
+          value: '{#RENEWAL}'
+        - tag: cert_id
+          value: '{#CERTID}'
+        - tag: common_name
+          value: '{#CERTCN}'
+      overrides:
+      - name: MANUAL renewal policy
+        step: '1'
+        filter:
+          conditions:
+          - macro: '{#RENEWAL}'
+            value: ^manual$
+            formulaid: A
+        operations:
+        - operationobject: TRIGGER_PROTOTYPE
+          operator: REGEXP
+          value: '^MANUAL:'
+          discover: DISCOVER
+      - name: AUTO renewal policy
+        step: '2'
+        filter:
+          conditions:
+          - macro: '{#RENEWAL}'
+            value: ^(acme|puppet)$
+            formulaid: A
+        operations:
+        - operationobject: TRIGGER_PROTOTYPE
+          operator: REGEXP
+          value: '^AUTO:'
+          discover: DISCOVER
+    tags:
+    - tag: component
+      value: certificate
+    - tag: source
+      value: cci
+    macros:
+    - macro: '{$CCI.URL}'
+      value: https://cci.example.test
+      description: CCI base URL without trailing slash. Use HTTPS in production.
+    - macro: '{$CCI.ZABBIX.TOKEN}'
+      type: SECRET_TEXT
+      description: Set the deployment integration token as a host secret macro. No token is shipped.
+    - macro: '{$CCI.CERT.MIN.COUNT}'
+      value: '0'
+      description: Expected minimum certificate count. Zero allows an initially empty inventory.
+    - macro: '{$CCI.CERT.MANUAL.WARN}'
+      value: 60d
+      description: Manual renewal warn threshold (60 days). Keep WARN > HIGH > CRIT > 0.
+    - macro: '{$CCI.CERT.MANUAL.HIGH}'
+      value: 30d
+      description: Manual renewal high threshold (30 days). Keep WARN > HIGH > CRIT > 0.
+    - macro: '{$CCI.CERT.MANUAL.CRIT}'
+      value: 14d
+      description: Manual renewal crit threshold (14 days). Keep WARN > HIGH > CRIT > 0.
+    - macro: '{$CCI.CERT.AUTO.WARN}'
+      value: 14d
+      description: Auto renewal warn threshold (14 days). Keep WARN > HIGH > CRIT > 0.
+    - macro: '{$CCI.CERT.AUTO.HIGH}'
+      value: 7d
+      description: Auto renewal high threshold (7 days). Keep WARN > HIGH > CRIT > 0.
+    - macro: '{$CCI.CERT.AUTO.CRIT}'
+      value: 3d
+      description: Auto renewal crit threshold (3 days). Keep WARN > HIGH > CRIT > 0.
