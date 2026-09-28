@@ -349,6 +349,7 @@ SECRET_KEY_BASE=<random secret of at least 64 bytes>
 ALLOWED_HOSTS=cci.example.internal
 CONSUL_URL=https://consul.example.internal:8501
 CONSUL_TOKEN=<application token>
+CCI_HEALTH_TOKEN=<random monitoring token>
 CONSUL_PREFIX=cci
 CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
 CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
@@ -399,8 +400,9 @@ docker compose -f compose.production.yml up --build -d
 # If using an optional env file, add: --env-file .env.production
 ```
 
-The reverse proxy forwards HTTPS to `127.0.0.1:3000`, preserves the original Host,
-sets `X-Forwarded-Proto: https`, and limits request bodies, for example to 25 MiB.
+The reverse proxy forwards HTTPS to `127.0.0.1:3000`, preserves the original Host
+and `Authorization` header, sets `X-Forwarded-Proto: https`, and limits request
+bodies, for example to 25 MiB.
 The application allows at most 20 MiB per import. Production enforces HTTPS and
 secure cookies and rejects `AUTH_MODE=local`.
 
@@ -488,8 +490,19 @@ potentially stale in the UI. No certificate is removed. See the
 | `/ready` | Load-balancer readiness | PostgreSQL connection, writable primary, current migrations |
 | `/health` | Full dependency diagnostics | PostgreSQL, Consul, configured legacy directories, optional PuppetDB and OIDC discovery |
 
-All endpoints are anonymous. Readiness and diagnostics return HTTP 200 with
-`{"status":"ok"}` or HTTP 503 with `{"status":"unavailable"}`, with caching disabled.
+`/up` and `/ready` remain anonymous. `/health` requires
+`Authorization: Bearer <token>`, with the expected high-entropy token supplied as
+`CCI_HEALTH_TOKEN` in the web deployment secret. Configure your monitoring client
+to send this header and make sure every reverse proxy forwards it. An absent
+configured token makes `/health` unavailable (HTTP 503); an absent or invalid
+request token receives HTTP 401. Neither case runs dependency checks.
+
+Readiness and diagnostics return HTTP 200 with `{"status":"ok"}` or HTTP 503
+with `{"status":"unavailable"}`. `/health` shares each check result within a web
+process for up to 10 seconds, starting a refresh after five seconds. Only one
+refresh runs per process; concurrent requests receive the last result while it
+is still valid, or HTTP 503 if none is valid. All diagnostic responses retain
+`Cache-Control: no-store`; proxies and clients must not cache them.
 `CCI_SHOW_ERROR_DETAILS=true` exposes diagnostic details. Leave it disabled in production.
 
 Compose uses `/ready`. Use `/up` for orchestrator liveness and `/ready` for

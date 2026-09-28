@@ -3,11 +3,81 @@
 require "test_helper"
 
 class HealthTest < ActionDispatch::IntegrationTest
-  test "health checks the configured dependencies without authentication" do
-    get "/health"
+  setup do
+    @original_health_token = ENV.fetch("CCI_HEALTH_TOKEN", nil)
+    ENV["CCI_HEALTH_TOKEN"] = "synthetic-health-token-for-tests"
+    @original_cache = HealthController.cache
+    HealthController.instance_variable_set(:@cache, HealthCheckCache.new)
+  end
+
+  teardown do
+    ENV["CCI_HEALTH_TOKEN"] = @original_health_token
+    HealthController.instance_variable_set(:@cache, @original_cache)
+  end
+
+  test "health checks the configured dependencies with a bearer token" do
+    get "/health", headers: authorization
     assert_response :ok
     assert_equal "ok", response.parsed_body.fetch("status")
     assert_includes response.headers["Cache-Control"], "no-store"
+  end
+
+  test "cached success expires and a failed dependency changes the response" do
+    original = ApplicationHealth.method(:check)
+    now = 0.0
+    checks = 0
+    HealthController.instance_variable_set(:@cache, HealthCheckCache.new(clock: -> { now }))
+    ApplicationHealth.define_singleton_method(:check) do
+      checks += 1
+      checks == 1 ? {} : { "consul" => IOError.new("offline") }
+    end
+
+    2.times do
+      get "/health", headers: authorization
+      assert_response :ok
+      assert_equal({ "status" => "ok" }, response.parsed_body)
+    end
+    assert_equal 1, checks
+
+    get "/health", headers: { "Authorization" => "Bearer wrong" }
+    assert_response :unauthorized
+    assert_equal 1, checks
+
+    now = 10.0
+    get "/health", headers: authorization
+    assert_response :service_unavailable
+    assert_equal({ "status" => "unavailable" }, response.parsed_body)
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal 2, checks
+  ensure
+    ApplicationHealth.define_singleton_method(:check, original) if original
+  end
+
+  test "missing configuration and invalid bearer tokens never run dependency checks" do
+    original = ApplicationHealth.method(:check)
+    ApplicationHealth.define_singleton_method(:check) { raise "Dependency check must not run" }
+
+    ENV.delete("CCI_HEALTH_TOKEN")
+    get "/health", headers: { "Authorization" => "Bearer synthetic-health-token-for-tests" }
+    assert_response :service_unavailable
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_empty response.body
+
+    ENV["CCI_HEALTH_TOKEN"] = " "
+    get "/health", headers: authorization
+    assert_response :service_unavailable
+
+    ENV["CCI_HEALTH_TOKEN"] = "synthetic-health-token-for-tests"
+    [nil, "Bearer", "Basic invalid", "Bearer wrong", "Bearer #{ENV.fetch("CCI_HEALTH_TOKEN")} extra"].each do |header|
+      get "/health", headers: { "Authorization" => header }.compact
+      assert_response :unauthorized
+      assert_equal "Bearer", response.headers["WWW-Authenticate"]
+      assert_equal "no-store", response.headers["Cache-Control"]
+      assert_empty response.body
+      refute_includes response.body, ENV.fetch("CCI_HEALTH_TOKEN")
+    end
+  ensure
+    ApplicationHealth.define_singleton_method(:check, original) if original
   end
 
   test "dependency diagnostics do not block unrelated pages" do
@@ -18,7 +88,7 @@ class HealthTest < ActionDispatch::IntegrationTest
     end
     [false, true].each do |details|
       Rails.application.config.x.show_error_details = details
-      get "/health"
+      get "/health", headers: authorization
       assert_response :service_unavailable
       assert_equal details, response.parsed_body.key?("failures")
       get login_path
@@ -28,7 +98,7 @@ class HealthTest < ActionDispatch::IntegrationTest
       assert_select ".error-details", count: 0
       assert_select ".error-details script", count: 0
       assert_not_includes response.body, "diagnostic" unless details
-      head "/health"
+      head "/health", headers: authorization
       assert_response :service_unavailable
       assert_empty response.body
     end
@@ -85,5 +155,11 @@ class HealthTest < ActionDispatch::IntegrationTest
   ensure
     pool.define_singleton_method(:with_connection, original_database) if original_database
     ConsulStore.define_singleton_method(:client, original_consul) if original_consul
+  end
+
+  private
+
+  def authorization
+    { "Authorization" => "Bearer #{ENV.fetch("CCI_HEALTH_TOKEN")}" }
   end
 end

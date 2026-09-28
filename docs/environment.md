@@ -70,6 +70,7 @@ in the template macros, independently of UI expiration warnings.
 | `OIDC_ROLE_MAP` | JSON object whose keys are exact incoming group/role names and whose values are application role strings or arrays of strings. Unmapped names are accepted if they are valid application roles. Empty, whitespace-only and omitted values are treated as `{}` (no translation). See [JSON format, claim sources and examples](installation.md#oidc_role_map-json-format). |
 | `OIDC_DISPLAY_NAME_CLAIM` | OIDC claim shown as the signed-in user name. Allowed values are `preferred_username`, `name` and `email`. Empty or omitted values default to `preferred_username`. Missing or blank values fall back through `preferred_username`, `name`, `email` and finally the stable OIDC UID. This setting affects display only. |
 | `SECRET_KEY_BASE` | Rails session secret, required in production. Development has a local fallback. Changing it invalidates sessions. |
+| `CCI_HEALTH_TOKEN` | High-entropy bearer token for `/health`, supplied through the web deployment secret. Empty or omitted disables dependency diagnostics (HTTP 503). The monitoring request must send `Authorization: Bearer <token>`. |
 | `ALLOWED_HOSTS` | Comma-separated allowed request hostnames. Required in production; development adds `localhost,127.0.0.1` by default. |
 | `RAILS_ENV` | Rails environment. The Compose templates set `development` or `production`. Set explicitly with `docker run`. |
 | `LOG_LEVEL` | Global application log level. Default: `INFO`. Use `DEBUG` for detailed Keycloak, PuppetDB, Consul and indexer diagnostics. Invalid values produce a startup warning and fall back to `INFO`. Restart services after changing it. |
@@ -189,8 +190,10 @@ metadata, the structured exception chain and diagnostic reasons such as a
 missing mount, DNS failure, connection refusal or TLS verification failure.
 Dependency failures are reported but do not stop startup. A Rails boot failure
 is logged and exits. The web container still uses `/ready` for its recurring
-Docker healthcheck. Failures returned by `/health` or `/ready` use the same
-JSON error schema.
+Docker healthcheck. Failures returned by `/ready` and by authenticated
+`/health` use the same JSON error schema. `/health` requires a configured
+`CCI_HEALTH_TOKEN` and a matching `Authorization` header. Reverse proxies must
+forward that header.
 
 If the application cannot initialize its logger, the Ruby or container runtime
 may still emit a fallback line. Once Rails has booted, application and

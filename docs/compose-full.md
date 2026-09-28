@@ -49,13 +49,16 @@ docker compose -f /srv/cci/compose.yml run --rm --no-deps migrate &&
 
 Prepare the selected image before running these commands. Use `/ready` for
 load-balancer readiness, `/up` for process liveness and `/health` for dependency
-diagnostics. See [HA deployment](installation.md#deploying-multiple-web-replicas).
+diagnostics. Replace the web service's `CCI_HEALTH_TOKEN` placeholder with a
+high-entropy deployment secret. Monitoring must send it as
+`Authorization: Bearer <token>`, and reverse proxies must forward that header.
+See [HA deployment](installation.md#deploying-multiple-web-replicas).
 
 ## Settings by service
 
 | Service | Configuration |
 | --- | --- |
-| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, OIDC display name, diagnostics, port, CSR defaults and optional Zabbix integration |
+| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, OIDC display name, health token, diagnostics, port, CSR defaults and optional Zabbix integration |
 | Indexer | Rails boot, database, Consul read token, inventory, PuppetDB and indexing interval |
 | Migration job | Rails boot and database only |
 
