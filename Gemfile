@@ -13,7 +13,6 @@ gem "rubyzip", "~> 3.0"
 gem "stimulus-rails", "~> 1.3"
 gem "turbo-rails", "~> 2.0"
 # Rails 8.1 calls JSON.parse with an options hash; JSON 3 requires keywords.
-gem "csv", "~> 3.3"
 gem "json", ">= 2.9", "< 3"
 
 # Static analysis also runs when building the application image.

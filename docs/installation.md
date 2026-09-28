@@ -533,25 +533,3 @@ replicas. Use additive migrations first and defer incompatible removals until
 the old version has stopped. Extra migration versions from a newer replica
 do not by themselves make an older replica unready. Test actual database,
 Consul and load-balancer failover in your environment before production use.
-
-See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.
-
-Public CA diagnostics require indexer egress to the selected official source hosts
-(GitHub raw/codeload, CCADB, or Ubuntu archive/keyserver). They do not affect web
-readiness. The application image includes the package-decompression and signature
-verification tools; Ubuntu packages are read, never installed at runtime. Configure
-only the desired profiles and recreate web and indexer together. Back up PostgreSQL
-to preserve validated source caches and diagnostic history. See
-[public trust profiles](certificate-diagnostics.md#public-default-ca-trust-profiles).
-
-For restricted outbound networks, optionally set `CCI_DIAGNOSTICS_HTTP_PROXY` to
-an HTTP proxy URL on both web and indexer. This routes diagnostic and vendor-source
-HTTP/HTTPS requests; destination DNS and address checks still run locally. See the
-[proxy configuration](certificate-diagnostics.md#optional-outbound-proxy) for
-authentication, CONNECT and compatibility details.
-
-To enable additional Chrome root rules, set `CCI_CHROME_POLICY_ENABLED=true`
-together with `CCI_TRUST_CHROME_ENABLED=true`. Permit HTTPS egress to
-`www.gstatic.com` (directly or through the diagnostic proxy) for signed CT metadata.
-All source retrieval remains in the indexer. Unsupported schemas or unavailable
-required SCT evidence produce neutral results, including the combined Chrome badge.
