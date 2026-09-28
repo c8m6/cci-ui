@@ -967,3 +967,6 @@ main.full-width { max-width: none; }
 .csr-form { display: grid; gap: 18px; }
 .csr-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 .csr-form label { display: flex; flex-direction: column; gap: 6px; }
+
+.certificate-diagnostics dd > small { display: block; color: var(--muted); margin-top: .25rem; }
+.certificate-diagnostics details { margin-top: .35rem; }

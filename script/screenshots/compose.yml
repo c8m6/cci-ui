@@ -35,6 +35,14 @@ services:
       RAILS_ENV: development
       AUTH_MODE: local
       CCI_CA_INVENTORY_ENABLED: "true"
+      CCI_OCSP_ENABLED: "true"
+      CCI_CRL_ENABLED: "true"
+      CCI_TRUST_CHROME_ENABLED: "true"
+      CCI_CHROME_POLICY_ENABLED: "true"
+      CCI_TRUST_FIREFOX_ENABLED: "true"
+      CCI_TRUST_EDGE_ENABLED: "true"
+      CCI_TRUST_APPLE_ENABLED: "true"
+      CCI_TRUST_UBUNTU_ENABLED: "true"
       DATABASE_URL: postgresql://screenshots:screenshots@db/screenshots
       CONSUL_URL: http://consul:8500
       CONSUL_PREFIX: cci-screenshots/v1

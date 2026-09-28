@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_26_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -39,6 +39,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_000200) do
     t.index ["area"], name: "index_ca_inventories_on_area", unique: true
   end
 
+  create_table "certificate_diagnostic_caches", force: :cascade do |t|
+    t.string "cache_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.string "lease_token"
+    t.datetime "lease_until"
+    t.jsonb "metadata", default: {}, null: false
+    t.binary "payload"
+    t.datetime "updated_at", null: false
+    t.index ["cache_id"], name: "index_certificate_diagnostic_caches_on_cache_id", unique: true
+  end
+
+  create_table "certificate_diagnostic_results", force: :cascade do |t|
+    t.string "area", null: false
+    t.string "check_id", null: false
+    t.datetime "checked_at"
+    t.datetime "created_at", null: false
+    t.string "data_version"
+    t.jsonb "details", default: {}, null: false
+    t.datetime "expires_at"
+    t.integer "failures", default: 0, null: false
+    t.string "fingerprint", null: false
+    t.string "input_version"
+    t.datetime "last_attempt_at"
+    t.string "last_error"
+    t.datetime "next_due_at", null: false
+    t.boolean "priority", default: false, null: false
+    t.string "reason"
+    t.datetime "revoked_at"
+    t.string "state", default: "pending", null: false
+    t.boolean "suspended", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.index ["area", "fingerprint", "check_id"], name: "diagnostic_identity", unique: true
+    t.index ["suspended", "next_due_at"], name: "diagnostic_due"
+  end
+
   create_table "certificate_requests", force: :cascade do |t|
     t.string "area", null: false
     t.string "certid", null: false
@@ -58,8 +94,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_000200) do
     t.jsonb "target_areas", default: [], null: false
     t.datetime "updated_at", null: false
     t.index ["area", "created_at"], name: "index_certificate_requests_on_area_and_created_at"
-    t.index ["target_areas"], name: "index_certificate_requests_on_target_areas", using: :gin
     t.index ["secret_id"], name: "index_certificate_requests_on_secret_id", unique: true
+    t.index ["target_areas"], name: "index_certificate_requests_on_target_areas", using: :gin
   end
 
   create_table "certificates", force: :cascade do |t|
@@ -131,7 +167,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_000200) do
     t.index ["certificate_request_id", "fingerprint"], name: "idx_on_certificate_request_id_fingerprint_19fcbe4096", unique: true
     t.index ["certificate_request_id"], name: "index_csr_certificates_on_certificate_request_id"
     t.check_constraint "state::text <> 'published'::text OR consul_version > 0 AND published_at IS NOT NULL", name: "csr_published_version"
-    t.check_constraint "state::text = ANY (ARRAY['awaiting_issuer'::character varying, 'pending'::character varying, 'publishing'::character varying, 'published'::character varying, 'failed'::character varying]::text[])", name: "csr_certificate_state"
+    t.check_constraint "state::text = ANY (ARRAY['awaiting_issuer'::character varying::text, 'pending'::character varying::text, 'publishing'::character varying::text, 'published'::character varying::text, 'failed'::character varying::text])", name: "csr_certificate_state"
   end
 
   create_table "import_drafts", force: :cascade do |t|

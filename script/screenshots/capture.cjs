@@ -10,6 +10,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
   });
   try {
     const page = await browser.newPage();
+    await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
     await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
     await page.emulateTimezone('Europe/Berlin');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
@@ -92,6 +93,10 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
+    assert.deepEqual(await page.$$eval('.certificate-diagnostics > dt', nodes => nodes.map(node => node.textContent.trim())), ['OCSP', 'CRL', 'Chrome CA trust', 'Firefox CA trust', 'Edge CA trust', 'Safari / Apple CA trust', 'Ubuntu CA trust', 'Additional Chrome policy']);
+    assert.deepEqual(await page.$$eval('.certificate-diagnostics .badge.success', nodes => nodes.map(node => node.textContent.trim())), ['Good', 'Good']);
+    assert.equal(await page.$$eval('.certificate-diagnostics > dd > small', nodes => nodes.filter(node => node.textContent.startsWith('Checked:')).length), 8);
+    assert.equal(await page.$$eval('.certificate-diagnostics .badge.danger', nodes => nodes.length), 6);
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));
@@ -124,7 +129,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     await page.setViewport({ width: 1800, height: 1100, deviceScaleFactor: 1 });
     if (process.env.CAPTURE_DETAILS_ONLY === '1') {
       assert.deepEqual(errors, []);
-      console.log('Updated details.png; nested chain, selected certificate and export/status controls verified.');
+      console.log('Updated details.png; chain, successful OCSP/CRL diagnostics and export/status controls verified.');
       return;
     }
 
