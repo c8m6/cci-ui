@@ -17,7 +17,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
-    const base = 'http://127.0.0.1:3001';
+    const base = process.env.SCREENSHOT_BASE_URL || 'http://127.0.0.1:3001';
     const output = path.resolve(__dirname, '../../docs/screenshots');
     const ready = async () => {
       await page.evaluate(() => document.fonts.ready);
@@ -97,10 +97,19 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
-    assert.deepEqual(await page.$$eval('.certificate-diagnostics > dt', nodes => nodes.map(node => node.textContent.trim())), ['OCSP', 'CRL', 'Chrome CA trust', 'Firefox CA trust', 'Edge CA trust', 'Safari / Apple CA trust', 'Ubuntu CA trust', 'Additional Chrome policy']);
+    assert.deepEqual(await page.$$eval('.certificate-diagnostics .diagnostic-item > dt', nodes => nodes.map(node => node.textContent.trim())), ['OCSP', 'CRL', 'Chrome CA trust', 'Additional Chrome policy', 'Firefox CA trust', 'Edge CA trust', 'Safari / Apple CA trust', 'Ubuntu CA trust']);
     assert.deepEqual(await page.$$eval('.certificate-diagnostics .badge.success', nodes => nodes.map(node => node.textContent.trim())), ['Good', 'Good']);
-    assert.equal(await page.$$eval('.certificate-diagnostics > dd > small', nodes => nodes.filter(node => node.textContent.startsWith('Checked:')).length), 8);
+    assert.equal(await page.$$eval('.certificate-diagnostics .diagnostic-item > dd > small', nodes => nodes.filter(node => node.textContent.startsWith('Checked:')).length), 8);
     assert.equal(await page.$$eval('.certificate-diagnostics .badge.danger', nodes => nodes.length), 6);
+    const cardPositions = async group => page.$$eval(`.certificate-diagnostics-${group} .diagnostic-item`, nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top };
+    }));
+    for (const group of ['revocation', 'browsers']) {
+      const [first, second] = await cardPositions(group);
+      assert.equal(first.top, second.top, `${group} cards should share a row`);
+      assert(first.left < second.left, `${group} cards should sit side by side`);
+    }
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));
@@ -126,6 +135,13 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       assert(layout.validityVisible, 'Validity clipped at ' + width);
       assert.equal(layout.ellipsis, 'ellipsis');
       assert(layout.truncated, 'Long subject not truncated at ' + width);
+      if (width <= 760) {
+        for (const group of ['revocation', 'browsers']) {
+          const [first, second] = await cardPositions(group);
+          assert.equal(first.left, second.left, `${group} cards should stack at ${width}px`);
+          assert(first.top < second.top, `${group} cards should remain ordered at ${width}px`);
+        }
+      }
     }
     await page.$$eval('.certificate-chain .ca-subject-text a', (nodes, values) => {
       nodes.forEach((node, index) => { node.textContent = values[index]; });

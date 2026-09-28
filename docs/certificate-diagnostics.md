@@ -7,6 +7,8 @@ default. The checks and result semantics below apply to both modes.
 Diagnostics are optional, read-only observations on the certificate detail page.
 Only enabled checks appear. When all checks are disabled, the entire diagnostics
 section is hidden; disabled checks show no status, even if earlier evidence is stored.
+OCSP and CRL appear side by side on wider screens. Additional Chrome policy
+appears beside Chrome CA trust in the browser group; checks stack on narrow screens.
 They do not change date status, summary counts, imports, CSR publication, exports,
 activation, archiving or Puppet behavior. German and English statuses include text
 as well as color. A self-signed certificate receives a neutral not-applicable

@@ -42,9 +42,10 @@ class CertificateDiagnosticsConfiguration
   def [](key) = limits.fetch(key.to_s)
 
   def groups
-    { "revocation" => %w[ocsp crl], "browsers" => %w[trust_chrome trust_firefox trust_edge trust_apple],
-      "system" => %w[trust_ubuntu], "policy" => %w[chrome_policy] }
-      .transform_values { |checks| checks & enabled }.reject { |_, checks| checks.empty? }
+    groups = { "revocation" => %w[ocsp crl], "browsers" => %w[trust_chrome trust_firefox trust_edge trust_apple],
+               "system" => %w[trust_ubuntu] }.transform_values { |checks| checks & enabled }.reject { |_, checks| checks.empty? }
+    groups["browsers"].insert(1, "chrome_policy") if enabled?("chrome_policy")
+    groups
   end
 
   def version(check)

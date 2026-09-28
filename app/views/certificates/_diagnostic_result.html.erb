@@ -3,6 +3,7 @@
 <dt><%= t("diagnostics.checks.#{check}") %></dt>
 <dd>
   <span class="badge <%= { "good" => "success", "revoked" => "danger", "untrusted" => "danger" }.fetch(state, "neutral") %>"><%= t("diagnostics.states.#{state}") %></span>
+  <% if check == "chrome_policy" %><small><%= t("diagnostics.scopes.chrome_policy") %></small><% end %>
   <% if result %>
     <% if check == "trust_chrome" && config.enabled?("chrome_policy") %>
       <small><%= t("diagnostics.combined", baseline: t("diagnostics.states.#{result.state}"), policy: t("diagnostics.states.#{state}")) %></small>

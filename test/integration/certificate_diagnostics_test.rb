@@ -45,8 +45,8 @@ class CertificateDiagnosticsRenderingTest < ActionDispatch::IntegrationTest
         get certificate_path(record, locale: locale)
         assert_response :success
         assert_select "#diagnostics-heading", count: enabled.empty? ? 0 : 1
-        assert_select ".certificate-diagnostics > dt", text: "OCSP", count: enabled.include?("ocsp") ? 1 : 0
-        assert_select ".certificate-diagnostics > dt", text: "CRL", count: enabled.include?("crl") ? 1 : 0
+        assert_select ".certificate-diagnostics .diagnostic-item > dt", text: "OCSP", count: enabled.include?("ocsp") ? 1 : 0
+        assert_select ".certificate-diagnostics .diagnostic-item > dt", text: "CRL", count: enabled.include?("crl") ? 1 : 0
         assert_select ".certificate-diagnostics .badge.success", count: enabled.size
         assert_select ".certificate-diagnostics .badge.neutral", count: 0
       end
@@ -64,7 +64,7 @@ class CertificateDiagnosticsRenderingTest < ActionDispatch::IntegrationTest
       %w[en de].each do |locale|
         get certificate_path(record, locale: locale)
         assert_response :success
-        assert_select ".certificate-diagnostics > dt", count: 1
+        assert_select ".certificate-diagnostics .diagnostic-item > dt", count: 1
         assert_select ".certificate-diagnostics .badge.neutral", count: 1
         assert_not_includes response.body, "translation missing"
       end
@@ -87,8 +87,10 @@ class CertificateDiagnosticsRenderingTest < ActionDispatch::IntegrationTest
       get certificate_path(record, locale: locale)
       assert_response :success
       assert_select ".certificate-diagnostics .badge.success", count: 0
+      assert_select ".certificate-diagnostics-browsers .diagnostic-item > dt", count: 2
       assert_not_includes response.body, "translation missing"
     end
+    assert_select '.certificate-diagnostics-browsers [data-check="trust_chrome"] + [data-check="chrome_policy"]', count: 1
     policy = CertificateDiagnosticResult.create!(area: record.area, fingerprint: record.fingerprint, check_id: "chrome_policy",
       state: "unknown", reason: "chrome_policy_incomplete", checked_at: Time.current, next_due_at: Time.current)
     get certificate_path(record)
@@ -102,7 +104,7 @@ class CertificateDiagnosticsRenderingTest < ActionDispatch::IntegrationTest
     ENV["CCI_CHROME_POLICY_ENABLED"] = "false"
     get certificate_path(record)
     assert_select ".certificate-diagnostics .badge.success", count: 1
-    assert_select ".certificate-diagnostics > dt", text: "Additional Chrome policy", count: 0
+    assert_select ".certificate-diagnostics .diagnostic-item > dt", text: "Additional Chrome policy", count: 0
   ensure
     previous&.each { |name, value| ENV[name] = value }
   end

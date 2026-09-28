@@ -34,6 +34,7 @@ services:
     environment:
       RAILS_ENV: development
       AUTH_MODE: local
+      ALLOWED_HOSTS: web,127.0.0.1,localhost
       CCI_CA_INVENTORY_ENABLED: "true"
       CCI_OCSP_ENABLED: "true"
       CCI_CRL_ENABLED: "true"
