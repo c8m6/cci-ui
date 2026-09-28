@@ -1,9 +1,27 @@
 # frozen_string_literal: true
 
-# Exposes readiness and dependency diagnostics without requiring a signed-in session.
+# Exposes readiness and authenticated dependency diagnostics without a signed-in session.
 class HealthController < ActionController::Base
+  @cache = HealthCheckCache.new
+
+  class << self
+    attr_reader :cache
+  end
+
   def show
-    report(ApplicationHealth.check)
+    response.headers["Cache-Control"] = "no-store"
+    expected = ENV.fetch("CCI_HEALTH_TOKEN", nil)
+    return head :service_unavailable if expected.blank?
+
+    unless IntegrationAuthentication.valid_bearer?(request.authorization, expected)
+      response.headers["WWW-Authenticate"] = "Bearer"
+      return head :unauthorized
+    end
+
+    failures = self.class.cache.fetch { ApplicationHealth.check }
+    return render json: { status: "unavailable" }, status: :service_unavailable unless failures
+
+    report(failures)
   end
 
   def ready
