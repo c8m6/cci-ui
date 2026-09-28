@@ -1,5 +1,10 @@
 # Certificate usage diagnostics
 
+A separate collector deployment is under consideration. The
+[deferred collector plan](collector-plan.md) records the proposed architecture and
+open questions. It is not implemented. The behavior below describes the current
+direct/proxy-based diagnostics.
+
 Diagnostics are optional, read-only observations on the certificate detail page.
 Only enabled checks appear. When all checks are disabled, the entire diagnostics
 section is hidden; disabled checks show no status, even if earlier evidence is stored.
