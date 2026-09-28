@@ -15,7 +15,6 @@ rescue StandardError => e
 end
 OperationalLog.startup
 loop do
-  cycle_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
   LogContext.with(correlation_id: SecureRandom.uuid) do
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     OperationalLog.info(logger: "cci.indexer", message: "Index refresh started", operation: "refresh_index")
@@ -27,8 +26,5 @@ loop do
     OperationalLog.failure(logger: "cci.indexer", message: "Index refresh failed", error: e,
       operation: "refresh_index", result: "failed")
   end
-  # Diagnostics use a separate bounded phase after the shared catalogue lock is released.
-  CertificateDiagnostics::Runner.run
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - cycle_started
-  sleep [Integer(ENV.fetch("INDEX_INTERVAL", "60")) - elapsed, 0].max
+  sleep Integer(ENV.fetch("INDEX_INTERVAL", "60"))
 end
