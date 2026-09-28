@@ -1,0 +1,29 @@
+<% result = results[check] %>
+<% state = result&.display_state(config) || "pending" %>
+<dt><%= t("diagnostics.checks.#{check}") %></dt>
+<dd>
+  <span class="badge <%= { "good" => "success", "revoked" => "danger", "untrusted" => "danger" }.fetch(state, "neutral") %>"><%= t("diagnostics.states.#{state}") %></span>
+  <% if result %>
+    <% if check == "trust_chrome" && config.enabled?("chrome_policy") %>
+      <small><%= t("diagnostics.combined", baseline: t("diagnostics.states.#{result.state}"), policy: t("diagnostics.states.#{state}")) %></small>
+    <% end %>
+    <span><%= t("diagnostics.reasons.#{result.reason || 'pending'}") %></span>
+    <% if result.checked_at %><small><%= t("diagnostics.checked", time: l(result.checked_at, format: :long)) %></small><% end %>
+    <% if result.last_error %><small><%= t("diagnostics.refresh_failed", reason: t("diagnostics.reasons.#{result.last_error}")) %></small><% end %>
+    <% if result.revoked_at %><small><%= t("diagnostics.revoked_history", time: l(result.revoked_at, format: :long)) %></small><% end %>
+    <% if result.details.present? %>
+      <details><summary><%= t("diagnostics.evidence") %></summary>
+        <dl><dt><%= t("diagnostics.data_version") %></dt><dd class="break-word"><%= result.data_version %></dd>
+        <% result.details.except("configuration").each do |key, value| %><dt><%= t("diagnostics.fields.#{key}") %></dt><dd class="break-word"><%= if key == "scope"
+            t("diagnostics.scopes.#{value == 'chrome_baseline' && config.enabled?('chrome_policy') ? 'chrome_baseline_active' : value}")
+          elsif key == "baseline"
+            t("diagnostics.states.#{value}")
+          elsif ["source_error", "ct_error"].include?(key)
+            t("diagnostics.reasons.#{value}")
+          else
+            value.is_a?(Array) ? value.join(", ") : value
+          end %></dd><% end %></dl>
+      </details>
+    <% end %>
+  <% end %>
+</dd>

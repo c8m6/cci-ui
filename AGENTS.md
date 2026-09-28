@@ -31,6 +31,8 @@ These instructions apply permanently to all work in this repository unless a lat
 
 ## Documentation
 
+- Do not create or retain implementation or task plans as Markdown files in
+  the repository, including `docs/`. Keep task planning in the conversation.
 - Keep the project documentation up to date with every change.
 - Review the existing documentation for every task and update all affected
   documentation as part of the same change.

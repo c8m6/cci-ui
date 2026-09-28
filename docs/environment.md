@@ -383,3 +383,28 @@ The Compose web and indexer services receive the same defaults. See
 
 For a complete production Compose template with inline values, external services
 and a reduced indexer environment, see [inline Compose configuration](compose-full.md).
+
+See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.
+
+Public trust profiles use independent `CCI_TRUST_CHROME`, `CCI_TRUST_FIREFOX`,
+`CCI_TRUST_EDGE`, `CCI_TRUST_APPLE` and `CCI_TRUST_UBUNTU` stems with `_ENABLED`,
+`_INTERVAL`, `_TARGET`, `_UPDATE_INTERVAL` and `_MAX_AGE` settings. All default to
+disabled with daily check/source intervals. See the [exact source targets,
+network limits and freshness rules](certificate-diagnostics.md#public-default-ca-trust-profiles).
+
+### Diagnostic HTTP proxy
+
+`CCI_DIAGNOSTICS_HTTP_PROXY` defaults to empty (direct). Set an explicit HTTP proxy
+URL to route OCSP, CRL and public trust-source HTTP/HTTPS requests through it.
+Optional percent-encoded Basic credentials are supported; HTTPS uses CONNECT with
+normal TLS verification. Ambient proxy variables are ignored. See
+[proxy behavior and address restrictions](certificate-diagnostics.md#optional-outbound-proxy).
+
+### Additional Chrome policy
+
+`CCI_CHROME_POLICY_ENABLED=false` requires `CCI_TRUST_CHROME_ENABLED=true` when
+activated. `CCI_CHROME_POLICY_INTERVAL=86400` schedules certificate checks;
+`CCI_CHROME_POLICY_TARGET=v3`, `CCI_CHROME_POLICY_UPDATE_INTERVAL=86400` and
+`CCI_CHROME_POLICY_MAX_AGE=604800` control the signed CT source independently.
+It uses the Chrome trust target for browser-version conditions. See
+[policy coverage and incomplete evidence](certificate-diagnostics.md#additional-chrome-policy).
