@@ -175,6 +175,7 @@ See [Integrations](docs/integrations/README.md) for setup and security details.
 - [Puppet integration and idempotence](docs/puppet.md)
 - [PuppetDB host inventory](docs/puppetdb.md)
 - [Optional revocation, public CA trust and Chrome policy diagnostics](docs/certificate-diagnostics.md)
+- [Optional Evidence Gateway for isolated diagnostic egress](docs/collector-plan.md)
 - [Documentation screenshot capture script](script/screenshots/capture.cjs)
 
 ## Code checks and tests

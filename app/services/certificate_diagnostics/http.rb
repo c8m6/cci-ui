@@ -16,15 +16,31 @@ module CertificateDiagnostics
       fc00::/7 2001::/23 2001:db8::/32 2002::/16 64:ff9b::/96 64:ff9b:1::/48
       100::/64].map { |cidr| IPAddr.new(cidr) }.freeze
 
-    def initialize(config, deadline: nil, resolver: Resolv)
+    attr_reader :fetched_at
+
+    def initialize(config, deadline: nil, resolver: Resolv, target_policy: nil)
       @config = config
       @deadline = deadline
       @resolver = resolver
+      @target_policy = target_policy
     end
 
     def fetch(url, body: nil, content_type: nil)
       seconds = [@config[:request_timeout], @deadline ? @deadline - monotonic : Float::INFINITY].min
       raise Error, "deadline" unless seconds.positive?
+
+      if @config.gateway?
+        kind = if @config.respond_to?(:source?) && @config.source?
+                 "source"
+               elsif body
+                 "ocsp"
+               else
+                 "crl"
+               end
+        return GatewayClient.new(@config, deadline: @deadline).fetch(kind, url, body: body).tap do |result|
+          @fetched_at = result.fetch(:fetched_at)
+        end.fetch(:bytes)
+      end
 
       Timeout.timeout(seconds, Error, "deadline") { redirects(url, body, content_type) }
     rescue URI::InvalidURIError, IPAddr::InvalidAddressError
@@ -53,6 +69,8 @@ module CertificateDiagnostics
       (@config[:redirects] + 1).times do |hop|
         uri = URI.parse(url)
         validate_uri!(uri)
+        raise Error, "blocked_destination" if @target_policy && !@target_policy.call(uri)
+
         addresses = @resolver.getaddresses(uri.hostname)
         raise Error, "blocked_destination" if addresses.empty? || addresses.any? { |address| !allowed_address?(address) }
 

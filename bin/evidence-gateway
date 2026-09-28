@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+$stdout.sync = true
+$stderr.sync = true
+ENV["CCI_PROCESS"] = "evidence_gateway"
+
+require_relative "../lib/puma_json_output"
+require "puma/cli"
+
+stdout = PumaJsonOutput.new($stdout, level: "INFO")
+stderr = PumaJsonOutput.new($stderr, level: "ERROR")
+Puma::CLI.new(["-b", "tcp://0.0.0.0:8080", "config/evidence_gateway.ru"], Puma::LogWriter.new(stdout, stderr)).run

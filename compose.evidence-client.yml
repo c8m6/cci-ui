@@ -1,0 +1,20 @@
+# Optional client override when the gateway is deployed on another host.
+services:
+  web:
+    environment:
+      CCI_EVIDENCE_GATEWAY_ENABLED: "true"
+      CCI_EVIDENCE_GATEWAY_URL: ${CCI_EVIDENCE_GATEWAY_URL:?Set the remote HTTPS gateway URL}
+      CCI_EVIDENCE_GATEWAY_CA_FILE: /run/evidence-client/ca.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE: /run/evidence-client/client.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE: /run/evidence-client/client.key
+    volumes:
+      - ${CCI_EVIDENCE_CLIENT_DIR:?Set CCI_EVIDENCE_CLIENT_DIR}:/run/evidence-client:ro
+  indexer:
+    environment:
+      CCI_EVIDENCE_GATEWAY_ENABLED: "true"
+      CCI_EVIDENCE_GATEWAY_URL: ${CCI_EVIDENCE_GATEWAY_URL:?Set the remote HTTPS gateway URL}
+      CCI_EVIDENCE_GATEWAY_CA_FILE: /run/evidence-client/ca.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE: /run/evidence-client/client.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE: /run/evidence-client/client.key
+    volumes:
+      - ${CCI_EVIDENCE_CLIENT_DIR:?Set CCI_EVIDENCE_CLIENT_DIR}:/run/evidence-client:ro

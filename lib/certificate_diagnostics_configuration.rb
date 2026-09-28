@@ -11,11 +11,14 @@ class CertificateDiagnosticsConfiguration
              "connect_timeout" => 3, "max_bytes" => 5_242_880, "redirects" => 3,
              "evidence_max_age" => 21_600, "clock_skew" => 300 }.freeze
 
-  attr_reader :checks, :limits, :allowed_networks, :trust, :http_proxy
+  attr_reader :checks, :limits, :allowed_networks, :trust, :http_proxy, :gateway
 
   def initialize(environment = ENV)
     @trust = TrustProfileConfiguration.new(environment)
     @http_proxy = proxy(environment["CCI_DIAGNOSTICS_HTTP_PROXY"])
+    @gateway = gateway_settings(environment)
+    raise ArgumentError, "CCI_DIAGNOSTICS_HTTP_PROXY is unavailable in gateway mode." if @gateway && @http_proxy
+
     @checks = CHECKS.to_h do |check, interval|
       stem = "CCI_#{check.upcase}"
       [check, { enabled: boolean(environment, "#{stem}_ENABLED"), interval: positive(environment, "#{stem}_INTERVAL", interval) }]
@@ -33,6 +36,7 @@ class CertificateDiagnosticsConfiguration
   end
 
   def enabled?(check) = checks.fetch(check).fetch(:enabled)
+  def gateway? = !!gateway
   def interval(check) = checks.fetch(check).fetch(:interval)
   def enabled = checks.keys.select { |check| enabled?(check) }
   def [](key) = limits.fetch(key.to_s)
@@ -46,10 +50,32 @@ class CertificateDiagnosticsConfiguration
   def version(check)
     profile = trust.profiles[check]
     profile = [profile, trust.profiles["trust_chrome"]] if check == "chrome_policy"
-    Digest::SHA256.hexdigest([check, checks.fetch(check), limits, allowed_networks.map(&:to_s), http_proxy&.to_s, profile].to_json)
+    identity = [check, checks.fetch(check), limits, allowed_networks.map(&:to_s), http_proxy&.to_s, profile]
+    identity << gateway.fetch(:url).to_s if gateway
+    Digest::SHA256.hexdigest(identity.to_json)
   end
 
   private
+
+  def gateway_settings(environment)
+    return unless boolean(environment, "CCI_EVIDENCE_GATEWAY_ENABLED")
+
+    url = URI.parse(environment.fetch("CCI_EVIDENCE_GATEWAY_URL", ""))
+    valid = url.is_a?(URI::HTTPS) && url.host && url.userinfo.nil? && url.query.nil? && url.fragment.nil? &&
+            ["", "/"].include?(url.path)
+    raise URI::InvalidURIError unless valid
+
+    files = %w[CA_FILE CLIENT_CERT_FILE CLIENT_KEY_FILE].to_h do |key|
+      name = "CCI_EVIDENCE_GATEWAY_#{key}"
+      value = environment.fetch(name, "")
+      raise ArgumentError, "#{name} is required in gateway mode." if value.strip.empty?
+
+      [key.downcase.to_sym, value]
+    end
+    { url: url, **files }
+  rescue URI::InvalidURIError, URI::InvalidComponentError
+    raise ArgumentError, "CCI_EVIDENCE_GATEWAY_URL must be an HTTPS origin.", cause: nil
+  end
 
   def proxy(value)
     return if value.to_s.strip.empty?

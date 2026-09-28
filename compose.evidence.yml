@@ -1,0 +1,59 @@
+# Optional same-host override: docker compose -f compose.yml -f compose.evidence.yml up --build -d --wait
+services:
+  web:
+    environment:
+      CCI_EVIDENCE_GATEWAY_ENABLED: "true"
+      CCI_EVIDENCE_GATEWAY_URL: https://evidence-nginx
+      CCI_EVIDENCE_GATEWAY_CA_FILE: /run/evidence-client/ca.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE: /run/evidence-client/client.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE: /run/evidence-client/client.key
+    volumes:
+      - ${CCI_EVIDENCE_CLIENT_DIR:?Set CCI_EVIDENCE_CLIENT_DIR}:/run/evidence-client:ro
+  indexer:
+    environment:
+      CCI_EVIDENCE_GATEWAY_ENABLED: "true"
+      CCI_EVIDENCE_GATEWAY_URL: https://evidence-nginx
+      CCI_EVIDENCE_GATEWAY_CA_FILE: /run/evidence-client/ca.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE: /run/evidence-client/client.crt
+      CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE: /run/evidence-client/client.key
+    volumes:
+      - ${CCI_EVIDENCE_CLIENT_DIR:?Set CCI_EVIDENCE_CLIENT_DIR}:/run/evidence-client:ro
+  evidence:
+    build: .
+    image: ${CCI_IMAGE:-cci-ui:local}
+    command: ["ruby", "bin/evidence-gateway"]
+    environment:
+      CCI_EVIDENCE_STORE_PATH: /evidence
+      CCI_EVIDENCE_REFRESH_INTERVAL: ${CCI_EVIDENCE_REFRESH_INTERVAL:-86400}
+      CCI_EVIDENCE_CRL_URLS: '${CCI_EVIDENCE_CRL_URLS:-[]}'
+      CCI_EVIDENCE_OCSP_URLS: '${CCI_EVIDENCE_OCSP_URLS:-[]}'
+      CCI_EVIDENCE_ALLOWED_NETWORKS: ${CCI_EVIDENCE_ALLOWED_NETWORKS:-}
+      CCI_TRUST_CHROME_TARGET: ${CCI_TRUST_CHROME_TARGET:-154.0.8037.57}
+      CCI_TRUST_FIREFOX_TARGET: ${CCI_TRUST_FIREFOX_TARGET:-156.0.1}
+      CCI_TRUST_CHROME_ENABLED: ${CCI_TRUST_CHROME_ENABLED:-false}
+      CCI_TRUST_FIREFOX_ENABLED: ${CCI_TRUST_FIREFOX_ENABLED:-false}
+      CCI_TRUST_EDGE_ENABLED: ${CCI_TRUST_EDGE_ENABLED:-false}
+      CCI_TRUST_APPLE_ENABLED: ${CCI_TRUST_APPLE_ENABLED:-false}
+      CCI_TRUST_UBUNTU_ENABLED: ${CCI_TRUST_UBUNTU_ENABLED:-false}
+      CCI_CHROME_POLICY_ENABLED: ${CCI_CHROME_POLICY_ENABLED:-false}
+    volumes:
+      - evidence_data:/evidence
+    networks: [evidence_backend]
+    healthcheck:
+      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:8080/up')).code == '200' ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  evidence-nginx:
+    image: nginx:1.29-alpine
+    depends_on:
+      evidence:
+        condition: service_healthy
+    volumes:
+      - ./config/evidence-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${CCI_EVIDENCE_TLS_DIR:?Set CCI_EVIDENCE_TLS_DIR}:/run/evidence-tls:ro
+    networks: [default, evidence_backend]
+networks:
+  evidence_backend:
+volumes:
+  evidence_data:

@@ -95,6 +95,26 @@ class DiagnosticSourceAgeTest < ActiveSupport::TestCase
     assert_equal @source_time, download.verified_at
   end
 
+  test "gateway acquisition keeps upstream age and does not reuse direct-mode source bytes" do
+    url = "https://source.example.test/fixture"
+    CertificateDiagnosticCache.create!(cache_id: "source:#{Digest::SHA256.hexdigest(url)}", payload: "direct",
+      expires_at: 5.days.from_now, metadata: { "fetched_at" => Time.current.iso8601 })
+    config = CertificateDiagnosticsConfiguration.new("CCI_EVIDENCE_GATEWAY_ENABLED" => "true",
+      "CCI_EVIDENCE_GATEWAY_URL" => "https://gateway.example.test", "CCI_EVIDENCE_GATEWAY_CA_FILE" => "/run/ca.crt",
+      "CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE" => "/run/client.crt",
+      "CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE" => "/run/client.key")
+    assert_raises(CertificateDiagnostics::Error) { CertificateDiagnostics::Profiles.load("trust_chrome", config) }
+    http = Struct.new(:fetched_at) { def fetch(*) = "gateway" }.new(@source_time)
+    download = CertificateDiagnostics::Sources::Download.new(config, deadline: 1, http: http)
+    assert_equal "gateway", download.get(url, max_age: 3.days)
+    assert_equal @source_time, download.verified_at
+    row = CertificateDiagnosticCache.find_by!(cache_id: "source:gateway:#{Digest::SHA256.hexdigest(url)}")
+    assert_equal "gateway", row.payload
+    assert_equal @source_time.iso8601, row.metadata.fetch("fetched_at")
+    assert_raises(CertificateDiagnostics::Error) { download.get(url, max_age: 1.day) }
+    assert_equal "gateway", row.reload.payload
+  end
+
   test "reparsing artifacts and signed CT metadata preserve the oldest authoritative timestamp" do
     row = CertificateDiagnostics::Profiles.record("trust_chrome")
     row.update!(metadata: row.metadata.merge("next_due_at" => 1.second.ago.iso8601))

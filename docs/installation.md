@@ -553,7 +553,7 @@ Consul and load-balancer failover in your environment before production use.
 
 See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.
 
-Public CA diagnostics require indexer egress to the selected official source hosts
+In standard mode, public CA diagnostics require indexer egress to the selected official source hosts
 (GitHub raw/codeload, CCADB, or Ubuntu archive/keyserver). They do not affect web
 readiness. The application image includes the package-decompression and signature
 verification tools; Ubuntu packages are read, never installed at runtime. Configure
@@ -561,14 +561,19 @@ only the desired profiles and recreate web and indexer together. Back up Postgre
 to preserve validated source caches and diagnostic history. See
 [public trust profiles](certificate-diagnostics.md#public-default-ca-trust-profiles).
 
-For restricted outbound networks, optionally set `CCI_DIAGNOSTICS_HTTP_PROXY` to
+For restricted outbound networks in standard mode, optionally set `CCI_DIAGNOSTICS_HTTP_PROXY` to
 an HTTP proxy URL on both web and indexer. This routes diagnostic and vendor-source
 HTTP/HTTPS requests; destination DNS and address checks still run locally. See the
 [proxy configuration](certificate-diagnostics.md#optional-outbound-proxy) for
 authentication, CONNECT and compatibility details.
 
+Alternatively, the opt-in [Evidence Gateway](collector-plan.md) acquires external
+diagnostic data for web and indexer without a direct fallback. It requires Nginx
+with HTTPS client authentication and an explicit responder URL allowlist.
+
 To enable additional Chrome root rules, set `CCI_CHROME_POLICY_ENABLED=true`
-together with `CCI_TRUST_CHROME_ENABLED=true`. Permit HTTPS egress to
-`www.gstatic.com` (directly or through the diagnostic proxy) for signed CT metadata.
-All source retrieval remains in the indexer. Unsupported schemas or unavailable
-required SCT evidence produce neutral results, including the combined Chrome badge.
+together with `CCI_TRUST_CHROME_ENABLED=true`. Permit the selected acquisition
+service HTTPS egress to `www.gstatic.com` for signed CT metadata.
+The indexer parses the acquired sources; gateway mode moves external downloads
+to the gateway. Unsupported schemas or unavailable required SCT evidence produce
+neutral results, including the combined Chrome badge.

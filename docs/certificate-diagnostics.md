@@ -1,9 +1,8 @@
 # Certificate usage diagnostics
 
-A separate collector deployment is under consideration. The
-[deferred collector plan](collector-plan.md) records the proposed architecture and
-open questions. It is not implemented. The behavior below describes the current
-direct/proxy-based diagnostics.
+The optional [CCI Evidence Gateway](collector-plan.md) separates external
+diagnostic acquisition from local verification. Standard direct mode remains the
+default. The checks and result semantics below apply to both modes.
 
 Diagnostics are optional, read-only observations on the certificate detail page.
 Only enabled checks appear. When all checks are disabled, the entire diagnostics
@@ -75,8 +74,12 @@ startup. All-disabled deployments make no diagnostic requests.
 | `CCI_DIAGNOSTICS_CLOCK_SKEW` | `300` | Allowed future clock skew, seconds |
 | `CCI_DIAGNOSTICS_HTTP_PROXY` | empty (direct) | Explicit HTTP proxy URL for HTTP and HTTPS diagnostic/source requests |
 | `CCI_DIAGNOSTICS_ALLOWED_NETWORKS` | empty | Comma-separated internal responder IPs/CIDRs |
+| `CCI_EVIDENCE_REFRESH_INTERVAL` | `86400` | Base interval for external source downloads and gateway CRLs; not a local certificate-check interval |
+| `CCI_EVIDENCE_GATEWAY_ENABLED` | `false` | Route external diagnostic acquisition through the gateway when `true`; no direct fallback |
+| `CCI_EVIDENCE_GATEWAY_URL` | empty | Required HTTPS origin in gateway mode |
+| `CCI_EVIDENCE_GATEWAY_CA_FILE` / `CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE` / `CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE` | empty | Required mounted TLS trust and client credentials in gateway mode |
 
-Requests use only HTTP/HTTPS on ports 80/443, with no destination credentials.
+Direct requests use only HTTP/HTTPS on ports 80/443, with no destination credentials.
 Ambient `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` variables are ignored.
 Every DNS answer and redirect is validated, and the selected address is pinned for
 the TCP connection (TLS still verifies the original hostname). Loopback, link-local,
@@ -107,6 +110,18 @@ must support IP destinations with an original hostname Host header; this include
 proxies that use CONNECT for HTTPS. The configured proxy endpoint itself may be on
 an internal network. It does not extend the responder allowlist, and vendor source
 downloads still require public destinations. Size, redirect and time limits apply.
+
+### Optional Evidence Gateway
+
+Set `CCI_EVIDENCE_GATEWAY_ENABLED=true` and provide the gateway HTTPS origin,
+trusted CA file, client certificate and client key on both web and indexer. The
+mode rejects `CCI_DIAGNOSTICS_HTTP_PROXY` and never falls back to direct
+diagnostic access. Only the gateway resolves external source and responder URLs;
+CCI connects to the configured gateway origin. Source downloads, CRLs and
+on-demand OCSP all use this path. The gateway permits exact vendor source paths
+and explicitly configured CRL/OCSP responder URLs, and limits response sizes.
+It does not supply certificate verdicts. See the [gateway deployment and TLS
+guide](collector-plan.md) for same-host and separate-host Compose examples.
 
 ## Public default CA trust profiles
 
@@ -144,8 +159,9 @@ and within `Valid-Until` when provided. Package decompression is bounded and pac
 paths are read in memory, never extracted into the application filesystem.
 
 For each stem above, configure `_ENABLED` (default `false`), `_INTERVAL` (86400
-seconds), `_TARGET` (table), `_UPDATE_INTERVAL` (86400 seconds), and `_MAX_AGE`
-(604800 seconds). Every profile has its own update schedule. Source network settings
+seconds between local certificate checks), `_TARGET` (table), and `_MAX_AGE`
+(604800 seconds). `CCI_EVIDENCE_REFRESH_INTERVAL` (86400 seconds) schedules
+external source downloads across all profiles. Source network settings
 are `CCI_TRUST_REQUEST_TIMEOUT=10`, `CCI_TRUST_MAX_BYTES=20971520`, and
 `CCI_TRUST_EXPANDED_MAX_BYTES=67108864`. Existing connection, redirect and per-pass
 budgets still apply. All settings are validated and forwarded to web and indexer.
@@ -163,7 +179,7 @@ raw-artifact caches. Stored results are also marked stale at that limit as soon
 as they are rendered, without network requests.
 Age is measured from the original fetch/verification time, or the earlier signed
 publication time for CT metadata. Reusing or reparsing cached bytes and failed
-refreshes never advance that time. Shortening the age or source-update interval
+refreshes never advance that time. Shortening the age or shared source refresh interval
 schedules a source refresh; a failed refresh keeps the prior dataset for history
 but cannot make evidence exceeding the new age limit usable again.
 
@@ -193,7 +209,7 @@ and schema, with separately scheduled signed CT metadata:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CCI_CHROME_POLICY_TARGET` | `v3` | Supported Google CT log-list format |
-| `CCI_CHROME_POLICY_UPDATE_INTERVAL` | `86400` | CT source refresh interval, seconds |
+| `CCI_EVIDENCE_REFRESH_INTERVAL` | `86400` | Shared CT and CA source refresh interval, seconds |
 | `CCI_CHROME_POLICY_MAX_AGE` | `604800` | Maximum signed publication and cache age, seconds |
 
 The supported classical X.509 schema is the one shipped with Chrome

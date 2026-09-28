@@ -15,7 +15,7 @@ module CertificateDiagnostics
       def get(url, max_age:)
         raise Error, "invalid_url" unless url.start_with?("https://")
 
-        key = "source:#{Digest::SHA256.hexdigest(url)}"
+        key = cache_key(url)
         cached = CertificateDiagnosticCache.find_by(cache_id: key)
         expiry = cached&.source_expires_at(max_age: max_age, timestamp: "fetched_at")
         if expiry && expiry > Time.current
@@ -24,7 +24,9 @@ module CertificateDiagnostics
         end
 
         bytes = @http.fetch(url)
-        fetched_at = Time.current
+        fetched_at = @http.respond_to?(:fetched_at) && @http.fetched_at ? @http.fetched_at : Time.current
+        raise Error, "source_expired" if fetched_at + max_age <= Time.current
+
         remember_time(fetched_at)
         CertificateDiagnosticCache.find_or_initialize_by(cache_id: key).update!(payload: bytes,
           expires_at: fetched_at + max_age,
@@ -33,7 +35,7 @@ module CertificateDiagnostics
       end
 
       def invalidate(url)
-        CertificateDiagnosticCache.where(cache_id: "source:#{Digest::SHA256.hexdigest(url)}").delete_all
+        CertificateDiagnosticCache.where(cache_id: cache_key(url)).delete_all
       end
 
       def [](key)
@@ -43,8 +45,16 @@ module CertificateDiagnostics
       # Vendor downloads never inherit the internal PKI responder allowlist.
       def allowed_networks = []
       def http_proxy = @config.http_proxy
+      def gateway? = @config.gateway?
+      def gateway = @config.gateway
+      def source? = true
 
       private
+
+      def cache_key(url)
+        prefix = @config.gateway? ? "source:gateway:" : "source:"
+        "#{prefix}#{Digest::SHA256.hexdigest(url)}"
+      end
 
       def remember_time(time)
         @verified_at = [@verified_at, time].compact.min

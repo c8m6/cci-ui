@@ -1,177 +1,153 @@
-# Deferred certificate diagnostics collector plan
+# CCI Evidence Gateway
 
-Status: deferred, not implemented. Discussion recorded on 2026-09-28.
+The Evidence Gateway is an optional deployment mode for certificate usage
+diagnostics. This document describes the implemented service and its operating
+contract. The filename is retained so existing links continue to work.
 
-This document preserves the agreed direction, proposals and unresolved questions
-for a later discussion. It does not authorize implementation or describe an
-available deployment mode. It was saved at the user's explicit request as an
-exception to the repository convention against retaining task plans.
+## Operating modes
 
-For current behavior, see [certificate diagnostics](certificate-diagnostics.md).
+| Mode | External diagnostic traffic | Additional services |
+| --- | --- | --- |
+| Standard (default) | The indexer downloads public trust sources and contacts CRL/OCSP endpoints directly, or through `CCI_DIAGNOSTICS_HTTP_PROXY` when configured. | None |
+| Gateway (`CCI_EVIDENCE_GATEWAY_ENABLED=true`) | Web and indexer use HTTPS to the Evidence Gateway for public trust, CRL and OCSP traffic. Only the gateway contacts external diagnostic destinations. A gateway error cannot trigger direct access. | Gateway and Nginx |
 
-## Motivation and constraints
+Other connections, including PostgreSQL, Consul, Keycloak and PuppetDB, retain
+their own network configuration. The gateway does not receive their credentials,
+the certificate inventory, area keys or private keys. Certificate imports and
+ordinary application readiness do not depend on the gateway.
 
-CCI contains sensitive data and must operate where Internet access is blocked by
-default. Proxy exceptions require individual destination approval. A TÜV assessment
-is required, but its exact criteria are not yet known.
+CCI initiates every gateway connection. The gateway never connects to CCI. The
+gateway fetches original public artifacts and CRLs at
+`CCI_EVIDENCE_REFRESH_INTERVAL` (default 86400 seconds), initially for enabled
+trust profiles and approved CRL URLs and then for previously requested URLs.
+The Ubuntu package URL is learned from the signed package index by CCI and fetched
+on its first request. OCSP requests are relayed only on demand to the configured
+responder URL. No general HTTP proxy or internal OCSP approval service exists.
 
-Approved transfer paths and separate network segments exist. CCI must initiate
-connections. Connections initiated towards the CCI host are forbidden. Response
-traffic on established outbound connections is assumed to be allowed. Internal
-HTTPS access is direct, without a proxy.
+CCI evaluates trust paths and verifies signed OCSP/CRL bytes locally. The
+gateway's cached bytes and timestamps are transport data, never a verdict. CCI
+keeps original source bytes and notices in PostgreSQL; CRL and OCSP evidence
+also retains original response bytes, URL, acquisition time and SHA-256. The
+gateway stores content-addressed bytes and acquisition times on its own volume.
+A failed refresh may retain old bytes for history but does not reset their age.
+CCI rejects expired material according to signed `nextUpdate`, source maximum
+age and certificate validity transitions, regardless of the refresh interval.
+A CRL reaching `nextUpdate` is due for a gateway refresh even before the base
+interval; CCI requests it at the boundary. Newly added certificates are
+scheduled by the existing indexer logic.
 
-The feature must be portable and independently deployable as an open-source
-component, without depending on infrastructure specific to one operator.
+`CCI_OCSP_INTERVAL`, `CCI_CRL_INTERVAL`, trust-profile `_INTERVAL` and
+`CCI_CHROME_POLICY_INTERVAL` remain local per-certificate check schedules. OCSP
+network requests occur only when an OCSP check is due. They have a different
+purpose from `CCI_EVIDENCE_REFRESH_INTERVAL`. Source-specific
+`_UPDATE_INTERVAL` settings were removed; the single refresh interval replaces
+them in both modes. Direct mode retains its previous default check and source
+refresh cadence. `_MAX_AGE` and `CCI_DIAGNOSTICS_EVIDENCE_MAX_AGE` are evidence
+validity limits rather than download schedules.
 
-## Agreed direction
+## Gateway boundary and limits
 
-- Run a separate collector on its own host using Docker and a dedicated
-  `docker-compose.yml`.
-- Serve collected data over HTTPS. CCI initiates downloads. The collector host
-  must accept HTTPS from the CCI network, while CCI requires no inbound connection.
-- Exclude Artifactory from this design.
-- Do not build a dedicated OCSP responder as part of the collector.
-- When collector mode is enabled, obtain external diagnostic data exclusively
-  through the collector. Never silently fall back to direct Internet requests.
-- Aim to cover as many existing checks as possible. Certificates from arbitrary
-  internal and public issuers may be present.
-- Target daily updates. Real-time updates are unnecessary, but evidence expiry
-  must still be respected.
-- Defer implementation until the remaining questions have been answered.
+Nginx terminates HTTPS and requires a client certificate signed by a dedicated
+client CA. It forwards only `/v1/evidence` to the gateway's internal HTTP port.
+The backend is on a separate Compose network and is not published to the host.
+It accepts three operation types:
 
-The restriction concerns external certificate-diagnostic traffic. Existing
-connections to PostgreSQL, Consul and other internal dependencies remain subject
-to their own network permissions.
+- `source`: exact official artifact paths for the selected Chrome and Firefox
+  releases, pinned Apple source, CCADB reports, Ubuntu metadata/package path,
+  and Chrome CT list and signature;
+- `crl`: exact URLs from `CCI_EVIDENCE_CRL_URLS`;
+- `ocsp`: exact URLs from `CCI_EVIDENCE_OCSP_URLS`, with a bounded DER request.
 
-## Proposed architecture, not yet finalized
+The responder lists are JSON arrays of complete HTTP(S) URLs. Unlisted issuers
+yield an unknown result in CCI. Add their URLs deliberately on the gateway host,
+then restart it. Redirects must also satisfy the same operation's target policy.
+The gateway checks every resolved address, blocks loopback, link-local, metadata
+and other reserved ranges, and pins the validated address for the connection.
+`CCI_EVIDENCE_ALLOWED_NETWORKS` can grant specific internal responder CIDRs, but
+never bypasses the exact URL list. Its default is empty. Use firewall and DNS
+policy as additional controls; container separation alone is not an egress proof.
 
-```text
-Public sources
-    ^ downloads initiated by the collector through its approved egress path
-Collector host with dedicated Docker Compose deployment
-    ^ HTTPS downloads initiated by CCI
-CCI indexer in the protected network
+The gateway bounds incoming requests to 32 KiB, OCSP bodies to 16 KiB,
+downloaded responses to 20 MiB, cache entries to 1500 and request timeouts to
+10 seconds (3 seconds to connect). CCI retains its smaller revocation response
+limit and separate source expansion limit. Compressed responses are rejected.
+No URL, response body, client key or token is logged by the gateway service.
+The original upstream URL and bytes are retained as evidence in its cache.
+
+## TLS material and access
+
+Issue a server certificate whose SAN matches the URL used by CCI
+(`evidence-nginx` on one Compose host, or the gateway DNS name on separate
+hosts). Issue a client certificate with client-auth usage from a dedicated client
+CA. Keep keys and CA material outside the repository and images. Mount these
+files read-only:
+
+| Directory | Files | Consumer |
+| --- | --- | --- |
+| `CCI_EVIDENCE_TLS_DIR` | `server.crt`, `server.key`, `client-ca.crt` | Nginx |
+| `CCI_EVIDENCE_CLIENT_DIR` | `ca.crt`, `client.crt`, `client.key` | CCI web and indexer |
+
+`ca.crt` must trust the Nginx certificate. The client key must be readable by
+application UID 10001. Rotate certificates through the deployment secret system
+and recreate affected containers. Nginx validates the client CA; use a separate
+CA or rotate it when revoking a client because this example does not configure a
+client-certificate revocation list. Restrict network reachability too, without
+using fixed client IPs as the only access control.
+
+## One-host Compose example
+
+Set `CCI_EVIDENCE_CLIENT_DIR` and `CCI_EVIDENCE_TLS_DIR` to protected directories
+outside the checkout. Set `CCI_EVIDENCE_CRL_URLS` and `CCI_EVIDENCE_OCSP_URLS`
+as needed. Use the same enabled trust checks and Chrome/Firefox targets for CCI
+and the gateway. Then start the opt-in override:
+
+```bash
+docker compose -f compose.yml -f compose.evidence.yml up --build -d --wait
 ```
 
-Separate collection and HTTPS serving into services within the Compose deployment.
-The serving component should have read-only access to published snapshots. A static
-endpoint is sufficient for snapshot distribution.
+Nginx is reachable as `https://evidence-nginx` only on the Compose application
+network; its certificate must cover `evidence-nginx`. The gateway backend is
+reachable only from Nginx on `evidence_backend`.
 
-The collector would acquire public source data on an independent schedule. It should
-have no access to CCI's database, Consul credentials, private keys, encryption secrets
-or certificate inventory. CCI should not be able to submit arbitrary URLs, bodies or
-headers that cause external requests.
+## Separate-host Compose example
 
-CCI would continue evaluating certificates locally. It should independently verify
-applicable original signatures, certificate/issuer associations and freshness.
-The intended separation is between acquisition and evaluation, not blind acceptance
-of collector verdicts. This interpretation still needs confirmation.
+On the gateway host, deploy this repository or import its published application
+image, provide the server TLS directory, configure exact responder allowlists,
+and publish HTTPS through the host firewall:
 
-Publish complete snapshots atomically. Preserve original files, source notices and
-upstream signatures. A versioned manifest should identify source URLs, targets,
-releases, hashes, original acquisition times, available signed publication times and
-expiry information. Signing the manifest and establishing its verification key
-independently of the download are proposed protections, not finalized choices.
+```bash
+docker compose -f compose.evidence-remote.yml up --build -d --wait
+```
 
-Downloading a snapshot again must not reset the age of old evidence. Failed updates
-may retain the last valid snapshot for history and availability. Expired material
-must not produce a current positive result. Alerting and retention remain open.
+On the CCI host, set `CCI_EVIDENCE_GATEWAY_URL` to that host's HTTPS origin, set
+`CCI_EVIDENCE_CLIENT_DIR`, and start CCI with the client override:
 
-Enforce CCI's diagnostic Internet restrictions outside the application. Include DNS,
-management paths and shared credentials in the threat model. Container separation
-alone is not proof of an adequate security boundary.
+```bash
+docker compose -f compose.yml -f compose.evidence-client.yml up --build -d --wait
+```
 
-## Diagnostic coverage
+Use the production base Compose file in place of `compose.yml` for production
+CCI. Web and indexer need only outbound HTTPS to the gateway for diagnostic
+traffic. The gateway needs egress to the selected official source hosts and
+approved CRL/OCSP destinations. Keep its `evidence_data` volume; CCI's
+PostgreSQL backup contains its own evidence cache.
 
-| Data or check | Proposed treatment | Remaining limitation |
-| --- | --- | --- |
-| Chrome, Firefox, Edge, Apple and Ubuntu trust | Collect original data and required metadata, publish snapshots, evaluate locally | License review, supported targets and source changes |
-| Additional Chrome policy / CT | Transfer list, signature and signing key together, preserve local verification | Usage terms and freshness |
-| CRLs | Collect explicitly configured issuer distribution points | Arbitrary issuers prevent a universally complete fixed source list |
-| OCSP | Propose disabling OCSP in collector mode initially | Not accepted yet and reduces revocation coverage |
+If the gateway is unavailable, CCI reports unknown and keeps any still-valid
+previous result with its original expiry. There is no direct fallback. Missing
+or expired evidence never becomes a current green result. Monitor gateway
+availability, disk usage and CCI diagnostic staleness independently.
 
-Not building an OCSP responder does not settle whether upstream requests should be
-relayed. Relaying would require certificate-specific communication and a separate
-design. It is not part of the agreed static distribution model. An existing internal
-OCSP service was mentioned, but its issuer coverage is unknown and the latest
-direction does not make it a dependency.
+## Provenance and redistribution
 
-Without a supported, valid CRL or available OCSP evidence, revocation status must
-remain unknown. CRLs are not a universally equivalent replacement for OCSP. Daily
-scheduling does not override an earlier `nextUpdate` or other expiry boundary.
+Gateway code and configuration are project-owned under `AGPL-3.0-only`.
+Third-party source files are downloaded at runtime and retain their terms and
+notices; the image does not bundle them. Do not publish cached vendor artifacts
+without reviewing their exact redistribution conditions. The separate
+[NGINX Open Source image](https://github.com/nginx/nginx) uses a 2-clause
+BSD-like license. Source-specific limitations and notices remain in
+[certificate diagnostics](certificate-diagnostics.md#provenance-and-licenses).
 
-## Open questions for resumption
-
-1. **OCSP scope:** Is disabling OCSP in collector mode acceptable? Otherwise, which
-   certificate-specific communication is permitted, and through which service?
-2. **CRL sources:** Can operators maintain an explicit URL allowlist? How should
-   new issuers be reported and approved? The proposal rejects arbitrary downloads
-   automatically triggered by certificate URLs.
-3. **HTTPS and authentication:** Is a TLS endpoint or reverse proxy available?
-   Should access use mTLS, tokens or network restrictions? Which CA authenticates
-   the endpoint, and how are credentials and trust material rotated?
-4. **Hosting and ownership:** Where will the collector run, which approved external
-   destinations can it reach, and who handles failed updates and source changes?
-5. **Update policy:** Who approves new browser targets? Refreshing a pinned release
-   and advancing to another release must be distinct operations. What alerting,
-   outage tolerance, retention and emergency refresh procedures are needed?
-6. **Audience:** Are downloaded data served only within one organization or also
-   to third parties? Publishing collector code is distinct from redistributing data.
-7. **Assessment:** Which TÜV criteria and existing security concept apply? What
-   evidence is required for isolation, integrity, logging, change approval and tests?
-8. **Packaging and interface:** Should the collector have its own Git repository?
-   Finalize snapshot versioning, paths, configuration and signing-key lifecycle.
-   No new environment-variable contract has been agreed.
-9. **Evaluation boundary:** Confirm that CCI still validates downloaded evidence and
-   evaluates certificates locally, while the collector only acquires source data.
-
-## Licensing findings to revisit
-
-These preliminary findings are not a complete legal clearance for the exact
-artifacts to be published. Internal deployment and runtime downloads do not
-remove applicable license or usage obligations.
-
-| Source | Preliminary finding and follow-up |
-| --- | --- |
-| CCADB | CDLA-Permissive-2.0 permits redistribution under its conditions. Include the license text and attribution required by CCADB's usage terms. |
-| Firefox/NSS | `certdata.txt` carries MPL-2.0. Preserve notices, license information and access to relevant source form when distributing transformed material. |
-| Chromium | BSD-style project license. Review exact rootstore artifacts and third-party notices before approving a public bundle. |
-| Ubuntu | Components have differing licenses, including GPL and MPL. Review the exact Ubuntu package and applicable source-availability obligations for binaries. That review is incomplete. |
-| Apple | Blanket redistribution permission for the complete selected archive has not been established. Clarify rights before public redistribution. This is an open question, not a finding of prohibition. |
-| Chrome CT | Caching is encouraged for supported uses including auditing. CT enforcement in other TLS clients is restricted. Unrestricted public redistribution has not been established. |
-| CRLs / OCSP | Conditions depend on the issuer and service. Cacheability alone does not establish public redistribution permission. |
-
-Project-owned code would follow `AGPL-3.0-only`. Third-party data retain their own
-terms and must not be presented as uniformly relicensed under AGPL. Proposed images
-should initially contain collector code, with external data downloaded at runtime
-and their provenance and notices retained.
-
-References consulted during the discussion:
-
-- [CCADB usage terms](https://www.ccadb.org/rootstores/usage)
-- [CDLA-Permissive-2.0](https://cdla.dev/permissive-2-0/)
-- [Mozilla Public License 2.0](https://www.mozilla.org/en-US/MPL/2.0/)
-- [NSS certdata.txt](https://raw.githubusercontent.com/mozilla-firefox/firefox/main/security/nss/lib/ckfw/builtins/certdata.txt)
-- [Chromium license](https://raw.githubusercontent.com/chromium/chromium/main/LICENSE)
-- [Debian package copyright, not verification of the selected Ubuntu package](https://sources.debian.org/src/ca-certificates/20250419/debian/copyright)
-- [Apple security_certificates repository](https://github.com/apple-oss-distributions/security_certificates)
-- [Chrome CT usage policy](https://googlechrome.github.io/CertificateTransparency/log_lists.html)
-- [RFC 5280: certificates and CRLs](https://www.rfc-editor.org/rfc/rfc5280.html)
-- [RFC 6960: OCSP](https://www.rfc-editor.org/info/rfc6960/)
-- [TÜVIT security qualification](https://www.tuvit.de/de/leistungen/normen-standards-richtlinien/sicherheitstechnische-qualifizierung-sq/)
-
-## Current implementation boundary and next step
-
-CCI currently downloads diagnostic sources directly or through its diagnostic HTTP
-proxy. Source adapters contain upstream locations, and public trust downloads reject
-private destination networks. There is no collector mode, snapshot import contract
-or internal-mirror configuration yet.
-
-Diagnostics run inside the existing Rails indexer. The Compose template shares
-application configuration with it. Diagnostic routines not requiring private keys
-does not establish process-level isolation from all sensitive data.
-
-When this topic resumes, resolve the open questions and agree the threat model and
-data contract first. Then define implementation work, failure cases, tests,
-documentation and any affected screenshot updates. No feature code has been changed
-as part of saving this plan.
+This deployment does not supply a network isolation proof, a complete browser
+policy verifier, a universal CRL list or a guarantee that every public issuer's
+OCSP endpoint is approved. Review allowlists, egress rules, certificate rotation
+and assessment requirements for the target environment.

@@ -29,7 +29,9 @@ module CertificateDiagnostics
 
       cert_id = OpenSSL::OCSP::CertificateId.new(@cert, @issuer, OpenSSL::Digest.new("SHA1"))
       request = OpenSSL::OCSP::Request.new.add_certid(cert_id)
-      bytes = @http.fetch(url, body: request.to_der, content_type: "application/ocsp-request")
+      request_bytes = request.to_der
+      bytes = @http.fetch(url, body: request_bytes, content_type: "application/ocsp-request")
+      retain_evidence("ocsp", url, bytes, request_digest: Digest::SHA256.hexdigest(request_bytes))
       response = OpenSSL::OCSP::Response.new(bytes)
       raise Error, "responder_error" unless response.status == OpenSSL::OCSP::RESPONSE_STATUS_SUCCESSFUL
 
@@ -127,11 +129,19 @@ module CertificateDiagnostics
       cache = CertificateDiagnosticCache.find_by(cache_id: "crl:#{key}")
       return OpenSSL::X509::CRL.new(cache.payload) if cache&.expires_at && cache.expires_at > Time.current
 
-      crl = OpenSSL::X509::CRL.new(@http.fetch(url))
+      bytes = @http.fetch(url)
+      crl = OpenSSL::X509::CRL.new(bytes)
       checked = verify_crl(crl)
-      CertificateDiagnosticCache.find_or_initialize_by(cache_id: "crl:#{key}").update!(payload: crl.to_der,
-        expires_at: checked.fetch(:expires_at))
+      retain_evidence("crl", url, bytes, cache_id: "crl:#{key}", expires_at: checked.fetch(:expires_at))
       crl
+    end
+
+    def retain_evidence(kind, url, bytes, request_digest: nil, cache_id: nil, expires_at: nil)
+      key = cache_id || "#{kind}:#{Digest::SHA256.hexdigest([@area, Certificates::Codec.fingerprint(@cert), url,
+        request_digest].join("\0"))}"
+      fetched_at = @http.respond_to?(:fetched_at) && @http.fetched_at ? @http.fetched_at : Time.current
+      CertificateDiagnosticCache.find_or_initialize_by(cache_id: key).update!(payload: bytes, expires_at: expires_at,
+        metadata: { "url" => url, "fetched_at" => fetched_at.iso8601, "sha256" => Digest::SHA256.hexdigest(bytes) })
     end
 
     def validate_crl_scope(crl)

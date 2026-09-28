@@ -95,3 +95,7 @@ Keep `PUPPETDB_TOKEN` empty unless your endpoint requires it. Set
 `CCI_LEGACY_PATHS` to `{}` and remove legacy mounts if no disk inventory exists.
 
 See [certificate usage diagnostics](certificate-diagnostics.md) for optional indexer checks, persisted evidence and configuration.
+The inline template retains standard direct diagnostics and needs no gateway
+services. For isolated diagnostic egress, use the optional
+[Evidence Gateway Compose deployment](collector-plan.md) and mount its client
+TLS material into both web and indexer.

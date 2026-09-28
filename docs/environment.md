@@ -388,8 +388,9 @@ See [certificate usage diagnostics](certificate-diagnostics.md) for optional ind
 
 Public trust profiles use independent `CCI_TRUST_CHROME`, `CCI_TRUST_FIREFOX`,
 `CCI_TRUST_EDGE`, `CCI_TRUST_APPLE` and `CCI_TRUST_UBUNTU` stems with `_ENABLED`,
-`_INTERVAL`, `_TARGET`, `_UPDATE_INTERVAL` and `_MAX_AGE` settings. All default to
-disabled with daily check/source intervals. See the [exact source targets,
+`_INTERVAL`, `_TARGET` and `_MAX_AGE` settings. All default to disabled with
+daily local check intervals. `CCI_EVIDENCE_REFRESH_INTERVAL=86400` is the shared
+external source download interval. See the [exact source targets,
 network limits and freshness rules](certificate-diagnostics.md#public-default-ca-trust-profiles).
 
 ### Diagnostic HTTP proxy
@@ -400,11 +401,22 @@ Optional percent-encoded Basic credentials are supported; HTTPS uses CONNECT wit
 normal TLS verification. Ambient proxy variables are ignored. See
 [proxy behavior and address restrictions](certificate-diagnostics.md#optional-outbound-proxy).
 
+### Optional Evidence Gateway
+
+`CCI_EVIDENCE_GATEWAY_ENABLED=false` retains the existing direct/proxy mode and
+requires no new service or secret. With `true`, set `CCI_EVIDENCE_GATEWAY_URL` to
+an HTTPS origin and mount files named by `CCI_EVIDENCE_GATEWAY_CA_FILE`,
+`CCI_EVIDENCE_GATEWAY_CLIENT_CERT_FILE` and
+`CCI_EVIDENCE_GATEWAY_CLIENT_KEY_FILE` in web and indexer. Do not set
+`CCI_DIAGNOSTICS_HTTP_PROXY` in this mode. Gateway failures do not cause direct
+Internet access. The gateway's exact CRL/OCSP URL lists and TLS deployment are
+described in the [Evidence Gateway guide](collector-plan.md).
+
 ### Additional Chrome policy
 
 `CCI_CHROME_POLICY_ENABLED=false` requires `CCI_TRUST_CHROME_ENABLED=true` when
 activated. `CCI_CHROME_POLICY_INTERVAL=86400` schedules certificate checks;
-`CCI_CHROME_POLICY_TARGET=v3`, `CCI_CHROME_POLICY_UPDATE_INTERVAL=86400` and
+`CCI_CHROME_POLICY_TARGET=v3`, `CCI_EVIDENCE_REFRESH_INTERVAL=86400` and
 `CCI_CHROME_POLICY_MAX_AGE=604800` control the signed CT source independently.
 It uses the Chrome trust target for browser-version conditions. See
 [policy coverage and incomplete evidence](certificate-diagnostics.md#additional-chrome-policy).

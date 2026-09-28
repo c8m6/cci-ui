@@ -118,6 +118,10 @@ class CertificateDiagnosticsTest < ActiveSupport::TestCase
   test "CRLs verify signatures dates scope revocation and share durable downloads" do
     crl
     assert_equal "good", check("crl")[:state]
+    retained = CertificateDiagnosticCache.where("cache_id LIKE 'crl:%'").first
+    assert_equal @http.bytes, retained.payload
+    assert_equal "http://crl.example.test/list", retained.metadata.fetch("url")
+    assert_equal Digest::SHA256.hexdigest(@http.bytes), retained.metadata.fetch("sha256")
     assert_equal "good", check("crl")[:state]
     assert_equal 1, @http.calls
     CertificateDiagnosticCache.delete_all
@@ -132,6 +136,15 @@ class CertificateDiagnosticsTest < ActiveSupport::TestCase
     assert_equal "unsupported_crl_scope", check("crl")[:reason]
     crl(extension: OpenSSL::X509::Extension.new("issuingDistributionPoint", OpenSSL::ASN1::Sequence.new([]).to_der, true))
     assert_equal "unsupported_crl_scope", check("crl")[:reason]
+  end
+
+  test "OCSP retains original responder bytes and source identity" do
+    ocsp
+    assert_equal "good", check("ocsp")[:state]
+    retained = CertificateDiagnosticCache.where("cache_id LIKE 'ocsp:%'").first
+    assert_equal @http.bytes, retained.payload
+    assert_equal "http://ocsp.example.test/", retained.metadata.fetch("url")
+    assert_equal Digest::SHA256.hexdigest(@http.bytes), retained.metadata.fetch("sha256")
   end
 
   test "missing inputs malformed bytes and transport failures remain independent unknowns" do
@@ -172,7 +185,7 @@ class CertificateDiagnosticsTest < ActiveSupport::TestCase
   test "configuration is strict independently disabled and scheduler is lease protected" do
     assert_empty CertificateDiagnosticsConfiguration.new({}).enabled
     assert_equal ["crl"], CertificateDiagnosticsConfiguration.new("CCI_CRL_ENABLED" => "true").enabled
-    %w[CCI_OCSP_ENABLED CCI_CRL_INTERVAL CCI_DIAGNOSTICS_ALLOWED_NETWORKS].each do |key|
+    %w[CCI_OCSP_ENABLED CCI_CRL_INTERVAL CCI_DIAGNOSTICS_ALLOWED_NETWORKS CCI_EVIDENCE_REFRESH_INTERVAL].each do |key|
       assert_raises(ArgumentError) { CertificateDiagnosticsConfiguration.new(key => "invalid") }
     end
     token = CertificateDiagnosticCache.acquire("test", seconds: 30)
