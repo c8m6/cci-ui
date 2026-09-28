@@ -214,7 +214,11 @@ these macros, including between polls. Warning covers `[HIGH, WARN)`, High cover
 `[CRIT, HIGH)`, and Disaster covers everything below CRIT, including expired
 certificates. These mutually exclusive ranges let lower-severity problems recover
 when a higher severity becomes applicable, without overlapping alerts. Certificate
-expiration triggers are suppressed when the master has no valid data for two hours.
+expiration triggers do not open new problems when the master has no valid data
+for two hours. An explicit recovery expression also requires fresh master data:
+existing expiration problems remain open during an outage, without false recovery
+notifications or replacement events when unchanged data returns. With fresh data,
+normal severity transitions and recovery resume.
 
 Open **Monitoring → Problems**, filter by the monitoring host and
 `component=certificate`. For example, a manual certificate with 20 days remaining
@@ -305,14 +309,19 @@ The validation script imports the shipped YAML into **7.4.5**, checks HTTP Agent
 and dependent relationships, macros, LLD paths, overrides, 35 generated items,
 all six severity bands and tags. It exercises invalid JSON, schema mismatch,
 stale timestamps, 503, 401, recovery and sudden empty inventory. Only the disposable
-host's polling interval is shortened to five seconds. The template retains `1h`.
+host's polling interval is shortened to five seconds. During the outage regression,
+the disposable template's no-data windows are shortened to 30 seconds. The script
+checks that all six open expiration events survive both an outage and return of
+unchanged data, and close only when healthy certificate values arrive. It restores
+the original expressions afterwards. The shipped template retains `1h` polling
+and `2h` no-data windows.
 It leaves a demonstration host for screenshots. Always remove the disposable
 stack afterwards. The script replaces only its named demonstration host.
 
 The 1-day disable and 30-day delete settings are checked after import, but the
-validation does not wait for those real-time intervals to elapse. The two-hour
-no-data expression is imported and validated by Zabbix, but the test does not
-wait two hours to observe it firing. Production TLS trust and downstream Actions
+validation does not wait for those real-time intervals to elapse. The no-data and
+recovery behavior is exercised with accelerated windows rather than waiting two
+hours. Production TLS trust and downstream Actions
 must be validated in the target deployment.
 
 Screenshots were captured from the running Zabbix 7.4.5 web interface with

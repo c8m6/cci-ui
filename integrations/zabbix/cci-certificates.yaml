@@ -254,6 +254,8 @@ zabbix_export:
         name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.WARN}'
         priority: WARNING
         discover: NO_DISCOVER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
           bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
         tags:
@@ -273,6 +275,8 @@ zabbix_export:
         name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.HIGH}'
         priority: HIGH
         discover: NO_DISCOVER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
           bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
         tags:
@@ -292,6 +296,8 @@ zabbix_export:
         name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.CRIT}'
         priority: DISASTER
         discover: NO_DISCOVER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
           bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
         tags:
@@ -311,6 +317,8 @@ zabbix_export:
         name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.WARN}'
         priority: WARNING
         discover: NO_DISCOVER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
           bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
         tags:
@@ -330,6 +338,8 @@ zabbix_export:
         name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.HIGH}'
         priority: HIGH
         discover: NO_DISCOVER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
           bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
         tags:
@@ -349,6 +359,8 @@ zabbix_export:
         name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.CRIT}'
         priority: DISASTER
         discover: NO_DISCOVER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
           bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
         tags:

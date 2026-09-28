@@ -60,6 +60,14 @@ class ZabbixTemplateTest < ActiveSupport::TestCase
     end
   end
 
+  test "expiration problems require fresh data before generating recovery events" do
+    @discovery.fetch("trigger_prototypes").each do |trigger|
+      assert_equal "RECOVERY_EXPRESSION", trigger.fetch("recovery_mode")
+      assert_equal "nodata(/CCI Certificates/cci.certificates.raw,2h)=0", trigger.fetch("recovery_expression")
+      assert_includes trigger.fetch("expression"), "nodata(/CCI Certificates/cci.certificates.raw,2h)=0"
+    end
+  end
+
   private
 
   def collect_values(value, key)

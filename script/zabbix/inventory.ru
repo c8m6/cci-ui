@@ -12,6 +12,7 @@ module ZabbixFixture
       { id: id, common_name: "#{renewal}-#{id}.example.test", issuer: "/CN=Synthetic Test CA", serial_number: id.to_s,
         valid_from: now - 86_400, valid_until: now + (days * 86_400), renewal: renewal }
     end
+    certificates.each { |certificate| certificate[:valid_until] = now + (180 * 86_400) } if mode == "renewed"
     certificates = [] if mode == "empty"
     version = mode == "schema" ? 2 : 1
     now -= 10_000 if mode == "stale"

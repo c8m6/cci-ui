@@ -64,6 +64,22 @@ def main():
                                     "selectMacros": "extend"})[0]
     secret = next(m for m in template["macros"] if m["macro"] == "{$CCI.ZABBIX.TOKEN}")
     assert secret["type"] == "1"
+    # Preserve the production expressions and accelerate only this disposable template.
+    prototypes = api("triggerprototype.get", {"hostids": [template["templateid"]],
+        "output": ["triggerid", "expression", "recovery_mode", "recovery_expression"],
+        "expandExpression": True})
+    assert len(prototypes) == 6 and all(p["recovery_mode"] == "1" for p in prototypes)
+    for prototype in prototypes:
+        api("triggerprototype.update", {
+            "triggerid": prototype["triggerid"],
+            "expression": prototype["expression"].replace(",2h)", ",30s)"),
+            "recovery_expression": prototype["recovery_expression"].replace(",2h)", ",30s)"),
+        })
+    health = api("trigger.get", {"hostids": [template["templateid"]],
+        "filter": {"description": "CCI: No valid monitoring data for 2 hours"},
+        "output": ["triggerid", "expression", "description"], "expandExpression": True})[0]
+    api("trigger.update", {"triggerid": health["triggerid"],
+                          "expression": health["expression"].replace(",2h)", ",30s)")})
     old = api("host.get", {"filter": {"host": ["CCI integration demonstration"]}})
     if old:
         api("host.delete", [entry["hostid"] for entry in old])
@@ -122,6 +138,35 @@ def main():
 
     def master_state():
         return api("item.get", {"itemids": [master["itemid"]], "output": ["state", "error", "lastclock"]})[0]
+
+    def expiration_events():
+        problems = api("problem.get", {"hostids": [host], "output": ["eventid", "name"]})
+        return {p["eventid"] for p in problems if p["name"].startswith(("MANUAL:", "AUTO:"))}
+
+    original_events = expiration_events()
+    assert len(original_events) == 6
+    mode("unavailable")
+    wait_for("no-data alarm fires during outage", lambda: api("trigger.get", {
+        "hostids": [host], "filter": {"description": health["description"],
+                                      "value": 1}}))
+    started = time.monotonic()
+
+    def retained_events():
+        assert expiration_events() == original_events, "Outage falsely recovered expiration problems"
+        return time.monotonic() - started >= 35
+
+    wait_for("all six expiration events remain open throughout outage", retained_events)
+    mode("valid")
+    wait_for("unchanged certificate data returns", lambda: master_state()["state"] == "0")
+    assert expiration_events() == original_events, "Unchanged data replaced existing problem events"
+    mode("renewed")
+    wait_for("fresh healthy certificates resolve expiration problems", lambda: not expiration_events())
+    mode("valid")
+    wait_for("expiration policies resume", expiration_problems)
+    for prototype in prototypes:
+        api("triggerprototype.update", {k: prototype[k] for k in
+            ["triggerid", "expression", "recovery_expression"]})
+    api("trigger.update", {"triggerid": health["triggerid"], "expression": health["expression"]})
 
     for failure, fragment in [("invalid", "Invalid CCI JSON"), ("schema", "Unsupported CCI schema"),
                               ("stale", "Stale CCI response"), ("unavailable", "503")]:
