@@ -96,7 +96,7 @@ abort "Demo host mapping failed" unless portal.reload.puppetdb_hosts.size == 3
 puts "Synthetic screenshot inventory ready: #{Certificate.count} certificates, #{rows.size} hosts."
 
 # Add a small synthetic hierarchy specifically for the CA documentation page.
-nested, = issue("Example Service CA", serial: 102, days: 18,
+nested, = issue("Example Service CA", serial: 102, days: 8,
   issuer: issuing, issuer_key: issuing_key, ca: true)
 retired_root, retired_key = issue("Example Retired Root CA", serial: 103, days: -10, ca: true)
 retired_issuer, = issue("Example Retired Issuing CA", serial: 104, days: -5,

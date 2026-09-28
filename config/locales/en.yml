@@ -35,7 +35,9 @@ en:
     expired: Expired
     future: Not yet valid
     valid: Valid
-    next_30_days: Within the next 30 days
+    expiry_warning_days:
+      one: "Within the next day"
+      other: "Within the next %{count} days"
     check_renewal: Check renewal
     search_placeholder: Search name, domain, IP, issuer, serial number or fingerprint …
     search_certificates: Search certificates

@@ -77,6 +77,10 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert((await page.$$eval('tbody tr', rows => rows.length)) >= 6);
     if (process.env.CAPTURE_DETAILS_ONLY !== '1') {
       await capture('overview.png');
+      if (process.env.CAPTURE_OVERVIEW_ONLY === '1') {
+        assert.deepEqual(errors, []);
+        return;
+      }
       await captureCa();
     }
 

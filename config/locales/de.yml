@@ -35,7 +35,9 @@ de:
     expired: Abgelaufen
     future: Noch nicht gültig
     valid: Gültig
-    next_30_days: Innerhalb der nächsten 30 Tage
+    expiry_warning_days:
+      one: "Innerhalb des nächsten Tages"
+      other: "Innerhalb der nächsten %{count} Tage"
     check_renewal: Erneuerung prüfen
     search_placeholder: Name, Domain, IP, Aussteller, Seriennummer oder Fingerprint suchen …
     search_certificates: Zertifikate durchsuchen

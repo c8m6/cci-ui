@@ -29,8 +29,8 @@ class CertificateSearch
     now = Time.current
     case status
     when "expired" then scope.where("not_after <= ?", now)
-    when "soon" then scope.where("not_before <= ? AND not_after > ? AND not_after <= ?", now, now,
-      now + 30.days)
+    when "soon" then scope.where("not_before <= ? AND not_after > ? AND not_after < ?", now, now,
+      now + CertificateExpiryConfiguration.warning_days.days)
     when "valid" then scope.where("not_before <= ? AND not_after > ?", now, now)
     when "future" then scope.where("not_before > ?", now)
     else scope
