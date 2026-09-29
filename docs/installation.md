@@ -14,7 +14,7 @@ From the project directory:
 
 ```console
 ruby bin/setup-local
-docker compose up --build -d
+docker compose up --build -d --wait
 docker compose ps
 ```
 
@@ -59,7 +59,7 @@ After code changes:
 
 ```console
 ruby bin/package-puppet
-docker compose up --build -d
+docker compose up --build -d --wait
 ```
 
 Containers use the built application code, not a mounted working directory.
@@ -343,6 +343,7 @@ Supply these variables through your deployment environment or, optionally,
 a protected `.env.production` file excluded from Git and images:
 
 ```dotenv
+CCI_IMAGE=c8m6/cci-ui:<release tag>
 POSTGRES_PASSWORD=<strong database password>
 DATABASE_URL=postgresql://cci:<URL-encoded password>@db/cci
 SECRET_KEY_BASE=<random secret of at least 64 bytes>
@@ -393,12 +394,32 @@ key_prefix "cci/zone_a/keys/" {
 Omit the final block if private keys are not needed. Each additional area needs
 its own corresponding policy. Do not place management tokens on compilers.
 
-Start services:
+### Start a published image
+
+The public image is [c8m6/cci-ui on Docker Hub](https://hub.docker.com/r/c8m6/cci-ui).
+Choose a published tag from [GitHub Releases](https://github.com/c8m6/cci-ui/releases)
+and confirm that it exists in the [image tag list](https://hub.docker.com/r/c8m6/cci-ui/tags).
+Replace `<release tag>` in `CCI_IMAGE` above with that exact tag. Review whether
+the release is marked as a prerelease before deploying it. Images currently
+support `linux/amd64`. The publishing workflow creates no `latest` alias.
+Use `c8m6/cci-ui@sha256:<digest>` to pin an immutable image.
+
+From a checkout of the matching release, after configuring the variables above:
 
 ```console
-docker compose -f compose.production.yml up --build -d
-# If using an optional env file, add: --env-file .env.production
+docker compose --env-file .env.production -f compose.production.yml pull web indexer migrate
+docker compose --env-file .env.production -f compose.production.yml up -d --no-build --wait
 ```
+
+Omit `--env-file .env.production` when supplying variables directly through the
+deployment environment. Web, indexer and the migration job use the same
+`CCI_IMAGE`. The migration job must succeed before the application starts. For
+updates to an existing deployment, follow the
+[replica and migration ordering](#deploying-multiple-web-replicas).
+
+For a local source build instead, omit `CCI_IMAGE` and run
+`docker compose --env-file .env.production -f compose.production.yml up --build -d --wait`.
+See [container publishing](container-publishing.md) for CI, tag and metadata details.
 
 The reverse proxy forwards HTTPS to `127.0.0.1:3000`, preserves the original Host
 and `Authorization` header, sets `X-Forwarded-Proto: https`, and limits request
@@ -465,7 +486,6 @@ For Consul certificates, “Archivieren” sets archive state and `status: delet
 without deleting versions or keys. UI actions are audited in PostgreSQL before
 the Consul write, with their outcome recorded afterward. Back up PostgreSQL for
 UI history and metadata whose original source is no longer available.
-
 
 ## Optional PuppetDB connection
 
@@ -550,3 +570,11 @@ replicas. Use additive migrations first and defer incompatible removals until
 the old version has stopped. Extra migration versions from a newer replica
 do not by themselves make an older replica unready. Test actual database,
 Consul and load-balancer failover in your environment before production use.
+
+## Upgrade compatibility
+
+The standalone Ruby reader exposes `CciClient#read_certificate`, replacing the
+former `fetch` method. Routes use English paths such as `/login`, `/local-login`,
+`/logout`, `/locale`, `/certificates`, `/imports/preview` and `/audit_events`,
+independently of the selected interface language. Update older external callers
+and bookmarks that still use the former method or German paths.

@@ -6,13 +6,14 @@ and Consul use their official images and do not require a custom build.
 
 ## Set up GitHub and Docker Hub
 
-Create a repository in the desired Docker Hub namespace, then configure the
+The project publishes the public [c8m6/cci-ui](https://hub.docker.com/r/c8m6/cci-ui)
+image. For a fork, create a repository in your Docker Hub namespace. Configure the
 following in GitHub under Settings → Secrets and variables → Actions:
 
 | Type | Name | Example / contents |
 | --- | --- | --- |
 | Repository variable | `DOCKERHUB_USERNAME` | Docker Hub username associated with the token |
-| Repository variable | `DOCKERHUB_IMAGE` | `my-organization/cci-ui`, without a tag or URL scheme |
+| Repository variable | `DOCKERHUB_IMAGE` | `c8m6/cci-ui`, without a tag or URL scheme |
 | Repository secret | `DOCKERHUB_TOKEN` | Docker Hub access token with write permission for this repository |
 
 The target is configurable; the GitHub repository name does not have to match
@@ -30,7 +31,7 @@ upload anything locally.
 - Pull request: build, test, and scan, without registry login or publishing.
 - Publish a GitHub release: check out its tag, build, test, scan, and publish with
   that exact release tag as the container tag, for example `v1.2.3` →
-  `my-organization/cci-ui:v1.2.3`. A separate job generates release notes for
+  `c8m6/cci-ui:v1.2.3`. A separate job generates release notes for
   that tag and updates the already-published GitHub release.
 - `workflow_dispatch`: build, test, and scan the selected ref; manual runs do not
   publish.
@@ -103,16 +104,19 @@ workflow. Event and tag filter behavior is described in the
 
 ## Deploy a published image
 
+Select an existing tag from [GitHub Releases](https://github.com/c8m6/cci-ui/releases)
+and the [Docker Hub tag list](https://hub.docker.com/r/c8m6/cci-ui/tags). Replace
+`<release tag>` below with that exact tag. The release may be marked as a prerelease.
 Set the image alongside the existing production environment variables, either
 through the deployment environment or an optional environment file:
 
 ```dotenv
-CCI_IMAGE=my-organization/cci-ui:v1.2.3
+CCI_IMAGE=c8m6/cci-ui:<release tag>
 ```
 
 ```console
-docker compose --env-file .env.production -f compose.production.yml pull web indexer
-docker compose --env-file .env.production -f compose.production.yml up -d --no-build
+docker compose --env-file .env.production -f compose.production.yml pull web indexer migrate
+docker compose --env-file .env.production -f compose.production.yml up -d --no-build --wait
 ```
 
 Web, indexer and the migration job use `CCI_IMAGE`; without this variable, local builds using
