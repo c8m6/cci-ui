@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "consul_connection"
+require_relative "certificate_provenance"
 require_relative "area_secrets"
 require_relative "certificates/vault"
 require "digest"
@@ -62,6 +63,7 @@ class CciWriter
   # Validate caller-owned metadata before constructing Consul paths or reading state.
   def validate_input(area:, certid:, client:, actor:, tags:, cert:, key:)
     validate_identifiers(area, certid, client)
+    raise ArgumentError, "Use puppet for automated certificate ownership" if CertificateProvenance.obsolete_client?(client)
     raise ArgumentError, "Invalid actor" if actor && (!actor.is_a?(String) || actor.strip.empty? || actor.length > 255)
     raise ArgumentError, "Invalid tags" unless tags.is_a?(Array) && tags.all?(String)
     raise ArgumentError, "Certificate and key do not match" if key && !cert.check_private_key(key)

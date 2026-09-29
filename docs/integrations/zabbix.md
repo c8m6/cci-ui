@@ -29,13 +29,14 @@ secret management and inject it into the **web** process:
 ```dotenv
 CCI_ZABBIX_INTEGRATION_ENABLED=true
 CCI_ZABBIX_INTEGRATION_TOKEN=<generated token>
+CCI_ZABBIX_CERTIFICATE_SOURCES=consul
 ```
 
 The default is `CCI_ZABBIX_INTEGRATION_ENABLED=false` and an empty token.
 Only `true` (case insensitive) enables the integration. Missing or whitespace-only
 tokens leave the endpoint unavailable and produce a configuration error at boot,
 without printing the token. Restart/recreate web containers after configuration
-changes. The supplied development and production Compose files forward both
+changes. The supplied development and production Compose files forward these
 variables. Their shared environment also passes them to other Rails processes,
 which do not need the integration token. The inline full Compose example keeps
 these settings on the web service.
@@ -92,14 +93,14 @@ All timestamps are Unix seconds in UTC. `serial_number` is a string, preserving
 large serial numbers. `issuer` retains the catalogue's distinguished-name text.
 `id` is the PostgreSQL certificate record ID, stable across normal reindexing.
 Different source records or certificate versions, including duplicate CNs, have
-different IDs. Rebuilding the database can change IDs. The template uses IDs for
+different IDs. In `both` mode, only the chosen representative ID is exposed. Rebuilding the database can change IDs. The template uses IDs for
 item keys and JSONPath lookup, never CNs. `valid_until` is authoritative, and
 Zabbix does not parse PEM data. Breaking schema changes require another `version`.
 
 The response contains current (`active=true`), retained, unarchived records in
-configured areas, excluding rollout status `delete`. It includes filesystem and
-Consul certificates, CA certificates, expired certificates and `norollout`
-certificates. Historical inactive Consul versions, archived records and confirmed
+configured areas, excluding rollout status `delete`. The default includes Consul
+certificates only. CA certificates, expired certificates and `norollout`
+certificates are included within the selected sources. Historical inactive Consul versions, archived records and confirmed
 filesystem deletions are excluded. Pending CSRs are not certificates.
 
 This is the existing searchable catalogue, not a fresh scan of Consul or the
@@ -109,20 +110,55 @@ inventory. Monitor the indexer and its existing health/logging separately.
 The filesystem index deliberately retains records after a file disappears until
 confirmed deletion, so removing a file alone does not remove its monitoring item.
 
-Renewal uses the existing `client` and `created_by` provenance fields, with
-case-insensitive substring matching:
+### Sources and duplicate certificates
 
-| Provenance contains | `renewal` |
+`CCI_ZABBIX_CERTIFICATE_SOURCES` selects existing catalogue records for monitoring:
+
+| Value | Scope |
 | --- | --- |
-| `acme` in either field | `acme` |
-| Otherwise `puppet` in either field | `puppet` |
-| Neither, or missing provenance | `manual` |
+| `consul` | Consul only (default) |
+| `filesystem` | Filesystem only |
+| `both` | Both sources, deduplicated by the SHA-256 fingerprint of certificate DER |
 
-ACME takes precedence for a Puppet-driven ACME client. No new Consul state or
-threshold configuration is added to CCI. Writers must use provenance consistently:
-this mapping cannot independently prove that renewal automation works. Filesystem
-records normally have no writer provenance and use the manual policy. Merely being
-listed in PuppetDB does not change renewal mode.
+Values are exact lowercase strings. Empty or unsupported values fail application
+startup. A bad value encountered during a request produces HTTP 503, never an
+empty or unexpectedly broad inventory. This setting does not change indexing,
+filesystem locations, validity, ownership or lifecycle state.
+
+In `both` mode, identical certificate bytes across paths, sources and areas
+produce one monitoring entry. Consul metadata wins over filesystem metadata.
+Within the same source, the lowest catalogue ID wins deterministically. Selection
+first excludes inactive, archived, deleted and rollout-`delete` records. A retained
+filesystem copy can therefore remain monitored after a Consul copy is archived.
+If the selected representative disappears from the eligible set, the replacement
+ID is discovered and the previous ID follows normal lost-resource handling.
+Certificates with the same CN but different fingerprints remain distinct.
+Single-source modes preserve individual catalogue records.
+
+### Ownership and legacy references
+
+`renewal` is either `manual` (user-managed) or `puppet` (automatically managed).
+The existing `client` identifies the writer software. A Puppet client selects
+`puppet`; other or missing client provenance selects the conservative manual
+policy. `created_by` remains the responsible user or service-account identity and
+does not select an automation policy. A user whose name contains `acme` or
+`puppet` is still a user. PuppetDB host associations do not change ownership.
+
+ACME is an issuance mechanism, not a separate owner or renewal category. Automated
+writers must use `client: "puppet"`, including when they obtain certificates via
+ACME. The database migration changes legacy ACME client references (case-insensitive
+`acme` components separated by `.`, `_` or `-`) to `puppet`, preserving all records,
+IDs, user identities and certificate material. New ACME client references are
+rejected by the shared writer, model validation and a database constraint.
+
+Existing immutable Consul versions are not rewritten by the database migration.
+The indexer and Ruby/Puppet reader normalize their old ACME client metadata when
+reading it, so reindexing cannot restore obsolete catalogue references. This is
+the compatibility boundary needed for retained source data. Historical audit
+records remain unchanged. Rollback removes the database constraint but keeps
+normalized Puppet values, because original client names cannot be reconstructed
+safely. Back up PostgreSQL before deployment if exact provenance restoration is
+required. This mapping does not prove that renewal automation is working.
 
 ## Import and assign the template
 
@@ -130,7 +166,9 @@ listed in PuppetDB does not change renewal mode.
 2. Open **Data collection → Templates → Import** in Zabbix 7.4.
 3. Select `cci-certificates.yaml` as the **Import file**, keep creation of new
    templates and related entities enabled, then choose **Import** and confirm
-   the import preview. The result is **CCI Certificates** in
+   the import preview. When updating an existing template, enable **Delete missing**
+   for triggers so the obsolete manual Disaster prototype is removed. Review
+   the preview before applying. The result is **CCI Certificates** in
    **Templates/Applications**.
 4. Open **Data collection → Hosts → Create host**. Choose a host name such as
    `CCI monitoring`, select a host group, and assign **CCI Certificates** in
@@ -181,7 +219,7 @@ extracts `$.certificates`. There is no HTTP request per certificate.
 | `cci.cert.valid_until[{#CERTID}]` | Unsigned expiration timestamp, displayed as Unix time |
 | `cci.cert.valid_from[{#CERTID}]` | Unsigned validity-start timestamp |
 | `cci.cert.issuer[{#CERTID}]` | Issuer text |
-| `cci.cert.renewal[{#CERTID}]` | `manual`, `acme` or `puppet` |
+| `cci.cert.renewal[{#CERTID}]` | `manual` or `puppet` |
 | `cci.cert.serial[{#CERTID}]` | Serial number string |
 
 For example, expiration uses
@@ -200,30 +238,45 @@ items per discovered certificate, plus the raw inventory and count.
 
 ## Thresholds and problems
 
-Six trigger prototypes are shipped. LLD overrides discover only the three manual
-prototypes for `manual`, or the three automatic prototypes for `acme`/`puppet`.
+Five trigger prototypes are shipped. LLD overrides discover two manual prototypes
+for `manual`, or three automatic prototypes for `puppet`. No expiration trigger
+uses Disaster severity.
 
-| Policy | Warning macro/default | High macro/default | Disaster macro/default |
+| Policy | Macro | Default | Effective range |
 | --- | --- | --- | --- |
-| Manual | `{$CCI.CERT.MANUAL.WARN}` = `60d` | `{$CCI.CERT.MANUAL.HIGH}` = `30d` | `{$CCI.CERT.MANUAL.CRIT}` = `14d` |
-| Automatic | `{$CCI.CERT.AUTO.WARN}` = `14d` | `{$CCI.CERT.AUTO.HIGH}` = `7d` | `{$CCI.CERT.AUTO.CRIT}` = `3d` |
+| Manual Warning | `{$CCI.CERT.MANUAL.WARN}` | `60d` | 30 days ≤ remaining lifetime < 60 days |
+| Manual High | `{$CCI.CERT.MANUAL.HIGH}` | `30d` | Remaining lifetime < 30 days, including expired |
+| Puppet Information | `{$CCI.CERT.AUTO.INFO}` | `7d` | 3 days < remaining lifetime ≤ 7 days |
+| Puppet Warning | `{$CCI.CERT.AUTO.WARN}` | `3d` | 1 day < remaining lifetime ≤ 3 days |
+| Puppet High | `{$CCI.CERT.AUTO.HIGH}` | `1d` | Remaining lifetime ≤ 1 day, including expired |
 
-Zabbix time suffixes express the values in seconds. Keep
-`WARN > HIGH > CRIT > 0`. Expressions compare `last(valid_until) - now()` against
-these macros, including between polls. Warning covers `[HIGH, WARN)`, High covers
-`[CRIT, HIGH)`, and Disaster covers everything below CRIT, including expired
-certificates. These mutually exclusive ranges let lower-severity problems recover
-when a higher severity becomes applicable, without overlapping alerts. Certificate
-expiration triggers do not open new problems when the master has no valid data
-for two hours. An explicit recovery expression also requires fresh master data:
-existing expiration problems remain open during an outage, without false recovery
-notifications or replacement events when unchanged data returns. With fresh data,
-normal severity transitions and recovery resume.
+Zabbix time suffixes express seconds, so `7d`, `3d` and `1d` mean exactly 7, 3
+and 1 days. Keep `AUTO.INFO > AUTO.WARN > AUTO.HIGH > 0` and
+`MANUAL.WARN > MANUAL.HIGH > 0`. Thresholds remain configurable through macros.
+Expressions use the expiration timestamp minus current server time, without
+rounding to whole days. At the exact 7/3/1-day boundaries Puppet severity is
+Information/Warning/High respectively. Above seven days there is no Puppet alert.
+The ranges are mutually exclusive. Expired certificates remain High.
+
+Manual Warning and High thresholds retain their previous values and strict
+upper boundaries. The previous Disaster stage below 14 days is removed:
+certificates remain High there, without opening another same-severity event.
+The obsolete `MANUAL.CRIT` and `AUTO.CRIT` macros are removed. When upgrading,
+review host-level overrides of `AUTO.WARN` and `AUTO.HIGH`, whose defaults now
+mean 3 and 1 days, and remove obsolete CRIT overrides. Import the updated template
+before deploying CCI, so legacy `acme` payloads fail validation until the new
+endpoint is live, rather than silently selecting an incorrect policy. Existing
+lost resources follow the configured disable/delete grace periods.
+
+Expiration triggers do not open new problems without valid master data for two
+hours. Their explicit recovery expressions also require fresh data, so existing
+problems remain open during outages. With fresh data, severity transitions and
+recovery resume.
 
 Open **Monitoring → Problems**, filter by the monitoring host and
-`component=certificate`. For example, a manual certificate with 20 days remaining
-produces **High**, while an ACME certificate with 20 days remaining produces no
-expiration problem. Review the **Tags** column to confirm the renewal routing.
+`component=certificate`. A manual certificate with 20 days remaining produces
+High, while a Puppet certificate with 20 days remaining produces no expiration
+problem. Review the **Tags** column to confirm the renewal routing.
 
 Integration health is monitored separately:
 
@@ -254,8 +307,7 @@ Configure **Alerts → Actions → Trigger actions** with conditions on these ta
 and severity. Example policy, outside CCI application logic:
 
 - `renewal=manual` and Warning → Jira workflow.
-- `renewal=acme` or `renewal=puppet`, and High → Mattermost or Slack.
-- Disaster → Mattermost and/or Jira.
+- `renewal=puppet` and High → Mattermost or Slack.
 
 CCI does not create tickets or send chat messages. Configure Zabbix media types,
 recipients and recovery operations separately. Because escalation changes the
@@ -271,7 +323,7 @@ active problem, configure ticket correlation using `cert_id` where needed.
 | TLS/network error | Server/proxy connectivity, trusted CA, hostname, firewall |
 | Unsupported master item | Item error, JSON schema/version, timestamp skew, duplicate IDs |
 | No certificate items | Master item has data, host/template linkage, discovery errors, inventory scope |
-| Unexpected policy | `client`/`created_by` provenance, ACME precedence, discovery refresh |
+| Unexpected policy | Writer `client`, migration status and discovery refresh |
 | Replaced certificate still visible | Old ID is lost, one-day disable and 30-day delete grace periods |
 | Fresh response but outdated certificates | Indexer process, source refresh errors and retained filesystem records |
 
@@ -307,7 +359,7 @@ changed by this integration.
 
 The validation script imports the shipped YAML into **7.4.5**, checks HTTP Agent
 and dependent relationships, macros, LLD paths, overrides, 35 generated items,
-all six severity bands and tags. It exercises invalid JSON, schema mismatch,
+both policies and all five trigger prototypes and tags. It exercises invalid JSON, schema mismatch,
 stale timestamps, 503, 401, recovery and sudden empty inventory. Only the disposable
 host's polling interval is shortened to five seconds. During the outage regression,
 the disposable template's no-data windows are shortened to 30 seconds. The script

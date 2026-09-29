@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "consul_connection"
+require_relative "certificate_provenance"
 require_relative "certificates/vault"
 require "digest"
 
@@ -96,6 +97,7 @@ class CciClient
     else
       data = JSON.parse((@connection.get(public_path) || raise(Error, "Version not found"))[:value])
     end
+    data["client"] = CertificateProvenance.catalog_client(data["client"])
     data.merge("version" => selected, "certid" => certid, "status" => status)
   end
 

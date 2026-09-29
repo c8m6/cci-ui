@@ -2,6 +2,8 @@
 
 require "zabbix_configuration"
 
+ZabbixConfiguration.sources
+
 if ZabbixConfiguration.enabled? && !ZabbixConfiguration.available?
   OperationalLog.error(logger: "cci.configuration",
     message: "Zabbix integration unavailable: CCI_ZABBIX_INTEGRATION_TOKEN is missing",

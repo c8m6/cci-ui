@@ -6,6 +6,14 @@ module ZabbixConfiguration
     ENV.fetch("CCI_ZABBIX_INTEGRATION_ENABLED", "false").casecmp?("true")
   end
 
+  def self.sources
+    value = ENV.fetch("CCI_ZABBIX_CERTIFICATE_SOURCES", "consul")
+    return %w[consul filesystem] if value == "both"
+    return [value] if %w[consul filesystem].include?(value)
+
+    raise ArgumentError, "CCI_ZABBIX_CERTIFICATE_SOURCES must be consul, filesystem or both"
+  end
+
   def self.token
     ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN", "")
   end

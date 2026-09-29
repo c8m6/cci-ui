@@ -47,16 +47,17 @@ class ZabbixTemplateTest < ActiveSupport::TestCase
     assert_equal(%w[{#CERTID} {#CERTCN} {#ISSUER} {#RENEWAL}],
       @discovery.fetch("lld_macro_paths").map { |entry| entry.fetch("lld_macro") })
     triggers = @discovery.fetch("trigger_prototypes")
-    assert_equal 6, triggers.length
+    assert_equal 5, triggers.length
     triggers.each { |trigger| assert_equal "NO_DISCOVER", trigger.fetch("discover") }
-    %w[manual acme puppet].each do |renewal|
+    %w[manual puppet].each do |renewal|
       overrides = @discovery.fetch("overrides").select do |override|
         Regexp.new(override.fetch("filter").fetch("conditions").first.fetch("value")).match?(renewal)
       end
       assert_equal 1, overrides.length
       pattern = Regexp.new(overrides.first.fetch("operations").first.fetch("value"))
       selected = triggers.select { |trigger| pattern.match?(trigger.fetch("name")) }
-      assert_equal(%w[WARNING HIGH DISASTER], selected.map { |trigger| trigger.fetch("priority") })
+      expected = renewal == "manual" ? %w[WARNING HIGH] : %w[INFO WARNING HIGH]
+      assert_equal(expected, selected.map { |trigger| trigger.fetch("priority") })
     end
   end
 
@@ -68,7 +69,38 @@ class ZabbixTemplateTest < ActiveSupport::TestCase
     end
   end
 
+  test "actual template expressions implement inclusive Puppet boundaries without overlapping alerts" do
+    { 8 => nil, 7 => "INFO", 4 => "INFO", 3 => "WARNING", 2 => "WARNING",
+      1 => "HIGH", 0.5 => "HIGH", 0 => "HIGH", -1 => "HIGH" }.each do |days, severity|
+      assert_equal Array(severity), priorities("AUTO:", days), "Puppet at #{days} days"
+    end
+    assert_equal [], priorities("AUTO:", 7 + (1.0 / 86_400))
+    assert_equal ["INFO"], priorities("AUTO:", 3 + (1.0 / 86_400))
+    assert_equal ["WARNING"], priorities("AUTO:", 1 + (1.0 / 86_400))
+    { 61 => [], 45 => ["WARNING"], 20 => ["HIGH"], 14 => ["HIGH"], 5 => ["HIGH"],
+      -1 => ["HIGH"] }.each { |days, expected| assert_equal expected, priorities("MANUAL:", days) }
+    refute_includes collect_values(@export, "priority"), "DISASTER"
+  end
+
   private
+
+  # Evaluate comparisons from the shipped expressions rather than a second policy.
+  def priorities(prefix, days)
+    macros = @template.fetch("macros").to_h { |entry| [entry.fetch("macro"), entry["value"]] }
+    selected = @discovery.fetch("trigger_prototypes").select do |trigger|
+      next false unless trigger.fetch("name").start_with?(prefix)
+
+      expression = trigger.fetch("expression").gsub(%r{last\(/CCI Certificates/cci.cert.valid_until\[\{#CERTID\}\]\)-now\(\)},
+        (days * 86_400).to_s).gsub("nodata(/CCI Certificates/cci.certificates.raw,2h)", "0")
+      expression = expression.gsub(/\{\$[A-Z.]+\}/) { |macro| (Integer(macros.fetch(macro).delete_suffix("d")) * 86_400).to_s }
+      expression.split(" and ").all? do |comparison|
+        match = /\A(-?[0-9.]+)(<=|>=|<|>|=)(-?[0-9.]+)\z/.match(comparison)
+        assert match, "Unrecognized expression: #{comparison}"
+        Float(match[1]).public_send(match[2] == "=" ? "==" : match[2], Float(match[3]))
+      end
+    end
+    selected.map { |trigger| trigger.fetch("priority") }
+  end
 
   def collect_values(value, key)
     case value

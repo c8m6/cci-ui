@@ -64,7 +64,7 @@ See [HA deployment](installation.md#deploying-multiple-web-replicas).
 
 The indexer deliberately receives no `CCI_AREA_KEYS`, individual area keys,
 `CSR_DEFAULT_*`, `OIDC_ROLE_MAP`, `OIDC_DISPLAY_NAME_CLAIM`,
-`CCI_SHOW_ERROR_DETAILS`, `CCI_ZABBIX_INTEGRATION_*` or `PORT`.
+`CCI_SHOW_ERROR_DETAILS`, `CCI_ZABBIX_INTEGRATION_*`, `CCI_ZABBIX_CERTIFICATE_SOURCES` or `PORT`.
 It reads public certificate material and does not decrypt stored private keys.
 Its Consul token needs read access to all configured certid and certificate
 prefixes, including the transaction reads used by CA discovery. PostgreSQL
@@ -79,7 +79,8 @@ dependency explicitly. `RAILS_MAX_THREADS` also controls the database pool.
 
 The Zabbix endpoint is disabled by default. Set the two
 `CCI_ZABBIX_INTEGRATION_*` values on web only when enabling
-[Zabbix monitoring](integrations/zabbix.md).
+[Zabbix monitoring](integrations/zabbix.md). `CCI_ZABBIX_CERTIFICATE_SOURCES`
+defaults to `consul`; choose `filesystem` or `both` to change monitoring scope.
 
 Legacy storage is mounted read/write for web and read-only for the indexer.
 TLS mounts are read-only. Web receives PuppetDB connection settings because

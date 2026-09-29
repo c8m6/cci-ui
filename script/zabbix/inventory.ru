@@ -7,12 +7,13 @@ module ZabbixFixture
   def self.payload(mode)
     now = Time.now.to_i
     rows = [[1, "manual", 45], [2, "manual", 20], [3, "manual", 5],
-      [4, "acme", 10], [5, "acme", 5], [6, "puppet", 1], [7, "puppet", 90]]
+      [4, "puppet", 4], [5, "puppet", 2], [6, "puppet", 0.5], [7, "puppet", 90]]
     certificates = rows.map do |id, renewal, days|
       { id: id, common_name: "#{renewal}-#{id}.example.test", issuer: "/CN=Synthetic Test CA", serial_number: id.to_s,
-        valid_from: now - 86_400, valid_until: now + (days * 86_400), renewal: renewal }
+        valid_from: now - 86_400, valid_until: now + (days * 86_400).to_i, renewal: renewal }
     end
     certificates.each { |certificate| certificate[:valid_until] = now + (180 * 86_400) } if mode == "renewed"
+    certificates.first[:renewal] = "acme" if mode == "obsolete-reference"
     certificates = [] if mode == "empty"
     version = mode == "schema" ? 2 : 1
     now -= 10_000 if mode == "stale"

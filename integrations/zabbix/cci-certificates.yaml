@@ -8,8 +8,8 @@ zabbix_export:
   - uuid: 6588904591884b7e82f30de2ccf3ae7f
     template: CCI Certificates
     name: CCI Certificates
-    description: 'Read-only CCI certificate monitoring. Target: Zabbix 7.4.5. Configure URL and secret token on
-      one monitoring host. No agent interface required.'
+    description: 'Read-only CCI certificate monitoring. Target: Zabbix 7.4.5. Configure URL and secret token
+      on one monitoring host. No agent interface required.'
     groups:
     - name: Templates/Applications
     items:
@@ -35,33 +35,33 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var data;\ntry { data = JSON.parse(value); } catch (e) { throw \"Invalid CCI JSON response\"; }\nfunction\
-          \ integer(n) { return typeof n === \"number\" && isFinite(n) && Math.floor(n) === n && Math.abs(n) <=\
-          \ 9007199254740991; }\nif (!data || data.version !== 1 || !integer(data.generated_at) || !Array.isArray(data.certificates))\
-          \ {\n    throw \"Unsupported CCI schema or invalid inventory\";\n}\nvar now = Math.floor(Date.now() /\
-          \ 1000);\nif (data.generated_at < now - 7200 || data.generated_at > now + 300) {\n    throw \"Stale CCI\
-          \ response or clock skew\";\n}\nvar ids = {};\nfor (var i = 0; i < data.certificates.length; i++) {\n\
-          \    var c = data.certificates[i];\n    if (!c || !integer(c.id) || c.id <= 0 || ids[c.id] ||\n      \
-          \  typeof c.common_name !== \"string\" || typeof c.issuer !== \"string\" ||\n        typeof c.serial_number\
-          \ !== \"string\" || !integer(c.valid_from) ||\n        !integer(c.valid_until) || c.valid_until < 0 ||\
-          \ c.valid_from < 0 ||\n        c.valid_until < c.valid_from || [\"manual\", \"acme\", \"puppet\"].indexOf(c.renewal)\
-          \ === -1) {\n        throw \"Invalid CCI certificate metadata\";\n    }\n    ids[c.id] = true;\n}\nreturn\
-          \ value;"
+        - "var data;\ntry { data = JSON.parse(value); } catch (e) { throw \"Invalid CCI JSON response\"; }\n\
+          function integer(n) { return typeof n === \"number\" && isFinite(n) && Math.floor(n) === n && Math.abs(n)\
+          \ <= 9007199254740991; }\nif (!data || data.version !== 1 || !integer(data.generated_at) || !Array.isArray(data.certificates))\
+          \ {\n    throw \"Unsupported CCI schema or invalid inventory\";\n}\nvar now = Math.floor(Date.now()\
+          \ / 1000);\nif (data.generated_at < now - 7200 || data.generated_at > now + 300) {\n    throw \"\
+          Stale CCI response or clock skew\";\n}\nvar ids = {};\nfor (var i = 0; i < data.certificates.length;\
+          \ i++) {\n    var c = data.certificates[i];\n    if (!c || !integer(c.id) || c.id <= 0 || ids[c.id]\
+          \ ||\n        typeof c.common_name !== \"string\" || typeof c.issuer !== \"string\" ||\n        typeof\
+          \ c.serial_number !== \"string\" || !integer(c.valid_from) ||\n        !integer(c.valid_until) ||\
+          \ c.valid_until < 0 || c.valid_from < 0 ||\n        c.valid_until < c.valid_from || [\"manual\",\
+          \ \"puppet\"].indexOf(c.renewal) === -1) {\n        throw \"Invalid CCI certificate metadata\";\n\
+          \    }\n    ids[c.id] = true;\n}\nreturn value;"
       tags:
       - tag: component
         value: certificate
       - tag: source
         value: cci
-      description: One authenticated request for the entire inventory. Rejects malformed, stale or unsupported responses
-        before discovery. See item errors for HTTP, TLS and authentication failures.
+      description: One authenticated request for the entire inventory. Rejects malformed, stale or unsupported
+        responses before discovery. See item errors for HTTP, TLS and authentication failures.
       triggers:
       - uuid: 7621c596143540ef99031dfb8a806a27
         expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=1
         name: 'CCI: No valid monitoring data for 2 hours'
         priority: HIGH
-        description: Check endpoint reachability, HTTP status (401 means authentication failed), TLS trust, token
-          configuration and preprocessing errors. Invalid JSON/schema and stale responses do not count as successful
-          data.
+        description: Check endpoint reachability, HTTP status (401 means authentication failed), TLS trust,
+          token configuration and preprocessing errors. Invalid JSON/schema and stale responses do not count
+          as successful data.
         tags:
         - tag: component
           value: certificate
@@ -91,8 +91,8 @@ zabbix_export:
           or (last(/CCI Certificates/cci.certificates.count)=0 and max(/CCI Certificates/cci.certificates.count,30d)>0))
         name: 'CCI: Certificate inventory below expectation'
         priority: WARNING
-        description: Inventory became empty after containing certificates in the last 30 days, or is below the configured
-          minimum. An initially empty inventory is allowed by default.
+        description: Inventory became empty after containing certificates in the last 30 days, or is below
+          the configured minimum. An initially empty inventory is allowed by default.
         tags:
         - tag: component
           value: certificate
@@ -249,15 +249,16 @@ zabbix_export:
           value: '{#CERTCN}'
       trigger_prototypes:
       - uuid: 8c934d8e80804888b2ac4f0b077d4cca
-        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.WARN} and last(/CCI
-          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.MANUAL.HIGH} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.WARN} and
+          last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.MANUAL.HIGH} and nodata(/CCI
+          Certificates/cci.certificates.raw,2h)=0
         name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.WARN}'
         priority: WARNING
         discover: NO_DISCOVER
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
-          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        description: 'User-managed expiration policy: Warning below 60 days and High below 30 days by default,
+          including expired certificates. Exclusive bands, gated on fresh monitoring data. No Disaster severity.'
         tags:
         - tag: component
           value: certificate
@@ -270,36 +271,15 @@ zabbix_export:
         - tag: common_name
           value: '{#CERTCN}'
       - uuid: c817c86a7a1445e192678d5cdc789a90
-        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.HIGH} and last(/CCI
-          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.MANUAL.CRIT} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.HIGH} and
+          nodata(/CCI Certificates/cci.certificates.raw,2h)=0
         name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.HIGH}'
         priority: HIGH
         discover: NO_DISCOVER
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
-          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
-        tags:
-        - tag: component
-          value: certificate
-        - tag: source
-          value: cci
-        - tag: renewal
-          value: '{#RENEWAL}'
-        - tag: cert_id
-          value: '{#CERTID}'
-        - tag: common_name
-          value: '{#CERTCN}'
-      - uuid: 99935ed94f204bea8899b672b5956d5d
-        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.MANUAL.CRIT} and nodata(/CCI
-          Certificates/cci.certificates.raw,2h)=0
-        name: 'MANUAL: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.MANUAL.CRIT}'
-        priority: DISASTER
-        discover: NO_DISCOVER
-        recovery_mode: RECOVERY_EXPRESSION
-        recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
-          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        description: 'User-managed expiration policy: Warning below 60 days and High below 30 days by default,
+          including expired certificates. Exclusive bands, gated on fresh monitoring data. No Disaster severity.'
         tags:
         - tag: component
           value: certificate
@@ -312,15 +292,17 @@ zabbix_export:
         - tag: common_name
           value: '{#CERTCN}'
       - uuid: be6a23dc63d24496a5e81f7570e1e17c
-        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.AUTO.WARN} and last(/CCI
-          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.AUTO.HIGH} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.WARN}'
-        priority: WARNING
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<={$CCI.CERT.AUTO.INFO} and
+          last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()>{$CCI.CERT.AUTO.WARN} and nodata(/CCI
+          Certificates/cci.certificates.raw,2h)=0
+        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) remaining lifetime <= {$CCI.CERT.AUTO.INFO} (Information)'
+        priority: INFO
         discover: NO_DISCOVER
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
-          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        description: 'Puppet-managed certificates: Information at 7 days, Warning at 3 days, High at 1 day
+          or less (defaults). Inclusive upper and exclusive lower bounds prevent overlapping alerts. Expired
+          certificates remain High. No Disaster severity.'
         tags:
         - tag: component
           value: certificate
@@ -333,15 +315,17 @@ zabbix_export:
         - tag: common_name
           value: '{#CERTCN}'
       - uuid: 8aa26dc678964f2cad57ac09e66145ef
-        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.AUTO.HIGH} and last(/CCI
-          Certificates/cci.cert.valid_until[{#CERTID}])-now()>={$CCI.CERT.AUTO.CRIT} and nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.HIGH}'
-        priority: HIGH
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<={$CCI.CERT.AUTO.WARN} and
+          last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()>{$CCI.CERT.AUTO.HIGH} and nodata(/CCI
+          Certificates/cci.certificates.raw,2h)=0
+        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) remaining lifetime <= {$CCI.CERT.AUTO.WARN} (Warning)'
+        priority: WARNING
         discover: NO_DISCOVER
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
-          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        description: 'Puppet-managed certificates: Information at 7 days, Warning at 3 days, High at 1 day
+          or less (defaults). Inclusive upper and exclusive lower bounds prevent overlapping alerts. Expired
+          certificates remain High. No Disaster severity.'
         tags:
         - tag: component
           value: certificate
@@ -354,15 +338,16 @@ zabbix_export:
         - tag: common_name
           value: '{#CERTCN}'
       - uuid: 0e8299551b6d48f39663f062f3d48caa
-        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<{$CCI.CERT.AUTO.CRIT} and nodata(/CCI
-          Certificates/cci.certificates.raw,2h)=0
-        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) expires in less than {$CCI.CERT.AUTO.CRIT}'
-        priority: DISASTER
+        expression: last(/CCI Certificates/cci.cert.valid_until[{#CERTID}])-now()<={$CCI.CERT.AUTO.HIGH} and
+          nodata(/CCI Certificates/cci.certificates.raw,2h)=0
+        name: 'AUTO: Certificate {#CERTCN} ({#CERTID}) remaining lifetime <= {$CCI.CERT.AUTO.HIGH} (High)'
+        priority: HIGH
         discover: NO_DISCOVER
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: nodata(/CCI Certificates/cci.certificates.raw,2h)=0
-        description: Authoritative expiration timestamp compared with current server time. Non-overlapping severity
-          bands avoid simultaneous expiration alerts. Negative lifetime remains Disaster.
+        description: 'Puppet-managed certificates: Information at 7 days, Warning at 3 days, High at 1 day
+          or less (defaults). Inclusive upper and exclusive lower bounds prevent overlapping alerts. Expired
+          certificates remain High. No Disaster severity.'
         tags:
         - tag: component
           value: certificate
@@ -392,7 +377,7 @@ zabbix_export:
         filter:
           conditions:
           - macro: '{#RENEWAL}'
-            value: ^(acme|puppet)$
+            value: ^puppet$
             formulaid: A
         operations:
         - operationobject: TRIGGER_PROTOTYPE
@@ -416,19 +401,16 @@ zabbix_export:
       description: Expected minimum certificate count. Zero allows an initially empty inventory.
     - macro: '{$CCI.CERT.MANUAL.WARN}'
       value: 60d
-      description: Manual renewal warn threshold (60 days). Keep WARN > HIGH > CRIT > 0.
+      description: Manual renewal warn threshold (60 days). Keep WARN > HIGH > 0.
     - macro: '{$CCI.CERT.MANUAL.HIGH}'
       value: 30d
-      description: Manual renewal high threshold (30 days). Keep WARN > HIGH > CRIT > 0.
-    - macro: '{$CCI.CERT.MANUAL.CRIT}'
-      value: 14d
-      description: Manual renewal crit threshold (14 days). Keep WARN > HIGH > CRIT > 0.
-    - macro: '{$CCI.CERT.AUTO.WARN}'
-      value: 14d
-      description: Auto renewal warn threshold (14 days). Keep WARN > HIGH > CRIT > 0.
-    - macro: '{$CCI.CERT.AUTO.HIGH}'
+      description: Manual renewal high threshold (30 days). Keep WARN > HIGH > 0.
+    - macro: '{$CCI.CERT.AUTO.INFO}'
       value: 7d
-      description: Auto renewal high threshold (7 days). Keep WARN > HIGH > CRIT > 0.
-    - macro: '{$CCI.CERT.AUTO.CRIT}'
+      description: Puppet Information threshold (7 days). Keep INFO > WARN > HIGH > 0.
+    - macro: '{$CCI.CERT.AUTO.WARN}'
       value: 3d
-      description: Auto renewal crit threshold (3 days). Keep WARN > HIGH > CRIT > 0.
+      description: Puppet expiration threshold. Keep INFO > WARN > HIGH > 0. Values use Zabbix time suffixes.
+    - macro: '{$CCI.CERT.AUTO.HIGH}'
+      value: 1d
+      description: Puppet expiration threshold. Keep INFO > WARN > HIGH > 0. Values use Zabbix time suffixes.

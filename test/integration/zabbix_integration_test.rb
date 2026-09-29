@@ -4,14 +4,16 @@ require "test_helper"
 
 class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
   setup do
-    @saved_environment = ENV.to_h.slice("CCI_ZABBIX_INTEGRATION_ENABLED", "CCI_ZABBIX_INTEGRATION_TOKEN", "AUTH_MODE")
+    @saved_environment = ENV.to_h.slice("CCI_ZABBIX_INTEGRATION_ENABLED", "CCI_ZABBIX_INTEGRATION_TOKEN", "CCI_ZABBIX_CERTIFICATE_SOURCES",
+      "AUTH_MODE")
     ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = "true"
     ENV["CCI_ZABBIX_INTEGRATION_TOKEN"] = "synthetic-monitoring-token-for-tests"
     ENV["AUTH_MODE"] = "oidc"
+    ENV.delete("CCI_ZABBIX_CERTIFICATE_SOURCES")
   end
 
   teardown do
-    %w[CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN AUTH_MODE].each do |name|
+    %w[CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN CCI_ZABBIX_CERTIFICATE_SOURCES AUTH_MODE].each do |name|
       ENV[name] = @saved_environment[name]
     end
   end
@@ -51,9 +53,9 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
   test "snapshot has exact public fields and stable ids with duplicate common names" do
     cert, key = issue
     manual = store(cert, key: key, certid: "manual", client: "cci-ui")
-    acme = store(cert, certid: "acme", client: "puppet-acme")
+    automated = store(cert, certid: "automated", client: "puppet")
     puppet = store(cert, certid: "puppet", client: "puppet")
-    acme.update!(created_by: "ACME-renewer")
+    automated.update!(created_by: "ACME-renewer")
     travel_to Time.zone.local(2026, 9, 28, 12) do
       get "/integrations/zabbix", headers: authorization
       assert_response :success
@@ -64,8 +66,8 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
       assert_equal %w[certificates generated_at version], body.keys.sort
       assert_equal 1, body.fetch("version")
       assert_equal Time.current.to_i, body.fetch("generated_at")
-      assert_equal([manual.id, acme.id, puppet.id], body.fetch("certificates").map { |entry| entry.fetch("id") })
-      assert_equal(%w[manual acme puppet], body.fetch("certificates").map { |entry| entry.fetch("renewal") })
+      assert_equal([manual.id, automated.id, puppet.id], body.fetch("certificates").map { |entry| entry.fetch("id") })
+      assert_equal(%w[manual puppet puppet], body.fetch("certificates").map { |entry| entry.fetch("renewal") })
       assert_equal({ "id" => manual.id, "common_name" => manual.common_name, "issuer" => manual.issuer,
         "serial_number" => manual.serial, "valid_from" => cert.not_before.to_i, "valid_until" => cert.not_after.to_i,
         "renewal" => "manual" }, body.fetch("certificates").first)
@@ -78,7 +80,7 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "only current retained configured inventory is monitored including expired and filesystem certificates" do
+  test "default monitors current retained configured Consul inventory including expired certificates" do
     cert = issue(expired: true).first
     current = store(cert, certid: "current")
     old = store(cert, certid: "old")
@@ -91,15 +93,55 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
     deleted.update!(deleted_at: Time.current)
     retired.update!(rollout_status: "delete")
     foreign.update_columns(area: "removed_area")
-    disk = CatalogIndexer.new.upsert(cert, area: "zone_a", source: "filesystem", source_id: "synthetic.pem#0", tags: [])
+    CatalogIndexer.new.upsert(cert, area: "zone_a", source: "filesystem", source_id: "synthetic.pem#0", tags: [])
     get "/integrations/zabbix", headers: authorization
-    assert_equal([current.id, disk.id], response.parsed_body.fetch("certificates").map { |entry| entry.fetch("id") })
+    assert_equal([current.id], response.parsed_body.fetch("certificates").map { |entry| entry.fetch("id") })
   end
 
-  test "provenance mapping is case insensitive with acme priority and conservative fallback" do
-    [[nil, nil, "manual"], ["cci-ui", "operator", "manual"], ["puppet", "ACME-worker", "acme"],
-      ["external", "puppet-agent", "puppet"], ["acme.sh", nil, "acme"]].each do |client, actor, expected|
+  test "only writer provenance selects Puppet while user identities remain manual" do
+    [[nil, nil, "manual"], %w[cci-ui ACME-user manual], %w[puppet ACME-worker puppet],
+      %w[cci-ui puppet-agent manual], ["PUPPET", nil, "puppet"]].each do |client, actor, expected|
       assert_equal expected, Certificate.new(client: client, created_by: actor).renewal_mode
+    end
+  end
+
+  test "source selection is explicit and invalid values fail closed" do
+    consul = store(issue.first)
+    disk = CatalogIndexer.new.upsert(issue(serial: 2).first, area: "zone_a", source: "filesystem",
+      source_id: "synthetic.pem#0", tags: [])
+    { nil => [consul.id], "consul" => [consul.id], "filesystem" => [disk.id],
+      "both" => [consul.id, disk.id] }.each do |value, ids|
+      ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = value
+      get "/integrations/zabbix", headers: authorization
+      assert_response :success
+      assert_equal(ids, response.parsed_body.fetch("certificates").map { |entry| entry.fetch("id") })
+    end
+    ["", "invalid", "CONSUL", "../legacy"].each do |value|
+      ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = value
+      assert_raises(ArgumentError) { ZabbixConfiguration.sources }
+      get "/integrations/zabbix", headers: authorization
+      assert_response :service_unavailable
+      assert_empty response.body
+    end
+  end
+
+  test "both deduplicates DER fingerprints across sources and areas with deterministic Consul precedence" do
+    ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = "both"
+    cert = issue.first
+    disk = CatalogIndexer.new.upsert(cert, area: "zone_a", source: "filesystem", source_id: "first.pem#0", tags: [])
+    consul = store(cert, client: "puppet")
+    store(cert, area: "zone_b", certid: "copy", client: "cci-ui")
+    distinct = store(issue(serial: 2).first, certid: "same-name")
+    get "/integrations/zabbix", headers: authorization
+    rows = response.parsed_body.fetch("certificates")
+    assert_equal([consul.id, distinct.id], rows.map { |row| row.fetch("id") })
+    assert_equal "puppet", rows.first.fetch("renewal")
+    assert_equal disk.common_name, distinct.common_name
+    assert_equal 4, Certificate.count
+    2.times do
+      CatalogIndexer.new.consul
+      get "/integrations/zabbix", headers: authorization
+      assert_equal rows, response.parsed_body.fetch("certificates")
     end
   end
 
