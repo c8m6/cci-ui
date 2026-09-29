@@ -38,6 +38,15 @@ Puppet uses the Consul HTTP API directly. Rails, Keycloak and PostgreSQL are not
 in the runtime path of a Puppet compile. Consul must remain available for these
 requests. Existing NFS access is unchanged.
 
+## Certificate details
+
+The detail view shows a chain hierarchy from root CA through intermediates to
+the selected certificate, with validity badges and links. Metadata, reported
+PuppetDB hosts, status and archive controls, versions and Hiera configuration
+appear below it. This dark-theme example uses synthetic certificates and hosts.
+
+![Certificate details with synthetic PuppetDB hosts, version history and Consul status controls](screenshots/details.png)
+
 ## PostgreSQL
 
 | Table | Contents and responsibility |
@@ -174,6 +183,8 @@ its private-key path and decryption secret when distributing keys. Tokens are
 sent in headers, not URLs.
 
 ## Audit logs
+
+![Area-restricted audit log with synthetic archive, status and export events](screenshots/audit.png)
 
 `<area_id>_auditor` grants read access only to that area's audit logs at
 `/audit_events`. Multiple Auditor roles allow a combined view of the corresponding

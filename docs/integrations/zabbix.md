@@ -283,7 +283,7 @@ read-only and does not repair an unavailable source or trigger certificate renew
 The Rails suite includes endpoint authentication, exact public fields, inventory
 selection, lifecycle mapping, token filtering, failure responses and template
 structure tests. Run it using the current image and isolated services as described
-in the [README](../../README.md#code-checks-and-tests).
+in the [contribution guide](../../CONTRIBUTING.md#development-and-validation).
 
 For a real Zabbix import and discovery test, use the disposable stack below. It
 contains only synthetic public metadata and demonstration credentials. Python 3

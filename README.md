@@ -1,234 +1,119 @@
 # CCI-UI
 
-**Controlled Cryptographic Item** — certificate management with configurable permission
-areas, built with Ruby on Rails, Hotwire, PostgreSQL and HashiCorp Consul.
+**Controlled Cryptographic Item** — a web application for managing X.509
+certificates across configurable permission areas. Search existing filesystem
+inventories alongside certificates stored in Consul, manage versions, create
+certificate requests, and export certificates and authorized private keys.
 
-Search legacy files and new certificates together, manage certificate versions
-and Puppet status, and export PEM, DER, PKCS#12/PFX or JKS. The project is multilingual,
-with a German and English application interface. The language follows your browser
-preferences and can be changed in the language menu. See
-[interface languages and adding translations](docs/localization.md).
+[![Build & Tests](https://img.shields.io/github/actions/workflow/status/c8m6/cci-ui/docker-publish.yml?branch=main&label=Build%20%26%20Tests)](https://github.com/c8m6/cci-ui/actions/workflows/docker-publish.yml)
+[![CodeQL](https://github.com/c8m6/cci-ui/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/c8m6/cci-ui/actions/workflows/github-code-scanning/codeql)
+[![Release](https://img.shields.io/github/v/release/c8m6/cci-ui?include_prereleases&sort=date&label=Release)](https://github.com/c8m6/cci-ui/releases)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue)](LICENSE)
+[![Docker: c8m6/cci-ui](https://img.shields.io/badge/Docker-c8m6%2Fcci--ui-blue)](https://hub.docker.com/r/c8m6/cci-ui)
+
+Built with Ruby on Rails, Hotwire, PostgreSQL and HashiCorp Consul, with German
+and English interfaces. The release badge includes prereleases. Check the
+[release notes](https://github.com/c8m6/cci-ui/releases) before deploying.
+
+![Certificate overview with synthetic certificates, validity filters, Puppet status and host counts](docs/screenshots/overview.png)
+
+The overview shows the actual application with synthetic certificates, demo
+identities and PuppetDB host associations. Detailed views are documented under
+[certificate details](docs/technik.md#certificate-details),
+[CA inventory](docs/ca-inventory.md) and [audit logs](docs/technik.md#audit-logs).
+
+## Features
+
+- **Certificate management:** search and filter certificates from Consul and
+  legacy files, preview imports, confirm overwrites, retain and activate
+  versions, inspect certificate chains, and export PEM, DER, PKCS#12/PFX or JKS.
+  Bulk and chain exports are available where applicable.
+- **Certificate requests:** create RSA or EC CSRs, retain encrypted request
+  keys, and publish matching issued certificates to Consul. Certificate issuance
+  by a CA remains an external step.
+- **Infrastructure integration:** Puppet readers and Hiera output for
+  certificate distribution, optional PuppetDB host associations, and an optional
+  CA inventory. Consul certificates have status and archive controls, while
+  filesystem deletion uses a separate confirmation and recovery workflow.
+- **Access and audit:** Keycloak OIDC authentication, independent area-specific
+  Reader, Writer, Key Exporter, CSR and Auditor roles, encrypted keys for imports and certificate requests,
+  and audit records for UI changes and exports.
+- **Operations:** container deployment, health checks, configurable expiry
+  warnings, a Zabbix 7.4 monitoring template, and German/English interfaces with
+  light and dark themes.
+
+**Puppet status processing is not implemented in the supplied manifests.** The
+UI stores `active`, `norollout` and `delete`, but these values do not yet suspend
+rollout or remove managed files. Read the
+[status contract and rollout requirements](docs/puppet.md#prepared-status-contract)
+before relying on them.
 
 ## Quick start
 
+For local evaluation, install Docker Engine with Compose 2.24 or newer and Ruby
+for the secret setup helper. Allow approximately 2 GiB of RAM and a free local
+port 3000.
+
 ```console
+git clone https://github.com/c8m6/cci-ui.git
+cd cci-ui
 ruby bin/setup-local
-docker compose up --build -d
-```
-
-Open [http://localhost:3000](http://localhost:3000) and select a local test identity.
-Keycloak is optional in explicit local mode.
-
-The development Compose defaults use **Zone A** and **Zone B**, with local
-`data/` mounted as Zone A's `/legacy` inventory, writable by the web service
-and read-only for the indexer. Production settings
-come entirely from environment variables:
-
-```bash
-export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
-export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
-export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base64 key>"}'
-```
-
-No area YAML or configuration mount is required. `.env` files are optional;
-`ruby bin/setup-local --stdout` emits exports without writing a file for a new
-installation. Keep the generated keys available for decryption. See the
-[environment reference](docs/environment.md) and
-[production mount examples](docs/installation.md#configuring-areas).
-
-Area IDs, display names, roles and local test identities are generated from
-`CCI_AREAS`. New uploads are stored only in Consul. The indexer refreshes metadata
-every 60 seconds.
-
-## Screenshots
-
-These screenshots show the actual application in English using **synthetic demonstration
-data only**: example domains, generated certificates and demo identities.
-They contain no real certificate, organization or user information. PuppetDB host
-associations are synthetic as well. See the [capture script](script/screenshots/capture.cjs)
-to reproduce the screenshots in an isolated demo environment.
-
-### Certificate overview
-
-Search, validity and Puppet status filters, source information, host counts and
-Puppet certids in the light theme. Filesystem entries have no Puppet status.
-
-![Certificate overview with synthetic certificates, Puppet status and host counts in Zone A and Zone B](docs/screenshots/overview.png)
-
-### Certificate details
-
-Certificate details show a full-width chain hierarchy from root CA through
-intermediates to the selected certificate, with validity badges and links.
-Metadata, reported PuppetDB hosts, status and archive controls, versions and Hiera
-configuration remain below the hierarchy. This example uses the dark theme.
-
-![Certificate details with three synthetic PuppetDB hosts and Consul status controls in the dark theme](docs/screenshots/details.png)
-
-### CA certificates
-
-The optional CA page groups intermediates below their root CAs. Validity badges
-are independent of chain completeness. Tabs show incomplete issuer chains and
-area-specific Hiera output.
-
-![CA certificates with synthetic root and intermediate certificates and validity badges](docs/screenshots/ca-certificates.png)
-
-See [CA discovery, grouping and Hiera export](docs/ca-inventory.md).
-
-### Audit logs
-
-Area-restricted audit access with timestamps, users, certificate identities and
-change details, including an archive confirmation and a Puppet status change.
-
-![Audit log showing synthetic archive, status and export events](docs/screenshots/audit.png)
-
-## Permissions and formats
-
-Readers can search and view details. Writers can import, manage versions and
-export certificates with an optional chain. Only `<area_id>_key_exporter` can
-export private keys in that area. This export role includes read access but does
-not grant write access.
-
-`<area_id>_auditor` grants access to that area's audit logs without granting
-certificate export rights. Logs record changes and exports with time, user and
-persistent certificate metadata, including exported chain certificates.
-
-PEM, DER, PKCS#12/PFX and JKS are supported, including bulk and chain exports
-where applicable. JKS currently requires matching store and key passwords.
-PKCS#12 supports AES/PBES2 and 3DES; legacy RC2 is not supported.
-
-## CSR creation
-
-The **CSR erstellen** menu is available to the independent `<area_id>_csr` role.
-It creates RSA or EC requests, keeps private keys and generated revoke passwords
-encrypted in PostgreSQL, and publishes matching issued certificates through the
-existing Consul version workflow. Writer access alone does not grant CSR access.
-See [CSR workflow, API and key management](docs/csr.md).
-
-## Overwrite confirmation and Puppet status
-
-Imports into an existing area/certid require explicit confirmation in the preview.
-The server checks that the certid has not changed since preview; older versions
-remain available after renewal. Uploads containing a certificate already on disk
-are rejected by DER fingerprint, regardless of certid or target area. The disk
-inventories in all configured areas are checked both before preview and before saving.
-
-Writers can set `active`, `norollout`, or `delete` in certificate details for
-Consul certificates only. Filesystem certificates have no Puppet status controls or archiving. Writers
-can delete them through a separate confirmation page that renames their files
-with a `.DELETED` suffix and hides their catalog entries. The overview displays
-“Puppet-Status” and provides a matching filter independently of “Gültigkeit”.
-Status changes are audited. Consul stores certid status. Renewals preserve the certid status.
-
-The indexer retains entries when files disappear, a mount becomes empty, or an
-inventory mapping is removed. Explicit filesystem deletion retains the bytes
-and PostgreSQL tombstones. See [filesystem deletion and recovery](docs/legacy-deletion.md).
-
-Writers can choose “Archivieren” next to “Status speichern” in Consul
-certificate details. A separate confirmation page explains the scope and
-potential service disruption from the Puppet `delete` request. The server also
-requires this confirmation. Archiving sets
-`archived: true` and `status: delete` atomically in Consul. The UI records the
-user, time, change and outcome in PostgreSQL.
-It covers all versions of a Consul certid in that area. Archived entries are
-excluded from the default overview and statistics. A text search automatically
-includes archived entries and their historical versions. “Archivierte
-einschließen” lists them without a search term.
-
-The UI does not reactivate archived entries. Renewals of an archived certid stay
-archived. Details remain readable if the source material disappears, but exports
-still require the matching source material. Back up PostgreSQL to retain metadata
-for absent sources.
-
-**Puppet execution is deferred:** this release prepares UI and Consul only.
-The supplied Puppet manifests do not yet enforce the three statuses. See the
-[status contract and rollout requirements](docs/puppet.md#prepared-status-contract).
-
-## Optional PuppetDB host inventory
-
-Set `PUPPETDB_ENABLED=true` and configure the PuppetDB endpoint and custom
-certificate fact to show host counts in the overview and hostnames in certificate
-details. The query, fact name, fingerprint field and algorithm (`sha256` or `sha1`) are
-configurable. The feature is disabled by default, matches certificate fingerprints, and
-keeps the last successful associations when PuppetDB is unavailable. See
-[configuration and anonymized examples](docs/environment.md#optional-puppetdb-host-inventory)
-and [fact formats and synchronization](docs/puppetdb.md).
-
-## Integrations
-
-[Zabbix certificate monitoring](docs/integrations/zabbix.md) provides automatic
-discovery and expiration alerts with a ready-to-import Zabbix 7.4 template.
-See [Integrations](docs/integrations/README.md) for setup and security details.
-
-## Documentation
-
-- [Filesystem deletion and recovery](docs/legacy-deletion.md)
-- [Installation and operations](docs/installation.md)
-- [Environment variables and file-free deployment](docs/environment.md)
-- [Technical architecture and data storage](docs/technik.md)
-- [Consul schema, version selection and Ruby import/read examples](docs/consul-schema.md)
-- [Interface languages and adding translations](docs/localization.md)
-- [GitHub Actions builds and Docker Hub publishing](docs/container-publishing.md)
-- [Puppet integration and idempotence](docs/puppet.md)
-- [PuppetDB host inventory](docs/puppetdb.md)
-- [Documentation screenshot capture script](script/screenshots/capture.cjs)
-
-## Code checks and tests
-
-CI also runs Brakeman (Rails source), bundler-audit (locked Ruby dependencies),
-and Trivy (the built image). Security gates block release publishing. See
-[security validation](docs/container-publishing.md#security-validation) for
-local commands, blocking thresholds, reports, and finding review rules.
-
-Every application image build runs RuboCop, including the `rubocop-rake` plugin,
-before assets are compiled. A lint failure stops local and CI builds. The rules
-in `.rubocop.yml` cover application code, standalone libraries, Puppet copies,
-scripts and tests. Generated schema, dependencies and local runtime data are excluded.
-
-```console
-bundle exec rake rubocop
-# Refresh the shipped Puppet libraries after changing shared Ruby code.
-ruby bin/package-puppet
-
-docker build -t cci-ui:ci .
-docker compose -f compose.ci.yml up --wait db consul
-docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
-docker compose -f compose.ci.yml down --volumes
-
 docker compose -f compose.yml up --build -d --wait
 ```
 
-The standalone reader exposes `CciClient#read_certificate`. Routes use English
-paths, including `/login`, `/local-login`, `/logout`, `/locale`, `/certificates`,
-`/imports/preview` and `/audit_events`, independently of the selected UI language.
-Update external callers of the former `fetch` method and bookmarks to the former
-German paths when upgrading.
+Open [http://localhost:3000](http://localhost:3000) and select a local test
+identity. Compose starts the application, indexer, PostgreSQL and Consul with
+example areas **Zone A** and **Zone B**. The initial inventory is empty unless
+you import certificates or add files under `data/`. Keep the generated `.env`
+secrets so stored private keys remain readable. The helper preserves existing
+configuration.
 
-Tests generate their own certificates and use a separate PostgreSQL database
-and Consul namespace. Private keys from `data/` are not copied into test fixtures
-or Docker images. Local certificate files, runtime data and secrets are excluded
-from version control and Docker images.
+This local identity mode is for evaluation only. Production requires Keycloak,
+a configured Consul service, PostgreSQL, persistent encryption secrets and an
+HTTPS reverse proxy. Public `linux/amd64` images are available as
+[`c8m6/cci-ui:<release tag>`](https://hub.docker.com/r/c8m6/cci-ui/tags).
+Use an explicit release tag or digest, rather than `latest`.
+Follow [installation and production deployment](docs/installation.md) for the
+required configuration, image startup, backups and upgrades.
 
-## Optional CA inventory
+## Documentation
 
-Set `CCI_CA_INVENTORY_ENABLED=true` to discover local CA chains on every index
-pass and show an area-scoped Hiera export under **CA certificates**. See the
-[CA inventory documentation](docs/ca-inventory.md) for validity rules, missing
-issuers and public CA handling.
+| Topic | Guide |
+| --- | --- |
+| Installation and operations | [Local and production setup, Keycloak, backups and health checks](docs/installation.md) |
+| Configuration | [Environment variables](docs/environment.md) · [Inline production Compose example](docs/compose-full.md) |
+| Certificates and permissions | [Architecture, roles, storage and audit logs](docs/technik.md) · [Filesystem deletion and recovery](docs/legacy-deletion.md) |
+| Certificate requests and CAs | [CSR workflow and key management](docs/csr.md) · [CA inventory and Hiera export](docs/ca-inventory.md) |
+| Consul clients | [Schema, version selection and Ruby import/read examples](docs/consul-schema.md) |
+| Puppet | [Puppet integration and limitations](docs/puppet.md) · [PuppetDB host inventory](docs/puppetdb.md) |
+| Monitoring | [Integrations](docs/integrations/README.md) · [Zabbix setup and template](docs/integrations/zabbix.md) |
+| Interface languages | [Language selection and adding translations](docs/localization.md) |
+| Development | [Contribution and validation workflow](CONTRIBUTING.md) · [Screenshot capture script](script/screenshots/capture.cjs) |
+| Releases and CI | [GitHub Actions, security checks and Docker Hub publishing](docs/container-publishing.md) |
 
-For migration jobs, replica startup ordering and load-balancer probes, see
-[HA deployment and health checks](docs/installation.md#health-checks).
+## Security
 
-For a complete production Compose template with inline values, external services
-and a reduced indexer environment, see [inline Compose configuration](docs/compose-full.md).
+Report vulnerabilities through
+[GitHub's private vulnerability reporting](https://github.com/c8m6/cci-ui/security/advisories/new).
+Do not disclose exploitable vulnerabilities in public GitHub Issues. See the
+[security policy](SECURITY.md) for reporting details and version-policy limits.
+
+CodeQL analyzes source code through GitHub's default setup. The build workflow
+also runs Brakeman, bundler-audit and Trivy before publishing an image. Passing
+checks are not a guarantee that the application is free of vulnerabilities. See
+[security validation](docs/container-publishing.md#security-validation) for
+scanner scope, blocking thresholds and reports.
 
 ## Contributing
 
-Contributions and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for the contribution workflow and licensing requirements.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+setup, validation and the AGPL-3.0-only contribution requirements. Use the
+private reporting route above for undisclosed security vulnerabilities.
 
 ## License
 
-CCI-UI is licensed under GNU Affero General Public License version 3 only. Its
-SPDX identifier is `AGPL-3.0-only`. See [LICENSE](LICENSE) for the complete
-license terms. Third-party dependencies and referenced services remain under
-their respective licenses.
+CCI-UI is licensed under the **GNU Affero General Public License v3.0 only**.
+SPDX-License-Identifier: `AGPL-3.0-only`.
+See [LICENSE](LICENSE) for the terms and [NOTICE](NOTICE) for project attribution.
+Copyright (C) 2026 Christian Meißner. Third-party dependencies and referenced
+services remain under their respective licenses.
