@@ -24,7 +24,9 @@ upload anything locally.
 
 ## Triggers, changes, and tags
 
-- Push to any branch: build, test, and scan, without registry login or publishing.
+- Push to `main`, `dev`, or `development`: build, test, and scan, without
+  registry login or publishing. Pushes to feature branches do not start this
+  workflow. Open a pull request or use `workflow_dispatch` to validate them.
 - Pull request: build, test, and scan, without registry login or publishing.
 - Publish a GitHub release: check out its tag, build, test, scan, and publish with
   that exact release tag as the container tag, for example `v1.2.3` →
@@ -33,8 +35,17 @@ upload anything locally.
 - `workflow_dispatch`: build, test, and scan the selected ref; manual runs do not
   publish.
 
-There are no path exclusions: documentation-only changes also build, test, and scan.
-BuildKit uses a GitHub Actions cache for unchanged layers.
+There are no path exclusions: documentation-only changes also build, test, and scan
+when one of these events triggers the workflow. Feature-branch updates with an
+open pull request run once through `pull_request`, rather than through both push
+and pull-request events. An integration branch that is itself the source of an
+open pull request can still trigger both checks: the push validates that branch,
+and the pull request validates its merge result. Native GitHub security workflows
+are configured separately and are not affected by these trigger filters.
+BuildKit uses a GitHub Actions cache for unchanged layers. The Dockerfile sets
+version, revision, build time, and OCI metadata after dependency installation,
+RuboCop, and asset compilation. Changing release metadata alone therefore reuses
+those expensive layers while still updating the final image metadata.
 
 Each published release creates only `DOCKERHUB_IMAGE:<release tag>`. No
 additional branch, SHA or `latest` aliases are generated. The release tag must
@@ -127,8 +138,8 @@ The same check runs in local Compose builds.
 
 ## Security validation
 
-Every branch push, pull request, manual run, and published release runs these
-checks. One Docker build supplies the Rails tests and Trivy image scan. The Ruby
+Every push to `main`, `dev`, or `development`, pull request, manual run, and
+published release runs these checks. One Docker build supplies the Rails tests and Trivy image scan. The Ruby
 scanners use Ruby 3.4 and the committed `Gemfile.lock` through Bundler on the
 runner. They do not need running application services or credentials.
 
@@ -148,7 +159,9 @@ are not enabled in Trivy. bundler-audit covers the complete lockfile, including
 development tools, while Trivy additionally inspects OS packages and application
 library manifests in the built image.
 
-CI logs include human-readable findings. The `security-reports` Actions artifact
+CI logs include human-readable findings. bundler-audit checks the lockfile once.
+Its separate display step formats the saved JSON report, including after a
+failing scan, without running another dependency check. The `security-reports` Actions artifact
 retains Brakeman JSON/SARIF, bundler-audit JSON, and Trivy JSON/SARIF for 14 days,
 even when a security gate fails. Brakeman and Trivy SARIF are also uploaded to
 GitHub **Security → Code scanning**. bundler-audit does not provide native SARIF.
@@ -180,7 +193,7 @@ mkdir -p tmp/security/sarif
 bundle exec brakeman --no-pager --confidence-level 2 --output /dev/stdout --output tmp/security/brakeman.json --output tmp/security/sarif/brakeman.sarif
 bundle exec bundler-audit update
 bundle exec bundler-audit check --format json --output tmp/security/bundler-audit.json
-bundle exec bundler-audit check
+jq . tmp/security/bundler-audit.json
 
 docker build --pull -t cci-ui:ci .
 trivy image --timeout 30m --scanners vuln --pkg-types os,library --format json --output tmp/security/trivy.json cci-ui:ci

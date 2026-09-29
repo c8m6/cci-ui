@@ -2,7 +2,7 @@ name: Build, test and publish containers
 
 on:
   push:
-    branches: ['**']
+    branches: [main, dev, development]
   pull_request:
   release:
     types: [published]
@@ -107,10 +107,11 @@ jobs:
           mkdir -p tmp/security
           bundle exec bundler-audit update
           bundle exec bundler-audit check --format json --output tmp/security/bundler-audit.json
-        # A separate display step preserves the advisory details on failure.
+        # Render the saved result even when the scan found vulnerabilities.
       - name: Display dependency audit results
         if: ${{ !cancelled() && hashFiles('tmp/security/bundler-audit.json') != '' }}
-        run: bundle exec bundler-audit check
+        run: |
+          jq -r '.results | if length == 0 then "No vulnerabilities found" else .[] end' tmp/security/bundler-audit.json
       - name: Scan built image with Trivy
         id: trivy
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
