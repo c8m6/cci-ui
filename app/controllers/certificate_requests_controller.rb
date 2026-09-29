@@ -85,7 +85,7 @@ class CertificateRequestsController < ApplicationController
     index = params[:certid_index].to_s
     CsrNames.fail!(:confirmation) unless index.match?(/\A\d+\z/)
 
-    indices = params[:certid_indices]&.permit!&.to_h
+    indices = params[:certid_indices]&.permit(*@csr.areas)&.to_h
     CsrPublication.new(entry, identity: current_identity).call(expected_index: index.to_i,
       expected_indices: indices, confirm_overwrite: params[:confirm_overwrite] == "1")
     publication_response(entry)

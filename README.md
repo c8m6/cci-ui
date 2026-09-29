@@ -174,6 +174,11 @@ See [Integrations](docs/integrations/README.md) for setup and security details.
 
 ## Code checks and tests
 
+CI also runs Brakeman (Rails source), bundler-audit (locked Ruby dependencies),
+and Trivy (the built image). Security gates block release publishing. See
+[security validation](docs/container-publishing.md#security-validation) for
+local commands, blocking thresholds, reports, and finding review rules.
+
 Every application image build runs RuboCop, including the `rubocop-rake` plugin,
 before assets are compiled. A lint failure stops local and CI builds. The rules
 in `.rubocop.yml` cover application code, standalone libraries, Puppet copies,

@@ -18,3 +18,9 @@ gem "json", ">= 2.9", "< 3"
 # Static analysis also runs when building the application image.
 gem "rubocop", "~> 1.85", require: false
 gem "rubocop-rake", "~> 0.7", require: false
+
+# Security tools are used for development/CI, never loaded by the application.
+group :development, :test do
+  gem "brakeman", "~> 8.0", require: false
+  gem "bundler-audit", "~> 0.9", require: false
+end

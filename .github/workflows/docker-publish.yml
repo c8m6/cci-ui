@@ -45,7 +45,10 @@ jobs:
 
   app:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
     env:
       # Web and indexer share this one Dockerfile/image.
       TEST_IMAGE: cci-ui:ci
@@ -53,6 +56,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
+          persist-credentials: false
       - name: Resolve application build metadata
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -70,6 +74,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v4
       - name: Build application image
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -82,7 +87,72 @@ jobs:
             APP_SOURCE=${{ env.APP_SOURCE }}
           cache-from: type=gha,scope=cci-ui
           cache-to: type=gha,mode=max,scope=cci-ui
+      - name: Prepare security report directory
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: mkdir -p tmp/security/sarif
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        id: ruby
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      - name: Brakeman Rails security analysis
+        if: ${{ !cancelled() && steps.ruby.outcome == 'success' }}
+        run: |
+          mkdir -p tmp/security
+          bundle exec brakeman --no-pager --confidence-level 2 --output /dev/stdout --output tmp/security/brakeman.json --output tmp/security/sarif/brakeman.sarif
+      - name: Audit locked Ruby dependencies
+        if: ${{ !cancelled() && steps.ruby.outcome == 'success' }}
+        run: |
+          mkdir -p tmp/security
+          bundle exec bundler-audit update
+          bundle exec bundler-audit check --format json --output tmp/security/bundler-audit.json
+        # A separate display step preserves the advisory details on failure.
+      - name: Display dependency audit results
+        if: ${{ !cancelled() && hashFiles('tmp/security/bundler-audit.json') != '' }}
+        run: bundle exec bundler-audit check
+      - name: Scan built image with Trivy
+        id: trivy
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          image-ref: ${{ env.TEST_IMAGE }}
+          timeout: 30m
+          scanners: vuln
+          vuln-type: os,library
+          format: json
+          output: tmp/security/trivy.json
+          exit-code: '0'
+          ignore-unfixed: false
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+      - name: Render Trivy reports and enforce image security gate
+        if: ${{ !cancelled() && steps.trivy.outcome == 'success' }}
+        run: |
+          trivy convert --format sarif --output tmp/security/sarif/trivy.sarif tmp/security/trivy.json
+          trivy convert --format table tmp/security/trivy.json
+          jq '.Results |= map(if .Vulnerabilities then .Vulnerabilities |= map(select(.FixedVersion != null and .FixedVersion != "")) else . end)' tmp/security/trivy.json > tmp/security/trivy-fixable.json
+          trivy convert --format table --severity HIGH,CRITICAL --exit-code 1 tmp/security/trivy-fixable.json
+      - name: Retain security reports
+        if: ${{ !cancelled() && hashFiles('tmp/security/*') != '' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: security-reports
+          path: tmp/security/
+          retention-days: 14
+      - name: Upload scanner SARIF to GitHub Security
+        # Fork PRs retain downloadable artifacts without requiring a write token.
+        if: >-
+          ${{ !cancelled() && hashFiles('tmp/security/sarif/*.sarif') != '' &&
+              (github.event_name != 'pull_request' ||
+               github.event.pull_request.head.repo.full_name == github.repository) &&
+              github.actor != 'dependabot[bot]' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: tmp/security/sarif/
+          category: cci-ui-security
       - name: Test image with PostgreSQL and Consul
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           docker compose -f compose.ci.yml up --wait db consul
           docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
@@ -107,14 +177,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Publish tested application image
         if: github.event_name == 'release' && github.event.action == 'published'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          tags: ${{ vars.DOCKERHUB_IMAGE }}:${{ github.event.release.tag_name }}
-          build-args: |
-            APP_VERSION=${{ env.APP_VERSION }}
-            APP_REVISION=${{ env.APP_REVISION }}
-            APP_BUILD_TIME=${{ env.APP_BUILD_TIME }}
-            APP_SOURCE=${{ env.APP_SOURCE }}
-          cache-from: type=gha,scope=cci-ui
+        env:
+          PUBLISH_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}:${{ github.event.release.tag_name }}
+        run: |
+          docker tag "$TEST_IMAGE" "$PUBLISH_IMAGE"
+          docker push "$PUBLISH_IMAGE"
