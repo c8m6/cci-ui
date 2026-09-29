@@ -11,6 +11,7 @@ LABEL org.opencontainers.image.version=${APP_VERSION} \
       org.opencontainers.image.created=${APP_BUILD_TIME} \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.source=${APP_SOURCE}
+ENV BUNDLE_WITHOUT=development:test
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
 COPY Gemfile Gemfile.lock ./

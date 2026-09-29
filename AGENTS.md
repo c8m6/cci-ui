@@ -25,7 +25,7 @@ These instructions apply permanently to all work in this repository unless a lat
 - Do not remove or weaken existing project licensing information.
 - Do not change the project license without an explicit instruction.
 - Review license compatibility when introducing a dependency or bundled
-  third-party asset.
+  third-party asset. Review new dependencies for known security vulnerabilities.
 - If license compatibility or provenance is uncertain, report it instead of
   assuming compatibility.
 
@@ -78,12 +78,23 @@ Before completing changes:
 - Run RuboCop with the `rubocop-rake` plugin for every build.
 - The Dockerfile enforces RuboCop before asset compilation.
 - Fix lint failures before continuing.
+- Run Brakeman for Rails application security analysis, bundler-audit against
+  the locked Ruby dependencies with current advisory data, and Trivy against
+  the exact built application image for OS and library vulnerabilities.
+- Security scans are part of the definition of done and must not be silently
+  skipped. Follow the commands and blocking thresholds in
+  `docs/container-publishing.md`.
+- Resolve genuine security findings introduced by the change before completion.
+  Classify baseline findings and report unresolved dependency or base-image risks.
+- Never suppress findings solely to make CI pass. Every persistent false-positive
+  or explicitly accepted risk suppression needs a specific documented reason,
+  applicability evidence, an owner, and a review date.
 - Verify that the project documentation reflects the completed change.
 - Verify that screenshots affected by visible UI changes have been updated.
 - Documentation and required screenshot updates are part of the definition of
   done and must not be silently skipped.
-- Do not silently skip required tests, linting, documentation, screenshot
-  updates, or other validation steps.
+- Do not silently skip required tests, linting, security scans, documentation,
+  screenshot updates, or other validation steps.
 - If a required validation step cannot be executed because of an environment
   limitation or unavailable dependency:
   - clearly report which validation step could not be executed;
@@ -603,7 +614,9 @@ In particular:
 - Eligible Conventional Commit subjects are the source for public release
   notes.
 - Commits should be individually understandable and revertible.
-- Relevant tests and linting are run before commits are considered complete.
+- Relevant tests, linting, and all three required security scans are run before
+  commits are considered complete. Security validation is part of the definition
+  of done, including documented reasons for any accepted suppression.
 - Required validation must never be silently skipped.
 - Project documentation is reviewed and kept up to date with every change.
 - Documentation remains consistent with the actual implementation and
