@@ -118,7 +118,8 @@ class CatalogIndexer
         state = ConsulStore.catalog_status(entry).merge(active: entry.fetch("active_version") == version)
         upsert(cert, area: area, source: "consul", source_id: id,
           certid: certid, certificate_version: version, tags: data.fetch("tags"), has_key: data.fetch("has_key"),
-          client: data["client"], created_by: data["created_by"], imported_at: Time.iso8601(data.fetch("created_at")), **state)
+          client: CertificateProvenance.catalog_client(data["client"]), created_by: data["created_by"],
+          imported_at: Time.iso8601(data.fetch("created_at")), **state)
       end
       certids.each do |certid, entry|
         records = Certificate.where(source: "consul", area: area, certid: certid)

@@ -5,16 +5,19 @@ class Certificate < ApplicationRecord
   validates :area, inclusion: { in: ->(_) { AreaConfiguration.ids } }
   validates :source, inclusion: { in: %w[filesystem consul] }
   validates :rollout_status, inclusion: { in: ConsulStore::ROLLOUT_STATUSES }
+  validate :current_client_reference
   scope :retained, -> { where(deleted_at: nil) }
   scope :visible_to, ->(identity) { retained.where(area: identity.areas, source: %w[filesystem consul]) }
 
   # Provenance is the existing lifecycle signal supplied by certificate writers.
   def renewal_mode
-    provenance = [client, created_by].compact.join(" ").downcase
-    return "acme" if provenance.include?("acme")
-    return "puppet" if provenance.include?("puppet")
+    return "puppet" if client.to_s.downcase.include?("puppet")
 
     "manual"
+  end
+
+  def current_client_reference
+    errors.add(:client, "must use puppet instead of an ACME reference") if CertificateProvenance.obsolete_client?(client)
   end
 
   def puppetdb_refresh_failed? = puppetdb_error_at.present?

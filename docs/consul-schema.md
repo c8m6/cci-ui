@@ -81,6 +81,10 @@ activated. They are supplied by the writer, not cryptographic proof of identity.
 Consul ACLs determine who may write.
 
 For machine writers, `client` identifies the software, for example `puppet`.
+Automated Puppet writers, including ACME-based issuance, must identify as
+`puppet`. New ACME client references are rejected. Retained old Consul versions
+are normalized by catalogue and reader boundaries without rewriting source
+material. See [reference migration and rollback](integrations/zabbix.md#ownership-and-legacy-references).
 The optional `created_by` and `updated_by` identify its service account or
 machine, for example `svc:puppet-prod` or `puppet:node.example.org`. Use a stable,
 non-secret identifier. Do not put ACL tokens, passwords or private keys in these

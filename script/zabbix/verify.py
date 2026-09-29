@@ -54,6 +54,7 @@ def main():
     TOKEN = api("user.login", {"username": "Admin", "password": "zabbix"})
     rules = {name: {"createMissing": True, "updateExisting": True}
              for name in ["templates", "items", "discoveryRules", "triggers"]}
+    rules["triggers"]["deleteMissing"] = True
     rules["template_groups"] = {"createMissing": True}
     assert api("configuration.import", {
         "format": "yaml", "source": (ROOT / "integrations/zabbix/cci-certificates.yaml").read_text(),
@@ -68,7 +69,7 @@ def main():
     prototypes = api("triggerprototype.get", {"hostids": [template["templateid"]],
         "output": ["triggerid", "expression", "recovery_mode", "recovery_expression"],
         "expandExpression": True})
-    assert len(prototypes) == 6 and all(p["recovery_mode"] == "1" for p in prototypes)
+    assert len(prototypes) == 5 and all(p["recovery_mode"] == "1" for p in prototypes)
     for prototype in prototypes:
         api("triggerprototype.update", {
             "triggerid": prototype["triggerid"],
@@ -114,7 +115,7 @@ def main():
     mode("valid")
     values = wait_for("35 dependent items have valid values", collected)
     by_key = {i["key_"]: i["lastvalue"] for i in values}
-    assert by_key["cci.cert.renewal[4]"] == "acme"
+    assert by_key["cci.cert.renewal[4]"] == "puppet"
     assert by_key["cci.cert.renewal[6]"] == "puppet"
     assert int(by_key["cci.cert.valid_until[1]"]) > int(time.time())
 
@@ -122,7 +123,7 @@ def main():
         triggers = api("trigger.get", {"hostids": [host], "filter": {"flags": 4},
                                        "output": ["description", "value", "priority", "error"], "selectTags": "extend"})
         active = [t for t in triggers if t["value"] == "1"]
-        if len(triggers) != 21 or len(active) != 6:
+        if len(triggers) != 18 or len(active) != 6:
             return False
         actual = {}
         for trigger in active:
@@ -130,11 +131,11 @@ def main():
             assert tags["source"] == "cci" and tags["component"] == "certificate"
             assert tags["cert_id"] not in actual, "Overlapping expiration problems"
             actual[tags["cert_id"]] = trigger["priority"]
-        assert actual == {"1": "2", "2": "4", "3": "5", "4": "2", "5": "4", "6": "5"}
+        assert actual == {"1": "2", "2": "4", "3": "4", "4": "1", "5": "2", "6": "4"}
         assert all(not t["error"] for t in triggers)
         return True
 
-    wait_for("LLD overrides and all six exclusive severity bands", expiration_problems)
+    wait_for("LLD overrides and manual and Puppet exclusive severity bands", expiration_problems)
 
     def master_state():
         return api("item.get", {"itemids": [master["itemid"]], "output": ["state", "error", "lastclock"]})[0]
@@ -169,7 +170,8 @@ def main():
     api("trigger.update", {"triggerid": health["triggerid"], "expression": health["expression"]})
 
     for failure, fragment in [("invalid", "Invalid CCI JSON"), ("schema", "Unsupported CCI schema"),
-                              ("stale", "Stale CCI response"), ("unavailable", "503")]:
+                              ("stale", "Stale CCI response"), ("obsolete-reference", "Invalid CCI certificate metadata"),
+                              ("unavailable", "503")]:
         mode(failure)
         wait_for(failure + " response rejected", lambda: fragment in " ".join(master_state()["error"].split()))
         # Invalid inventory must not mark previously discovered certificates lost.

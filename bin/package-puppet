@@ -4,7 +4,7 @@
 require "fileutils"
 root = File.expand_path("..", __dir__)
 target = File.join(root, "integrations/puppet/cci/lib")
-%w[cci_client.rb cci_writer.rb consul_connection.rb area_secrets.rb area_configuration.rb].each do |file|
+%w[cci_client.rb cci_writer.rb consul_connection.rb area_secrets.rb area_configuration.rb certificate_provenance.rb].each do |file|
   FileUtils.cp(File.join(root, "lib", file), target)
 end
 FileUtils.mkdir_p(File.join(target, "certificates"))

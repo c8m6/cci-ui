@@ -47,8 +47,9 @@ requires `CCI_AREAS` and defaults `CCI_LEGACY_PATHS` to `{}`.
 | --- | --- |
 | `CCI_ZABBIX_INTEGRATION_ENABLED` | `false` by default. Only `true` (case insensitive) enables the read-only endpoint. |
 | `CCI_ZABBIX_INTEGRATION_TOKEN` | Dedicated high-entropy bearer token, empty by default. Enabled integrations without a token remain unavailable. |
+| `CCI_ZABBIX_CERTIFICATE_SOURCES` | `consul` (default), `filesystem`, or `both`. Invalid values fail startup. `both` deduplicates SHA-256 certificate fingerprints, preferring Consul and then the lowest catalogue ID. |
 
-Both variables belong to the web deployment environment. See
+These variables belong to the web deployment environment. See
 [Integrations → Zabbix](integrations/zabbix.md) for authentication, inventory scope,
 the complete template and setup instructions. Zabbix thresholds are configured
 in the template macros, independently of UI expiration warnings.

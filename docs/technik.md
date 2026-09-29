@@ -174,7 +174,8 @@ The optional `GET /integrations/zabbix` endpoint uses a stateless API controller
 and its own environment-configured bearer token, independently of Keycloak.
 It reads an allowlist of public catalogue fields across configured areas and
 never loads private material or creates a session. Renewal mode is derived from
-existing writer/user provenance. See [Integrations → Zabbix](integrations/zabbix.md)
+writer provenance, preserving user identities. Monitoring defaults to Consul only,
+with configurable filesystem or combined scope and fingerprint deduplication. See [Integrations → Zabbix](integrations/zabbix.md)
 for inventory selection, authentication and monitoring policy.
 
 Consul machine credentials are separate ACL tokens, independent of UI Reader
