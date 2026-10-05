@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, development]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: certui
+          POSTGRES_PASSWORD: certui-test
+          POSTGRES_DB: certui_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U certui -d certui_test"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+      consul:
+        image: hashicorp/consul:1.22
+        command: agent -dev -client=0.0.0.0
+        ports:
+          - 8500:8500
+        options: >-
+          --health-cmd "consul members"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      RAILS_ENV: test
+      AUTH_MODE: local
+      DATABASE_URL: postgresql://certui:certui-test@127.0.0.1:5432/certui_test
+      TEST_DATABASE_URL: postgresql://certui:certui-test@127.0.0.1:5432/certui_test
+      CONSUL_URL: http://127.0.0.1:8500
+      CCI_AREAS: '{"zone_a":"Zone A","zone_b":"Zone B"}'
+      CCI_LEGACY_PATHS: '{}'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      - name: Rails tests
+        run: ruby bin/rails db:prepare test
+      - name: RuboCop
+        run: bundle exec rubocop --force-exclusion
+      - name: Brakeman Rails security analysis
+        run: bundle exec brakeman --no-pager --confidence-level 2
+      - name: Audit locked Ruby dependencies
+        run: bundle exec bundler-audit check --update

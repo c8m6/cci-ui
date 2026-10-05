@@ -23,22 +23,36 @@ copyright. Contributors retain ownership of their contributions.
 
 ## Development and validation
 
-Every application image build runs RuboCop with the `rubocop-rake` plugin before
-asset compilation. The rules in `.rubocop.yml` cover application code, shared
-libraries, Puppet copies, scripts and tests. Lint failures stop the build.
+Push and pull-request CI runs the Rails suite directly on Ruby 3.4 with isolated
+PostgreSQL and Consul services, then RuboCop, Brakeman and bundler-audit. It does
+not build an application image. Before committing application changes, run the
+same checks locally. Every application image build also runs RuboCop with the
+`rubocop-rake` plugin before asset compilation. The rules in `.rubocop.yml`
+cover application code, shared libraries, Puppet copies, scripts and tests.
+Lint failures stop the build.
 
 ```console
-bundle exec rake rubocop
+bundle exec rubocop --force-exclusion
 # Refresh the shipped Puppet libraries after changing shared Ruby code.
 ruby bin/package-puppet
 
+RAILS_ENV=test ruby bin/rails db:prepare test
+bundle exec brakeman --no-pager --confidence-level 2
+bundle exec bundler-audit check --update
+```
+
+For image, runtime or deployment changes, run full validation locally or use
+the manual [Build, test and publish containers workflow](.github/workflows/docker-publish.yml).
+The release workflow always performs this full validation before publishing:
+
+```console
 docker build -t cci-ui:ci .
 docker compose -f compose.ci.yml up --wait db consul
 docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
 docker compose -f compose.ci.yml down --volumes
 ```
 
-Run the [security checks](docs/container-publishing.md#run-security-checks-locally)
+Run the [image security checks](docs/container-publishing.md#run-security-checks-locally)
 against the same image. Tests use isolated PostgreSQL and Consul data and
 synthetic certificates. Never use production certificates, keys or secrets as
 test fixtures. Local certificate files, runtime data and secrets are excluded
