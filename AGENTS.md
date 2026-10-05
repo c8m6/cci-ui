@@ -64,6 +64,10 @@ Before completing changes:
   and bundler-audit. It must not build or test the application image, run Trivy,
   or upload full security reports. Do not add scheduled heavyweight workflows or
   broad OS/Ruby matrices without an explicit release-critical requirement.
+- CodeQL uses a repository-controlled, budget-conscious Advanced Setup. It
+  analyzes Ruby automatically on pushes to `main` and manually on demand. Do
+  not add pull-request or scheduled CodeQL runs without an explicit security
+  requirement that justifies their additional Actions usage.
 - Automatic CI does not replace local or release validation. Before committing
   meaningful application changes, run the relevant Rails tests, RuboCop,
   Brakeman, and bundler-audit. Full image tests, Trivy, and PostgreSQL/Consul

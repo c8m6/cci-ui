@@ -1,7 +1,9 @@
 # CI and publishing containers with GitHub Actions
 
 The [ci.yml](../.github/workflows/ci.yml) workflow runs lightweight checks on
-pushes and pull requests. The [docker-publish.yml](../.github/workflows/docker-publish.yml)
+pushes and pull requests. The [codeql.yml](../.github/workflows/codeql.yml)
+workflow analyzes Ruby on `main` pushes and manual runs. The
+[docker-publish.yml](../.github/workflows/docker-publish.yml)
 workflow builds the shared image for **web and indexer** from the root Dockerfile
 only on manual runs and published releases. PostgreSQL and Consul use their
 official images and do not require a custom build.
@@ -32,6 +34,9 @@ does not upload anything locally.
   PostgreSQL 17 and Consul 1.22 service containers. Feature-branch pushes do
   not start this workflow; open a pull request to validate them.
 - Pull request: run the same lightweight checks against the merge result.
+- Push to `main`: also run repository-managed CodeQL Advanced Setup for Ruby.
+  CodeQL does not run on pull requests or a recurring schedule. It can also be
+  started manually from **Actions → CodeQL → Run workflow**.
 - Publish a GitHub release: check out its tag, build, test the image with
   PostgreSQL and Consul, scan it, and publish with
   that exact release tag as the container tag, for example `v1.2.3` →
@@ -47,8 +52,8 @@ lightweight checks. Feature-branch updates with an open pull request run through
 request can trigger both a push and pull-request check. Obsolete runs for the
 same branch or pull request are cancelled. The release/manual workflow has
 separate concurrency and does not cancel an in-progress publication. No
-heavyweight workflow is scheduled. Native GitHub security workflows are
-configured separately and are not affected by these trigger filters.
+heavyweight workflow is scheduled. Dependabot alerts, Secret Scanning and
+private vulnerability reporting remain separate security settings.
 
 BuildKit uses a GitHub Actions cache for unchanged layers in full validation.
 The Dockerfile sets
@@ -182,21 +187,14 @@ retains Brakeman JSON/SARIF, bundler-audit JSON, and Trivy JSON/SARIF for 14 day
 even when a security gate fails. Brakeman and Trivy SARIF are also uploaded to
 GitHub **Security → Code scanning** only for manual/release validation.
 bundler-audit does not provide native SARIF. The upload action does not run
-CodeQL. Native CodeQL, Dependabot alerts, Secret Scanning and private
-vulnerability reporting remain separate repository settings.
+CodeQL. Repository-managed CodeQL Advanced Setup uses the standard security
+query suite to scan Ruby on `main` pushes and manual requests. It has no
+pull-request or scheduled trigger. The README badge points to this repository's
+CodeQL workflow. Dependabot alerts, Secret Scanning and private vulnerability
+reporting remain separate repository settings.
 
-The README's CodeQL badge points to GitHub's generated default-setup workflow.
-Default setup starts scans on relevant pushes and runs weekly scheduled scans
-for active repositories. These runs are controlled under repository
-**Settings → Advanced Security → CodeQL analysis**, not by either workflow file
-in this repository. Review **View CodeQL configuration** there when investigating
-Actions usage. GitHub default setup does not expose a schedule-only switch; a
-different schedule requires CodeQL advanced setup. Keep CodeQL enabled unless
-the maintainer intentionally replaces its coverage. Changing Dependabot alerts,
-Secret Scanning or private vulnerability reporting does not reduce this CI
-workflow's workload.
-
-Lightweight CI requests only `contents: read`. The full-validation application
+Lightweight CI requests only `contents: read`. CodeQL requests `contents: read`
+and `security-events: write` in its analysis job. The full-validation application
 job also requests `security-events: write` for SARIF uploads; the release-notes
 job alone requests `contents: write`. Checkout does not persist credentials.
 Docker Hub secrets are referenced only in release publication steps. There is no

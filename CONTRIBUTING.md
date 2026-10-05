@@ -31,6 +31,9 @@ same checks locally. Every application image build also runs RuboCop with the
 cover application code, shared libraries, Puppet copies, scripts and tests.
 Lint failures stop the build.
 
+The separate CodeQL workflow analyzes Ruby after a push to `main`, or when
+started manually. Pull requests do not run CodeQL.
+
 ```console
 bundle exec rubocop --force-exclusion
 # Refresh the shipped Puppet libraries after changing shared Ruby code.
