@@ -59,14 +59,27 @@ These instructions apply permanently to all work in this repository unless a lat
 
 Before completing changes:
 
+- GitHub Actions usage is budget-constrained. Normal push and pull-request CI
+  runs direct Rails tests with PostgreSQL and Consul services, RuboCop, Brakeman,
+  and bundler-audit. It must not build or test the application image, run Trivy,
+  or upload full security reports. Do not add scheduled heavyweight workflows or
+  broad OS/Ruby matrices without an explicit release-critical requirement.
+- Automatic CI does not replace local or release validation. Before committing
+  meaningful application changes, run the relevant Rails tests, RuboCop,
+  Brakeman, and bundler-audit. Full image tests, Trivy, and PostgreSQL/Consul
+  container integration remain required before a release, and run locally,
+  manually, or in the release workflow. For changes affecting the image,
+  runtime, or deployment, run the relevant image build, Compose tests, and
+  Trivy scan locally as well.
+
 - Run the full Rails test suite used by CI:
 
   ```bash
   ruby bin/rails db:prepare test
   ```
 
-- Run the tests against the current application image with PostgreSQL and
-  Consul.
+- For changes affecting the image, runtime, or deployment, run the tests against
+  the current application image with PostgreSQL and Consul.
 - Tests must use isolated test data and must not depend on production data,
   production certificates, production private keys, production credentials,
   or other production secrets.
@@ -78,9 +91,10 @@ Before completing changes:
 - Run RuboCop with the `rubocop-rake` plugin for every build.
 - The Dockerfile enforces RuboCop before asset compilation.
 - Fix lint failures before continuing.
-- Run Brakeman for Rails application security analysis, bundler-audit against
-  the locked Ruby dependencies with current advisory data, and Trivy against
-  the exact built application image for OS and library vulnerabilities.
+- Run Brakeman for Rails application security analysis and bundler-audit against
+  the locked Ruby dependencies with current advisory data. Run Trivy against
+  the exact built application image for image, runtime, deployment, and release
+  validation.
 - Security scans are part of the definition of done and must not be silently
   skipped. Follow the commands and blocking thresholds in
   `docs/container-publishing.md`.
@@ -614,9 +628,10 @@ In particular:
 - Eligible Conventional Commit subjects are the source for public release
   notes.
 - Commits should be individually understandable and revertible.
-- Relevant tests, linting, and all three required security scans are run before
-  commits are considered complete. Security validation is part of the definition
-  of done, including documented reasons for any accepted suppression.
+- Relevant tests, linting, Brakeman, and bundler-audit are run before commits
+  are considered complete. Image/runtime/deployment changes and releases also
+  require full image testing and Trivy. Security validation is part of the
+  definition of done, including documented reasons for any accepted suppression.
 - Required validation must never be silently skipped.
 - Project documentation is reviewed and kept up to date with every change.
 - Documentation remains consistent with the actual implementation and

@@ -1,9 +1,6 @@
 name: Build, test and publish containers
 
 on:
-  push:
-    branches: [main, dev, development]
-  pull_request:
   release:
     types: [published]
   workflow_dispatch:
@@ -12,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: docker-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: docker-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release_notes:
@@ -142,12 +139,7 @@ jobs:
           path: tmp/security/
           retention-days: 14
       - name: Upload scanner SARIF to GitHub Security
-        # Fork PRs retain downloadable artifacts without requiring a write token.
-        if: >-
-          ${{ !cancelled() && hashFiles('tmp/security/sarif/*.sarif') != '' &&
-              (github.event_name != 'pull_request' ||
-               github.event.pull_request.head.repo.full_name == github.repository) &&
-              github.actor != 'dependabot[bot]' }}
+        if: ${{ !cancelled() && hashFiles('tmp/security/sarif/*.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: tmp/security/sarif/

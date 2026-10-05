@@ -5,7 +5,7 @@ certificates across configurable permission areas. Search existing filesystem
 inventories alongside certificates stored in Consul, manage versions, create
 certificate requests, and export certificates and authorized private keys.
 
-[![Build & Tests](https://img.shields.io/github/actions/workflow/status/c8m6/cci-ui/docker-publish.yml?branch=main&label=Build%20%26%20Tests)](https://github.com/c8m6/cci-ui/actions/workflows/docker-publish.yml)
+[![Build & Tests](https://img.shields.io/github/actions/workflow/status/c8m6/cci-ui/ci.yml?branch=main&label=Build%20%26%20Tests)](https://github.com/c8m6/cci-ui/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/c8m6/cci-ui/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/c8m6/cci-ui/actions/workflows/github-code-scanning/codeql)
 [![Release](https://img.shields.io/github/v/release/c8m6/cci-ui?include_prereleases&sort=date&label=Release)](https://github.com/c8m6/cci-ui/releases)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue)](LICENSE)
@@ -98,9 +98,11 @@ Report vulnerabilities through
 Do not disclose exploitable vulnerabilities in public GitHub Issues. See the
 [security policy](SECURITY.md) for reporting details and version-policy limits.
 
-CodeQL analyzes source code through GitHub's default setup. The build workflow
-also runs Brakeman, bundler-audit and Trivy before publishing an image. Passing
-checks are not a guarantee that the application is free of vulnerabilities. See
+CodeQL analyzes source code through GitHub's default setup. Push and pull-request
+CI runs Rails tests, RuboCop, Brakeman and bundler-audit. Manual full validation
+and release publication also build and test the application image and run Trivy.
+Passing checks are not a guarantee that the application is free of
+vulnerabilities. See
 [security validation](docs/container-publishing.md#security-validation) for
 scanner scope, blocking thresholds and reports.
 

@@ -1,8 +1,10 @@
-# Publishing containers with GitHub Actions
+# CI and publishing containers with GitHub Actions
 
-The [docker-publish.yml](../.github/workflows/docker-publish.yml) workflow builds
-the shared image for **web and indexer** from the root Dockerfile. PostgreSQL
-and Consul use their official images and do not require a custom build.
+The [ci.yml](../.github/workflows/ci.yml) workflow runs lightweight checks on
+pushes and pull requests. The [docker-publish.yml](../.github/workflows/docker-publish.yml)
+workflow builds the shared image for **web and indexer** from the root Dockerfile
+only on manual runs and published releases. PostgreSQL and Consul use their
+official images and do not require a custom build.
 
 ## Set up GitHub and Docker Hub
 
@@ -19,31 +21,37 @@ following in GitHub under Settings → Secrets and variables → Actions:
 The target is configurable; the GitHub repository name does not have to match
 the Docker Hub namespace. Builds require no production data, Consul tokens,
 or area encryption keys. The repository operator must supply the registry
-credentials for tag publishing only. Branch builds, pull requests and manual
-runs do not require Docker Hub credentials. Adding the workflow alone does not
-upload anything locally.
+credentials for release publication only. Pushes, pull requests and manual
+validation do not require Docker Hub credentials. Adding the workflows alone
+does not upload anything locally.
 
 ## Triggers, changes, and tags
 
-- Push to `main`, `dev`, or `development`: build, test, and scan, without
-  registry login or publishing. Pushes to feature branches do not start this
-  workflow. Open a pull request or use `workflow_dispatch` to validate them.
-- Pull request: build, test, and scan, without registry login or publishing.
-- Publish a GitHub release: check out its tag, build, test, scan, and publish with
+- Push to `main`, `dev`, or `development`: run one Ubuntu/Ruby 3.4 CI job with
+  direct Rails tests, RuboCop, Brakeman and bundler-audit. Rails uses isolated
+  PostgreSQL 17 and Consul 1.22 service containers. Feature-branch pushes do
+  not start this workflow; open a pull request to validate them.
+- Pull request: run the same lightweight checks against the merge result.
+- Publish a GitHub release: check out its tag, build, test the image with
+  PostgreSQL and Consul, scan it, and publish with
   that exact release tag as the container tag, for example `v1.2.3` →
   `c8m6/cci-ui:v1.2.3`. A separate job generates release notes for
   that tag and updates the already-published GitHub release.
-- `workflow_dispatch`: build, test, and scan the selected ref; manual runs do not
-  publish.
+- `workflow_dispatch` on the container workflow: build, test and scan the
+  selected ref without publishing. In GitHub, open **Actions → Build, test and
+  publish containers → Run workflow** and select the ref.
 
-There are no path exclusions: documentation-only changes also build, test, and scan
-when one of these events triggers the workflow. Feature-branch updates with an
-open pull request run once through `pull_request`, rather than through both push
-and pull-request events. An integration branch that is itself the source of an
-open pull request can still trigger both checks: the push validates that branch,
-and the pull request validates its merge result. Native GitHub security workflows
-are configured separately and are not affected by these trigger filters.
-BuildKit uses a GitHub Actions cache for unchanged layers. The Dockerfile sets
+There are no path exclusions, so documentation-only changes receive the normal
+lightweight checks. Feature-branch updates with an open pull request run through
+`pull_request`. An integration branch that is itself the source of an open pull
+request can trigger both a push and pull-request check. Obsolete runs for the
+same branch or pull request are cancelled. The release/manual workflow has
+separate concurrency and does not cancel an in-progress publication. No
+heavyweight workflow is scheduled. Native GitHub security workflows are
+configured separately and are not affected by these trigger filters.
+
+BuildKit uses a GitHub Actions cache for unchanged layers in full validation.
+The Dockerfile sets
 version, revision, build time, and OCI metadata after dependency installation,
 RuboCop, and asset compilation. Changing release metadata alone therefore reuses
 those expensive layers while still updating the final image metadata.
@@ -127,7 +135,7 @@ updates with existing replicas, follow the
 [deployment ordering](installation.md#deploying-multiple-web-replicas).
 The indexer retries failed indexing passes.
 
-To run CI locally without Docker Hub credentials:
+To run the image integration test locally without Docker Hub credentials:
 
 ```console
 docker build -t cci-ui:ci .
@@ -136,16 +144,19 @@ docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
 docker compose -f compose.ci.yml down --volumes
 ```
 
-The Dockerfile runs `bundle exec rubocop --force-exclusion` before asset compilation.
-This includes the `rubocop-rake` plugin and blocks image builds on lint failures.
-The same check runs in local Compose builds.
+The Dockerfile runs `bundle exec rubocop --force-exclusion` before asset
+compilation. This includes the `rubocop-rake` plugin and blocks image builds on
+lint failures. The same check runs in lightweight CI.
 
 ## Security validation
 
-Every push to `main`, `dev`, or `development`, pull request, manual run, and
-published release runs these checks. One Docker build supplies the Rails tests and Trivy image scan. The Ruby
-scanners use Ruby 3.4 and the committed `Gemfile.lock` through Bundler on the
-runner. They do not need running application services or credentials.
+Push and pull-request CI runs direct Rails tests, RuboCop, Brakeman and
+bundler-audit on Ubuntu with Ruby 3.4. It does not build the application image,
+run Compose image tests or Trivy, access Docker Hub, or upload security reports.
+Manual and release validation each build one application image, run Brakeman and
+bundler-audit once, scan that exact image with Trivy, and test that image with
+PostgreSQL and Consul using [compose.ci.yml](../compose.ci.yml). The Ruby
+scanners use the committed `Gemfile.lock` through Bundler on the runner.
 
 | Tool | Scope | Blocking findings |
 | --- | --- | --- |
@@ -163,29 +174,42 @@ are not enabled in Trivy. bundler-audit covers the complete lockfile, including
 development tools, while Trivy additionally inspects OS packages and application
 library manifests in the built image.
 
-CI logs include human-readable findings. bundler-audit checks the lockfile once.
-Its separate display step formats the saved JSON report, including after a
-failing scan, without running another dependency check. The `security-reports` Actions artifact
+Full validation logs include human-readable findings. bundler-audit checks the
+lockfile once. Its separate display step formats the saved JSON report,
+including after a failing scan, without running another dependency check. The
+`security-reports` Actions artifact
 retains Brakeman JSON/SARIF, bundler-audit JSON, and Trivy JSON/SARIF for 14 days,
 even when a security gate fails. Brakeman and Trivy SARIF are also uploaded to
-GitHub **Security → Code scanning**. bundler-audit does not provide native SARIF.
-The upload action is used only to publish these reports, not to run CodeQL.
-Native CodeQL, Dependabot, and Secret Scanning remain repository settings.
+GitHub **Security → Code scanning** only for manual/release validation.
+bundler-audit does not provide native SARIF. The upload action does not run
+CodeQL. Native CodeQL, Dependabot alerts, Secret Scanning and private
+vulnerability reporting remain separate repository settings.
 
-Fork pull requests receive no repository secrets and do not upload SARIF. Their
-reports remain available as workflow artifacts. Dependabot-triggered runs also
-use artifacts only. The application job requests `contents: read` and
-`security-events: write` for eligible SARIF uploads, subject to GitHub's fork
-token restrictions. Checkout does not persist credentials. Docker Hub secrets
-are referenced only in release-only steps. There is no `pull_request_target`
-workflow, personal access token, or external scanning service. Advisory databases
-are downloaded, but application images and source are not sent to a scanning
-service. Only reports are uploaded to GitHub.
+The README's CodeQL badge points to GitHub's generated default-setup workflow.
+Default setup starts scans on relevant pushes and runs weekly scheduled scans
+for active repositories. These runs are controlled under repository
+**Settings → Advanced Security → CodeQL analysis**, not by either workflow file
+in this repository. Review **View CodeQL configuration** there when investigating
+Actions usage. GitHub default setup does not expose a schedule-only switch; a
+different schedule requires CodeQL advanced setup. Keep CodeQL enabled unless
+the maintainer intentionally replaces its coverage. Changing Dependabot alerts,
+Secret Scanning or private vulnerability reporting does not reduce this CI
+workflow's workload.
+
+Lightweight CI requests only `contents: read`. The full-validation application
+job also requests `security-events: write` for SARIF uploads; the release-notes
+job alone requests `contents: write`. Checkout does not persist credentials.
+Docker Hub secrets are referenced only in release publication steps. There is no
+`pull_request_target` workflow, personal access token, or external scanning
+service. Advisory databases are downloaded, but application images and source
+are not sent to a scanning service. Full-validation reports are uploaded to
+GitHub only on manual or release runs.
 
 A failed build, test, scanner, security gate, or required report step prevents
 release publication. Tests and independent scans still run after another scan
-fails, and test services are always removed. Release-note generation retains
-its separate release-only job and permissions.
+fails, and test services are always removed. The exact tested image is tagged
+and pushed without rebuilding. Release-note generation retains its separate
+release-only job and permissions.
 
 ### Run security checks locally
 
