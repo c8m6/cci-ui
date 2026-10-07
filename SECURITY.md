@@ -3,9 +3,15 @@
 ## Reporting a vulnerability
 
 Use [GitHub private vulnerability reporting](https://github.com/c8m6/cci-ui/security/advisories/new)
-to report suspected vulnerabilities to the repository maintainers. This requires
-a GitHub account. Open the repository's **Security** tab and select
-**Report a vulnerability**, or use the link above.
+when it is available and enabled for this repository. A GitHub account is
+required. Open the repository's **Security** tab and select
+**Report a vulnerability**.
+
+If that option is unavailable, including while the repository is private, open
+an issue asking only for a private security contact. Do not include vulnerability
+details, affected sensitive endpoints, exploit instructions or attachments in
+that issue. Wait until a private channel has been agreed before sharing details.
+No email address or alternative private channel is published here.
 
 Do not use public GitHub Issues or pull requests to disclose an exploitable,
 undisclosed vulnerability. Keep reproduction details in the private report until

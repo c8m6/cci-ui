@@ -78,3 +78,9 @@ docker compose -f compose.yml up --build -d --wait
 See [AGENTS.md](AGENTS.md) for the complete validation and commit conventions,
 including cleanup in ephemeral environments. Report any validation that could
 not be run and its blocking dependency.
+
+## Community and security
+
+Follow the [code of conduct](CODE_OF_CONDUCT.md) in project interactions.
+Report undisclosed vulnerabilities using [SECURITY.md](SECURITY.md), rather than
+posting details in public issues or pull requests.
