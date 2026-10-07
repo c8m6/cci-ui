@@ -20,6 +20,8 @@ class CertificatesController < ApplicationController
     @certificate = Certificate.visible_to(current_identity).find(params[:id])
     @certid_snapshot = ConsulStore.status_snapshot(@certificate)
     status_entry = @certid_snapshot && JSON.parse(@certid_snapshot.fetch(:value))
+    @automatically_managed = CertificateManagement.automated?(status_entry)
+    @renewal_summary = CertificateManagement.renewal_summary(status_entry)
     @rollout_status = status_entry ? ConsulStore.rollout_status(status_entry) : @certificate.rollout_status
     @archived = @certificate.archived || (status_entry && ConsulStore.catalog_status(status_entry).fetch(:archived))
     @versions = if @certificate.certid

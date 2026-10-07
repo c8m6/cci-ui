@@ -1,6 +1,52 @@
 # Puppet integration
 
-## Comparison and idempotence
+CCI-UI owns the generic [Consul storage contract](consul-schema.md). Puppet
+integrations are optional external consumers/writers; CCI-UI does not depend on
+a Puppet module to start or manage certificates.
+
+## Automated ACME issuance and renewal
+
+[zaeh-acme_kvstore](https://github.com/zaeh/zaeh-acme_kvstore) is a compatible
+external implementation for automated ACME issuance through `acme.sh`, renewal,
+and Puppet deployment. It stores individual immutable certificate versions in
+Consul, encrypts private keys with the shared area-specific AES-256-GCM envelope,
+and uses Consul CAS for metadata and new immutable versions. Use its own
+installation and security documentation to configure workers, ACME credentials
+and target resources; none of these are runtime dependencies of CCI-UI.
+
+The module writes `client: "puppet"`, with an optional worker identity in
+`created_by` / `updated_by`. Certificates remain `source: consul`; Zabbix
+classifies the writer as `renewal: puppet`. There is no ACME source or renewal
+category. The optional `acme_renewal` CertID extension describes domains, key
+parameters, expiry, renewal version and issuer IDs. CCI-UI preserves it across
+its own writes and displays its validated public values in certificate details.
+
+Manual version imports and activation remain possible with existing permissions.
+CCI-UI warns that the next Puppet run can replace a manually selected version if
+it differs from the Puppet configuration. The stored renewal summary still
+belongs to the external writer and may describe a different version.
+
+### Deployment and renewal are separate
+
+| Status | zaeh-acme_kvstore deployment behavior | ACME renewal |
+| --- | --- | --- |
+| `active` | Deploy and maintain configured files. | Continues. |
+| `norollout` | Leave existing files unchanged; do not recreate missing files. | Continues. |
+| `delete` | Remove managed files from the target. | Continues. |
+| `delete` with `archived: true` | Remove managed files from the target. | Stops. |
+
+CCI-UI archive sets both `archived: true` and `status: delete`, retaining versions,
+keys and `acme_renewal`. It does not physically delete Consul data. Deployment
+still requires the module's target-side resources/managed-path inventory; Consul
+metadata alone cannot locate files on an arbitrary machine. See the module's
+documentation for cleanup after removing target entries from Hiera.
+
+Automatically imported CA certificates share the module's issuer CertID convention
+(`r11_2027-03-12`, with a fingerprint suffix on collision). This permits reuse of
+existing Puppet issuers during a UI bundle import. Old fingerprint-based CA IDs,
+explicit IDs and CSR IDs remain unchanged. See [Chains](consul-schema.md#chains).
+
+## Bundled cci integration: comparison and idempotence
 
 Puppet compilers read new data directly through the Consul HTTP API. The web
 application does not need to be running for these requests. The supplied `cci`
@@ -23,16 +69,16 @@ these are held by the compilers.
 ## Prepared status contract
 
 CCI-UI can set `active`, `norollout`, or `delete` only for Consul certificates.
-Filesystem certificates have no mutable Puppet status and cannot be archived. This
-release prepares only the UI and Consul storage. The supplied
-`cci::certificate` manifests do **not** implement status processing.
+Filesystem certificates have no mutable Puppet status and cannot be archived.
+For the bundled integration, the UI and Consul storage prepare the status contract,
+but the supplied `cci::certificate` manifests do **not** implement status processing.
 They continue to manage configured files even when a stored status is
 `norollout` or `delete`. Deploy status-aware Puppet code before relying on these
 values to suspend rollout or remove files.
 
 The intended behavior is:
 
-| Status | Future Puppet behavior |
+| Status | Intended behavior (not implemented by bundled cci) |
 | --- | --- |
 | `active` | Deploy and maintain the configured certificate normally. |
 | `norollout` | Do not deploy or recreate missing certificate/key files; leave existing files unchanged. |
@@ -51,13 +97,13 @@ already deployed to hosts.
 deleting material; it also applies to pinned versions and future renewals.
 See the [complete Consul schema](consul-schema.md).
 
-Cleanup independent of Hiera requires a future Puppet implementation to keep
+For the bundled integration, cleanup independent of Hiera would require keeping
 an inventory of previously managed paths on each node and to discover deletion
 requests outside the current Hiera configuration. Consul status metadata does
-not contain target paths, and the current module does not retain this inventory.
+not contain target paths, and the bundled `cci` module does not retain this inventory.
 Do not delete status records as a substitute for setting `delete`.
 
-## Installing the module
+## Installing the bundled cci module
 
 ```console
 ruby bin/package-puppet

@@ -10,7 +10,7 @@ file renames and PostgreSQL tombstones. See [filesystem deletion](legacy-deletio
 
 ## KV structure
 
-Let `<base>` be `cci/<area>`. Keys have no leading slash.
+Let `<base>` be `<prefix>/<area>` (`cci/<area>` by default). Keys have no leading slash.
 
 The area ID separates inventories, ACL scopes and encryption secrets. The same
 CertID can exist independently in multiple areas.
@@ -43,9 +43,10 @@ Paths use its decimal representation without leading zeros.
 `active_version` selects the current certificate. `latest_version` is the largest
 allocated version. After activating version `3` of five stored versions, the next
 import creates version `6`. Never infer the selected version from timestamps or
-key ordering. Every successful import allocates a version, including a repeated
-upload of the same certificate. UI checks against legacy filesystem duplicates
-remain in effect.
+key ordering. Explicit CertID and leaf imports allocate a version, including a repeated
+upload of the same certificate. Automatically named CA imports reuse identical
+issuers as described under [Chains](#chains). UI checks against legacy filesystem
+duplicates remain in effect.
 
 `client` and `updated_at` identify the most recent writer of this record. UI
 writes also set `updated_by` to the authenticated identity. Direct Puppet writes
@@ -55,6 +56,40 @@ Writers preserve status, archive metadata and unknown fields during renewal.
 change, including imports, activation and status changes. When a machine writer
 omits its actor, it must remove any previous `updated_by` value so an earlier
 UI user is not credited with the machine's update.
+
+### Optional writer metadata
+
+Writers may store additional fields in the CertID metadata document. Every other
+writer **must preserve unknown fields in full** during read-modify-write
+operations, including imports, activation, status changes and archiving. These
+extensions do not require separate Consul keys or a migration of existing data.
+
+For example, the optional external [zaeh-acme_kvstore](https://github.com/zaeh/zaeh-acme_kvstore)
+Puppet/ACME writer adds:
+
+```json
+{
+  "acme_renewal": {
+    "version": 3,
+    "not_after": "2026-12-20T10:00:00Z",
+    "domains": ["shop.example.com", "www.shop.example.com"],
+    "key_type": "rsa",
+    "key_size": 2048,
+    "issuers": ["r11_2027-03-12"]
+  }
+}
+```
+
+This is not a required field of the base schema. It describes automatic
+Puppet/ACME management of the CertID, **not** a new storage source or client:
+`source` remains `consul`, and the external writer uses `client: "puppet"`.
+CCI-UI reads a validated public summary directly from Consul for certificate
+details and warns before manual import or activation. The external writer owns
+the summary; CCI-UI does not rewrite it to describe a manually selected version.
+Older summaries may omit `version` and `issuers`. Unknown nested fields are
+preserved but not displayed. There is no renewal-summary column in the
+PostgreSQL catalog; existing audit before/after snapshots retain metadata as
+usual.
 
 ### Certificate version
 
@@ -168,8 +203,41 @@ reported per certificate and area.
 ## Chains
 
 Every leaf, intermediate and root certificate is stored separately. Importing a
-bundle through the UI creates an independent entry for every certificate.
-External writers publish each CA certificate with its own CertID.
+bundle through the UI stores each certificate independently, reusing an identical
+automatically named issuer when it already exists. External writers publish each
+CA certificate with its own CertID.
+
+For future imports without an explicit CertID, CCI-UI recognizes CA certificates
+by `basicConstraints: CA:TRUE`, including intermediates and roots in bundles.
+It uses the same deterministic convention as `KvDocument.issuer_certid` in
+zaeh-acme_kvstore:
+
+1. Use the first Subject CN, or the first Subject O if CN is absent.
+2. Decode ASN.1 UTF8String, BMPString, UniversalString and T61String as text
+   (UTF-8, UTF-16BE, UTF-32BE and ISO-8859-1 respectively). Already decoded UTF-8
+   values remain text.
+3. Lowercase; replace each group outside ASCII `a-z0-9` with `-`; trim leading
+   and trailing `-`; then truncate the label to 100 characters. An empty label
+   becomes `ca`. A present but unusable CN does not fall back to O.
+4. Append `_YYYY-MM-DD` using the certificate's UTC `not_after` date.
+
+Examples: `r11_2027-03-12`, `isrg-root-x1_2035-06-04`.
+The collision alternative appends `_` and the first eight lowercase hex digits
+of the certificate's SHA-256 DER fingerprint. The longest alternative is 120
+characters, within the existing CertID limit.
+
+The importer first reuses an identical active certificate under either candidate
+name; otherwise it selects the first unused name. Two different CAs in one
+bundle reserve different names too. If both names contain different certificates,
+the preview fails without writes. Reuse does not import a key, modify metadata,
+activate a version, or create a new version. A changed Consul index after preview
+requires a fresh preview; CAS prevents concurrent writers from being overwritten.
+Name resolution adds reads outside the single-certificate writer request budget.
+
+Leaf imports retain fingerprint-based default IDs. Explicit CertIDs and CSR IDs
+remain authoritative and follow their existing version workflow. Existing
+fingerprint-based CA IDs are never renamed or migrated and remain readable for
+chain construction; the naming convention applies to future automatic imports.
 
 A client constructs a chain only when requested. The Ruby/Puppet reader fetches
 public certificate candidates for the same area in one additional recursive
@@ -192,8 +260,12 @@ Status belongs to the CertID and applies to every version:
 | `norollout` | Leave existing files unchanged and do not recreate missing files. |
 | `delete` | Remove previously managed certificate and key files. |
 
-The supplied Puppet manifests expose status as metadata but do not enforce these
-behaviors yet. Setting `delete` does not physically delete Consul material.
+The bundled `cci` Puppet manifests expose status as metadata but do not enforce
+these behaviors. The optional external `zaeh-acme_kvstore` implementation does;
+see [Puppet integration](puppet.md). Setting `delete` does not physically delete
+Consul material. In that external module, `active`, `norollout` and `delete`
+control deployment, not ACME renewal. Archiving (`archived: true` together with
+`status: "delete"`) stops further renewal. Status `delete` alone does not.
 
 “Archivieren” sets `archived: true`, `status: "delete"`, `archived_at` and
 `archived_by` after confirmation. Archived entries are hidden from the normal

@@ -118,7 +118,7 @@ de:
       Die gespeicherten Zertifikatsdetails bleiben erhalten. Export und Zertifikatskette sind erst verfügbar, wenn
       die passende Quelle wieder lesbar ist.
     status_scope: Der Status gilt für alle Versionen dieses CertIDs und bleibt bei einer Erneuerung erhalten.
-    status_pending: Der Status wird gespeichert. Die automatische Auswertung durch Puppet ist noch nicht umgesetzt.
+    status_pending: "Die Statusverarbeitung hängt von der Puppet-Integration ab: zaeh-acme_kvstore setzt diese Werte um; die mitgelieferten cci-Manifeste nicht."
     status_active: ": Puppet soll das Zertifikat normal ausrollen."
     status_norollout: ": Puppet soll das Zertifikat nicht ausrollen und vorhandene Dateien unverändert lassen."
     status_delete: ": Puppet soll das Zertifikat entfernen, auch ohne Hiera-Eintrag."
@@ -129,6 +129,14 @@ de:
     versions: Versionen
     current_version: Aktuelle Version
     activate: Aktivieren
+    management: "Verwaltung"
+    automated_management: "Automatisch durch Puppet / ACME"
+    managed_domains: "Verwaltete Domains"
+    renewal_key: "Renewal-Schlüsseltyp / -größe"
+    renewal_version: "Version der Renewal-Metadaten"
+    renewal_expiry: "Ablaufdatum der Renewal-Version"
+    automated_warning: "Diese CertID wird automatisch durch Puppet/ACME verwaltet. Eine manuell aktivierte oder importierte Version kann beim nächsten Puppet-Lauf erneut ersetzt werden, wenn sie von der Puppet-Konfiguration abweicht."
+    issuer_reused: "Identischer Issuer bereits vorhanden: Version %{version} wird ohne Änderung von Material oder Metadaten wiederverwendet."
     activate_confirm: Diese Version für Puppet aktivieren?
     hiera_configuration: Hiera-Konfiguration
     public_pem: Öffentliches Zertifikat als PEM
@@ -363,6 +371,7 @@ de:
       client_format: Client muss eine Kennung aus Buchstaben, Zahlen, Punkt, Unterstrich oder Bindestrich sein (max.
         120).
       actor_format: Urheber darf nicht leer sein (max. 255 Zeichen).
+      issuer_collision: "Beide Issuer-CertIDs für %{certid} enthalten andere Zertifikate. Es wurde nichts überschrieben. Wählen Sie eine explizite CertID in einem separaten Import."
       preview_changed: Die CertID wurde seit der Vorschau geändert. Bitte Import erneut prüfen und bestätigen.
       duplicate: Dieses Zertifikat ist unter dieser CertID bereits vorhanden.
       missing_certid: CertID ist nicht mehr vorhanden.

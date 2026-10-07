@@ -66,7 +66,7 @@ class CertificateMaterial
 
   # Matching a subject name is insufficient without CA status and a valid signature.
   def self.issuer?(candidate, certificate)
-    candidate.extensions.any? { |extension| extension.oid == "basicConstraints" && extension.value.include?("CA:TRUE") } &&
+    Certificates::Codec.ca?(candidate) &&
       certificate.verify(candidate.public_key)
   end
 end

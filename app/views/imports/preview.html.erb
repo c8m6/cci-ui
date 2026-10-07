@@ -7,7 +7,12 @@
       <p class="mono small break-word"><%= entry.fetch("fingerprint") %></p>
       <p><span class="badge neutral"><%= entry["key"] ? t("ui.matching_key") : t("ui.public_certificate") %></span></p>
       <p class="muted small"><%= t("ui.certid_status", certid: entry.fetch("certid"), status: entry.fetch("rollout_status")) %></p>
-      <% if entry.fetch("certid_index") > 0 %>
+      <% if entry["automatically_managed"] && !entry["reuse_version"] %>
+        <p class="flash flash-error" role="note"><%= t("ui.automated_warning") %></p>
+      <% end %>
+      <% if entry["reuse_version"] %>
+        <p class="flash"><%= t("ui.issuer_reused", version: entry.fetch("reuse_version")) %></p>
+      <% elsif entry.fetch("certid_index") > 0 %>
         <p class="flash flash-error"><%= t("ui.certid_exists") %></p>
         <p class="mono small break-word"><%= t("ui.previous_version", version: entry.fetch("previous_version")) %></p>
       <% end %>
@@ -15,7 +20,7 @@
   <% end %>
   <%= form_with url: imports_path, data: { turbo: false } do |form| %>
     <%= form.hidden_field :token, value: @token %>
-    <% if @preview.fetch("entries").any? { |entry| entry.fetch("certid_index") > 0 } %>
+    <% if @preview.fetch("entries").any? { |entry| entry.fetch("certid_index") > 0 && !entry["reuse_version"] } %>
       <p><label class="check-label"><%= form.check_box :confirm_overwrite, { required: true }, "1", "0" %> <%= t("ui.overwrite_confirmation") %></label></p>
     <% end %>
     <%= form.submit t("ui.save_consul"), class: "button primary" %>
