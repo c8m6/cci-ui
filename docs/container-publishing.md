@@ -8,6 +8,48 @@ workflow builds the shared image for **web and indexer** from the root Dockerfil
 only on manual runs and published releases. PostgreSQL and Consul use their
 official images and do not require a custom build.
 
+## Manual dependency update report
+
+Open **Actions → Check dependency updates → Run workflow** and select `all`,
+`ruby`, `docker` or `actions`. This workflow has no push, pull-request or
+scheduled trigger. It uses one Ubuntu job with a 20-minute limit and a read-only
+GitHub token. No additional credentials or external bot installation are needed
+for the project's public dependencies.
+
+The report appears in the job summary and in a Markdown/JSON artifact retained
+for 14 days. It includes the scanned revision, current dependency versions and
+constraints, candidate versions/references, separate major-update candidates,
+and skipped or unsuccessful lookups. An incomplete lookup fails the job while
+retaining the available report; it must not be interpreted as “everything is
+up to date.” Repeated manual runs for the same ref and scope replace older runs.
+
+The implementation uses [Renovate 44.143.0](https://github.com/renovatebot/renovate/releases/tag/44.143.0),
+an AGPL-3.0-only development tool, through its npm CLI in
+[local lookup mode](https://docs.renovatebot.com/modules/platform/local/).
+Renovate is not added to the application image or Ruby dependencies. The local
+platform is experimental; the report renderer relies on that pinned version's
+structured `packageFiles with updates` debug record. Tool upgrades must verify
+this record and the renderer tests before integration.
+
+Only copies of the root `Gemfile`, `Gemfile.lock`, `Dockerfile` and workflow
+YAML files enter the lookup directory. Ruby lookup uses Renovate's Bundler
+manager, including the available lockfile information; it is not a complete
+security audit of every transitive dependency. Docker lookup covers the root
+application base image, not Compose services, installed OS packages or every
+possible registry tag. Constraints and Renovate's versioning rules affect the
+candidates shown. Registry/API limits can make a report incomplete.
+
+The workflow does not evaluate the application Gemfile with Bundler, install
+application gems, regenerate lockfiles, build or pull application images,
+commit changes, open PRs or publish releases. Renovate fetches public registry
+and GitHub metadata only; application scripts are disabled. Raw lookup logs and
+configuration are excluded from the downloadable report.
+
+Review candidates before approving an update. Adopt each approved update on a
+separate branch, run the relevant application and security checks, and use the
+normal PR and release process. A candidate's presence does not establish
+compatibility or safety. This task is a version lookup, not a vulnerability scan.
+
 ## Set up GitHub and Docker Hub
 
 The project publishes the public [c8m6/cci-ui](https://hub.docker.com/r/c8m6/cci-ui)

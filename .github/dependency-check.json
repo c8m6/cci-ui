@@ -1,0 +1,17 @@
+{
+  "platform": "local",
+  "dryRun": "lookup",
+  "requireConfig": "optional",
+  "onboarding": false,
+  "dependencyDashboard": false,
+  "automerge": false,
+  "allowScripts": false,
+  "binarySource": "global",
+  "packageRules": [
+    {
+      "matchManagers": ["dockerfile"],
+      "matchDepTypes": ["install"],
+      "enabled": false
+    }
+  ]
+}
