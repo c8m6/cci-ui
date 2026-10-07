@@ -1,0 +1,84 @@
+name: Check dependency updates
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Dependencies to inspect (report only)
+        type: choice
+        options: [all, ruby, docker, actions]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-check-${{ github.ref }}-${{ inputs.scope }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify report renderer
+        run: python3 -m unittest discover -s script -p test_dependency_report.py
+      - name: Prepare isolated lookup input
+        env:
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          case "$SCOPE" in
+            all) managers='["bundler","dockerfile","github-actions"]' ;;
+            ruby) managers='["bundler"]' ;;
+            docker) managers='["dockerfile"]' ;;
+            actions) managers='["github-actions"]' ;;
+            *) echo 'Unsupported scope'; exit 1 ;;
+          esac
+          echo "RENOVATE_ENABLED_MANAGERS=$managers" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/dependency-input/.github/workflows"
+          cp Gemfile Gemfile.lock Dockerfile "$RUNNER_TEMP/dependency-input/"
+          cp .github/workflows/*.yml "$RUNNER_TEMP/dependency-input/.github/workflows/"
+      - name: Look up updates without repository writes
+        id: lookup
+        continue-on-error: true
+        working-directory: ${{ runner.temp }}/dependency-input
+        env:
+          RENOVATE_CONFIG_FILE: ${{ github.workspace }}/.github/dependency-check.json
+          RENOVATE_GITHUB_COM_TOKEN: ${{ github.token }}
+          LOG_LEVEL: error
+          LOG_FILE: ${{ runner.temp }}/dependency-lookup.jsonl
+          LOG_FILE_LEVEL: debug
+        run: npx --yes --package renovate@44.143.0 renovate --platform=local --dry-run=lookup
+      - name: Render report and expose incomplete lookups
+        if: ${{ always() && !cancelled() }}
+        env:
+          SCOPE: ${{ inputs.scope }}
+          REVISION: ${{ github.sha }}
+          LOOKUP_OUTCOME: ${{ steps.lookup.outcome }}
+        run: |
+          flags=()
+          if [ "$LOOKUP_OUTCOME" != success ]; then flags+=(--scan-failed); fi
+          result=0
+          python3 script/dependency_report.py "$RUNNER_TEMP/dependency-lookup.jsonl" \
+            "$RUNNER_TEMP/dependency-report" --scope "$SCOPE" --revision "$REVISION" \
+            "${flags[@]}" || result=$?
+          if [ -f "$RUNNER_TEMP/dependency-report/dependency-report.md" ]; then
+            cat "$RUNNER_TEMP/dependency-report/dependency-report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          rm -f "$RUNNER_TEMP/dependency-lookup.jsonl"
+          git diff --exit-code
+          exit "$result"
+      - name: Retain report
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: dependency-report-${{ inputs.scope }}
+          path: ${{ runner.temp }}/dependency-report/
+          if-no-files-found: warn
+          retention-days: 14
