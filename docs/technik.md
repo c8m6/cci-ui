@@ -45,7 +45,14 @@ the selected certificate, with validity badges and links. Metadata, reported
 PuppetDB hosts, status and archive controls, versions and Hiera configuration
 appear below it. This dark-theme example uses synthetic certificates and hosts.
 
-![Certificate details with synthetic PuppetDB hosts, version history and Consul status controls](screenshots/details.png)
+The optional `acme_renewal` extension is read directly from the CertID metadata
+in Consul. Valid summaries show automatic Puppet/ACME management, domains, key
+parameters and the version/expiry described by the external writer. Manual
+import and activation show a warning but retain the existing permissions and
+confirmation workflow. Unknown metadata remains intact during all UI writes;
+it is not a new catalog classification or storage source.
+
+![Certificate details with synthetic Puppet/ACME management, PuppetDB hosts, version history and Consul status controls](screenshots/details.png)
 
 ## PostgreSQL
 
@@ -86,8 +93,10 @@ Default prefix: `cci`. `<area>` is a stable ID from `CCI_AREAS`.
 | `<area>/keys/<certid>/<version>` | AES-256-GCM envelope |
 
 Versions are positive integers per area/CertID pair. A renewal allocates
-`latest_version + 1`, even after activation of an older version. Every successful
-import creates a version, including repeated certificate material. Fingerprints
+`latest_version + 1`, even after activation of an older version. Leaf and explicit CertID
+imports create a version, including repeated material. Automatically named CA
+imports reuse an identical existing issuer; new issuers use the shared
+CN/organization and expiry-date convention, with a fingerprint collision suffix. Fingerprints
 and X.509 metadata are derived from the PEM. No chain is stored. Clients assemble
 chains from independently stored certificates when needed.
 
@@ -104,7 +113,9 @@ audit events. See the [complete contract and Ruby examples](consul-schema.md).
 
 Only Consul certificates have mutable status and archive state. Status applies
 to all versions of a CertID and survives renewals. The supplied Puppet manifests
-expose `active`, `norollout`, and `delete` but do not enforce these statuses yet.
+expose `active`, `norollout`, and `delete` but do not enforce these statuses.
+The optional external `zaeh-acme_kvstore` integration does enforce them;
+[deployment and ACME renewal are separate](puppet.md#deployment-and-renewal-are-separate).
 Archiving sets `archived: true` and `status: delete` while retaining material.
 
 ## Area configuration

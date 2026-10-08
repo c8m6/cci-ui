@@ -7,6 +7,13 @@
   <dt><%= t("ui.puppet_status") %></dt><dd><%= @certificate.source == "consul" ? @rollout_status : t("ui.filesystem_unmanaged") %></dd>
   <dt><%= t("ui.storage_location") %></dt><dd><%= @certificate.source_label %></dd>
   <dt><%= t("ui.source_client") %></dt><dd><%= @certificate.origin_label %></dd>
+  <% if @renewal_summary %>
+    <dt><%= t("ui.management") %></dt><dd><%= t("ui.automated_management") %></dd>
+    <dt><%= t("ui.managed_domains") %></dt><dd><%= @renewal_summary.fetch("domains").join(", ") %></dd>
+    <dt><%= t("ui.renewal_key") %></dt><dd><%= @renewal_summary.fetch("key_type").upcase %> / <%= @renewal_summary.fetch("key_size") %> bit</dd>
+    <% if @renewal_summary["version"] %><dt><%= t("ui.renewal_version") %></dt><dd><%= @renewal_summary.fetch("version") %></dd><% end %>
+    <dt><%= t("ui.renewal_expiry") %></dt><dd><%= date_label(@renewal_summary.fetch("not_after")) %></dd>
+  <% end %>
   <dt><%= t("ui.created_by") %></dt><dd><%= @certificate.created_by.presence || t("ui.unknown_creator") %></dd>
   <% if @certificate.source == "consul" %>
     <dt><%= t("ui.version") %></dt><dd><%= @certificate.certificate_version %></dd>
@@ -52,7 +59,26 @@
     <%= link_to t("ui.legacy_delete"), delete_legacy_certificate_path(@certificate), class: "button secondary" %>
   </section>
 <% end %>
-<% if @versions.any? %><section class="panel detail-panel"><h2><%= t("ui.versions") %></h2><% @versions.each do |version| %><div class="version-row"><%= link_to "#{version.certificate_version}: #{date_label(version.not_before)} – #{date_label(version.not_after)}", certificate_path(version) %><span class="mono small"><%= version.fingerprint.first(16) %>…</span><% if version.active %><span class="badge success"><%= t("ui.current_version") %></span><% elsif !@archived && current_identity.writer?(version.area) %><%= button_to t("ui.activate"), certificate_path(version), method: :patch, class: "button secondary", data: { turbo_confirm: t("ui.activate_confirm") } %><% end %></div><% end %></section><% end %>
+<% if @automatically_managed && !@archived && current_identity.writer?(@certificate.area) %>
+  <p class="flash flash-error" role="note"><%= t("ui.automated_warning") %></p>
+<% end %>
+<% if @versions.any? %>
+  <section class="panel detail-panel">
+    <h2><%= t("ui.versions") %></h2>
+    <% confirmation = [t("ui.activate_confirm"), (@automatically_managed ? t("ui.automated_warning") : nil)].compact.join("\n\n") %>
+    <% @versions.each do |version| %>
+      <div class="version-row">
+        <%= link_to "#{version.certificate_version}: #{date_label(version.not_before)} – #{date_label(version.not_after)}", certificate_path(version) %>
+        <span class="mono small"><%= version.fingerprint.first(16) %>…</span>
+        <% if version.active %>
+          <span class="badge success"><%= t("ui.current_version") %></span>
+        <% elsif !@archived && current_identity.writer?(version.area) %>
+          <%= button_to t("ui.activate"), certificate_path(version), method: :patch, class: "button secondary", data: { turbo_confirm: confirmation } %>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+<% end %>
 <% if @material %>
 <section class="panel detail-panel"><h2><%= t("ui.hiera_configuration") %></h2><pre><%= @hiera %></pre></section>
 <% if current_identity.export?(@certificate.area) %><details class="panel detail-panel"><summary><%= t("ui.public_pem") %></summary><pre><%= @material[:certificate].to_pem %></pre></details>

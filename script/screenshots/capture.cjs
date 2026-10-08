@@ -96,6 +96,11 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert.equal(await page.$eval('.certificate-chain tr[data-depth="2"]', node => node.getAttribute('aria-current')), 'true');
     assert.equal(await page.$eval('.certificate-chain td', node => getComputedStyle(node).whiteSpace), 'nowrap');
     assert.equal(await page.$$eval('.certificate-chain thead th', nodes => nodes.length), 3);
+    const summary = await page.$eval('.detail-grid dl', node => node.textContent);
+    assert(summary.includes('Automatically managed by Puppet / ACME'));
+    assert(summary.includes('External client: puppet'));
+    assert((await page.$eval('[role="note"]', node => node.textContent)).includes('next Puppet run'));
+    assert((await page.$eval('.version-row button[data-turbo-confirm]', node => node.dataset.turboConfirm)).includes('Puppet/ACME'));
     await capture('details.png');
     // Exercise long subjects without changing the captured application screenshot.
     const originalSubjects = await page.$$eval('.certificate-chain .ca-subject-text a', nodes => nodes.map(node => node.textContent));

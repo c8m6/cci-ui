@@ -42,11 +42,13 @@ identities and PuppetDB host associations. Detailed views are documented under
   warnings, a Zabbix 7.4 monitoring template, and German/English interfaces with
   light and dark themes.
 
-**Puppet status processing is not implemented in the supplied manifests.** The
-UI stores `active`, `norollout` and `delete`, but these values do not yet suspend
-rollout or remove managed files. Read the
-[status contract and rollout requirements](docs/puppet.md#prepared-status-contract)
-before relying on them.
+For automated ACME issuance and renewal using this storage contract, see
+[zaeh-acme_kvstore](https://github.com/zaeh/zaeh-acme_kvstore), a compatible
+external Puppet implementation. It implements `active`, `norollout` and `delete`
+and stops renewal for archived CertIDs. CCI-UI displays its optional management
+metadata and warns before manual imports or activation. It is not a required
+dependency. The bundled `cci` manifests remain a simpler reader without status
+processing; see [Puppet integration](docs/puppet.md).
 
 ## Quick start
 

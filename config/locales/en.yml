@@ -118,7 +118,7 @@ en:
       Stored certificate details are retained. Export and the certificate chain will be available when the matching
       source is readable again.
     status_scope: The status applies to all versions of this certid and is preserved on renewal.
-    status_pending: The status is stored. Automatic processing by Puppet is not yet implemented.
+    status_pending: "Status processing depends on the Puppet integration: zaeh-acme_kvstore implements these values; the bundled cci manifests do not."
     status_active: ": Puppet should deploy the certificate normally."
     status_norollout: ": Puppet should not deploy the certificate and should leave existing files unchanged."
     status_delete: ": Puppet should remove the certificate, even without a Hiera entry."
@@ -129,6 +129,14 @@ en:
     versions: Versions
     current_version: Current version
     activate: Activate
+    management: "Management"
+    automated_management: "Automatically managed by Puppet / ACME"
+    managed_domains: "Managed domains"
+    renewal_key: "Renewal key type / size"
+    renewal_version: "Renewal metadata version"
+    renewal_expiry: "Renewal version expires"
+    automated_warning: "This CertID is automatically managed by Puppet/ACME. A manually activated or imported version may be replaced on the next Puppet run if it differs from the Puppet configuration."
+    issuer_reused: "Identical issuer already stored: version %{version} will be reused without changing its material or metadata."
     activate_confirm: Activate this version for Puppet?
     hiera_configuration: Hiera configuration
     public_pem: Public certificate as PEM
@@ -360,6 +368,7 @@ en:
       client_format: The client identifier must contain letters, digits, dots, underscores or hyphens (maximum 120
         characters).
       actor_format: The creator must not be blank (maximum 255 characters).
+      issuer_collision: "Both issuer CertIDs for %{certid} contain different certificates. Nothing was overwritten. Choose an explicit CertID in a separate import."
       preview_changed: The certid has changed since the preview. Please review and confirm the import again.
       duplicate: This certificate already exists under this certid.
       missing_certid: The certid no longer exists.

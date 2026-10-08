@@ -51,9 +51,18 @@ issued = {}
   parent, parent_key = certid == "portal.production" ? [issuing, issuing_key] : [root, root_key]
   cert, key = issue(name, serial: 10 + index, days: days, issuer: parent, issuer_key: parent_key)
   id = ConsulStore.save(area: area, cert: cert, key: key, tags: [tag],
-    certid: certid, actor: actor, client: "cci-ui")
+    certid: certid, actor: actor, client: certid == "portal.production" ? "puppet" : "cci-ui")
   issued[certid] = [cert, id, area]
 end
+# Show the optional external-writer extension using public synthetic data only.
+portal_cert, portal_id, portal_area = issued.fetch("portal.production")
+portal_meta = ConsulStore.certid_snapshot(portal_area, "portal.production")
+metadata = JSON.parse(portal_meta.fetch(:value)).merge("acme_renewal" => {
+  "version" => portal_id.split("/").last.to_i, "not_after" => portal_cert.not_after.utc.iso8601,
+  "domains" => ["portal.example.test"], "key_type" => "rsa", "key_size" => 2048
+})
+ConsulStore.client.transaction([ConsulConnection.set("#{ConsulStore.prefix(portal_area)}/certids/portal.production",
+  metadata, index: portal_meta.fetch(:index))])
 CatalogIndexer.new.filesystem
 CatalogIndexer.refresh_consul
 

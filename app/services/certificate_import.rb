@@ -20,8 +20,9 @@ class CertificateImport
     validate_fingerprints!(fingerprints, areas: areas)
     token = SecureRandom.hex(24)
     entries = areas.flat_map do |area|
+      issuers = IssuerImport.new(area)
       certs.map do |cert|
-        preview_entry(area: area, cert: cert, keys: keys, certid: certid, token: token, tags: tags)
+        preview_entry(area: area, cert: cert, keys: keys, certid: certid, token: token, tags: tags, issuers: issuers)
       end
     end
     payload = { areas: areas, entries: entries }
@@ -75,6 +76,8 @@ class CertificateImport
   def self.commit_entry(entry, token, identity)
     area = entry.fetch("area")
     cert = OpenSSL::X509::Certificate.new(entry.fetch("pem"))
+    return IssuerImport.reuse(entry, cert) if entry["reuse_version"]
+
     key = entry["key"] && OpenSSL::PKey.read(Certificates::Vault.decrypt(entry["key"], area: area,
       id: "preview:#{token}:#{entry.fetch("fingerprint")}"))
     ConsulStore.save(area: area, cert: cert, key: key, tags: entry.fetch("tags"), certid: entry.fetch("certid"),
@@ -103,18 +106,26 @@ class CertificateImport
   end
 
   # Encrypt each preview key with a draft-specific context and capture the CAS index.
-  def self.preview_entry(area:, cert:, keys:, certid:, token:, tags:)
+  def self.preview_entry(area:, cert:, keys:, certid:, token:, tags:, issuers:)
     key = keys.find { |candidate| cert.check_private_key(candidate) }
     fingerprint = Certificates::Codec.fingerprint(cert)
-    name = certid.presence || fingerprint
-    snapshot = ConsulStore.certid_snapshot(area, name)
+    target = import_target(area, cert, certid, issuers)
+    snapshot = target[:snapshot]
     previous = snapshot && JSON.parse(snapshot.fetch(:value))
     { area: area, pem: cert.to_pem, fingerprint: fingerprint, name: Certificates::Codec.metadata(cert)[:common_name],
       key: key && Certificates::Vault.encrypt(key.private_to_pem, area: area, id: "preview:#{token}:#{fingerprint}"),
-      certid: name,
+      certid: target.fetch(:certid), reuse_version: target[:reuse_version],
+      automatically_managed: CertificateManagement.automated?(previous),
       certid_index: snapshot&.fetch(:index) || 0, previous_version: previous&.fetch("active_version"),
       rollout_status: previous ? ConsulStore.rollout_status(previous) : "active",
       tags: tags.split(",").map(&:strip).reject(&:empty?).first(30) }
+  end
+
+  def self.import_target(area, cert, certid, issuers)
+    return issuers.resolve(cert) if certid.blank? && Certificates::Codec.ca?(cert)
+
+    name = certid.presence || Certificates::Codec.fingerprint(cert)
+    { certid: name, snapshot: ConsulStore.certid_snapshot(area, name) }
   end
 
   # Recheck permissions and renewal confirmation when consuming the draft.
@@ -124,7 +135,9 @@ class CertificateImport
     unless data.fetch("entries").all? { |entry| entry["certid_index"].is_a?(Integer) && entry["certid_index"] >= 0 }
       raise Certificates::Error, I18n.t("errors.app.old_preview")
     end
-    raise ConfirmationRequired, data if data.fetch("entries").any? { |entry| entry.fetch("certid_index").positive? } && !confirm_overwrite
+
+    replacing = data.fetch("entries").any? { |entry| entry.fetch("certid_index").positive? && !entry["reuse_version"] }
+    raise ConfirmationRequired, data if replacing && !confirm_overwrite
   end
 
   # A supplied CertID may refer to one certificate only and every key must match.

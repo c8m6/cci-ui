@@ -50,10 +50,18 @@ module Certificates
     end
 
     def self.common_name(name)
-      entry = name.to_a.find { |item| item[0] == "CN" }
-      return "No common name" unless entry
+      name_attribute(name, "CN") || "No common name"
+    end
 
-      _, value, type = entry
+    def self.name_attribute(name, attribute)
+      entry = name.to_a.find { |item| item[0] == attribute }
+      name_text(entry[1], entry[2]) if entry
+    end
+
+    def self.name_text(value, type)
+      # JRuby may already have decoded the value; MRI returns its ASN.1 bytes.
+      return value.scrub if value.encoding == Encoding::UTF_8
+
       encoding = case type
                  when OpenSSL::ASN1::BMPSTRING then Encoding::UTF_16BE
                  when OpenSSL::ASN1::UNIVERSALSTRING then Encoding::UTF_32BE
@@ -62,6 +70,22 @@ module Certificates
                  end
       # Decode display text using the ASN.1 type; OpenSSL labels value bytes binary.
       value.dup.force_encoding(encoding).encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+    end
+
+    # Shared storage convention, also used by zaeh-acme_kvstore's KvDocument.
+    def self.issuer_certid(cert)
+      label = (name_attribute(cert.subject, "CN") || name_attribute(cert.subject, "O") || "")
+              .downcase.gsub(/[^a-z0-9]+/, "-").gsub(/\A-+|-+\z/, "")[0, 100]
+      label = "ca" if label.empty?
+      "#{label}_#{cert.not_after.utc.strftime("%Y-%m-%d")}"
+    end
+
+    def self.issuer_certid_alternative(cert)
+      "#{issuer_certid(cert)}_#{fingerprint(cert)[0, 8]}"
+    end
+
+    def self.ca?(cert)
+      cert.extensions.any? { |extension| extension.oid == "basicConstraints" && extension.value.include?("CA:TRUE") }
     end
 
     def self.metadata(cert)
