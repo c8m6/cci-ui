@@ -49,7 +49,7 @@ class FilesystemReconciliationConcurrencyTest < ActiveSupport::TestCase
     end
     assert_instance_of ArgumentError, results.last
     event = AuditEvent.find_by!(action: "delete", actor: "first-operator")
-    assert_equal ids, event.details.fetch("certificates").pluck("id")
+    assert_equal ids.tally, event.details.fetch("certificates").pluck("id").tally
     assert_empty AuditEvent.where(action: "delete", actor: "second-operator")
   ensure
     AuditEvent.where(actor: %w[first-operator second-operator]).delete_all
