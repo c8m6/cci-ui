@@ -1,8 +1,8 @@
 # CCI-UI: technical architecture
 
-This architecture overview reflects the state on 21 September 2026. It covers
+This architecture overview includes filesystem reconciliation as of 9 October 2026. It covers
 configurable areas, import confirmation, Consul-only status and archiving,
-retained filesystem inventory, audit logging and optional PuppetDB host
+reconciled filesystem inventory, audit logging and optional PuppetDB host
 associations.
 Consul is the authoritative store for imported certificates.
 
@@ -75,6 +75,12 @@ writes; stale search metadata is not used to decide duplication. An incomplete
 or unavailable inventory blocks the upload. Existing destination certids require explicit
 overwrite confirmation. A changed certid index, including a new certid created
 after preview, rejects that entry and requires a fresh preview.
+
+Filesystem projections additionally store `filesystem_source_path` (the resolved
+inventory root), `filesystem_missing_scans` and `filesystem_cleanup_blocked`.
+The latter persists a safety-limit block until rediscovery or explicit approval.
+Existing rows start with an unknown root and zero confirmations; only a subsequent complete scan that finds
+them assigns the root. Unobserved rows remain protected from automatic deletion.
 
 `pg_trgm` indexes search text. Multiple search terms are combined with AND.
 Subject, issuer, CN, SANs, tags and Puppet certid are searchable; fingerprints
@@ -241,13 +247,20 @@ archive against database or Consul administrators.
 
 ## Indexing and consistency
 
-A PostgreSQL advisory lock serializes scheduled indexing and refreshes after
-upload, activation or status changes. The indexer reads legacy files and public
-Consul versions. It never deletes
-certificate catalog records or status metadata when a source entry disappears.
-Empty or unavailable mounts therefore cannot erase the catalog. ACL-filtered
-Consul responses are treated as errors. All public versions are scanned
-periodically; Consul blocking queries are not yet implemented.
+A PostgreSQL advisory lock serializes scheduled indexing, direct filesystem
+refreshes and refreshes after upload, activation or status changes. It covers
+the whole filesystem scan and cleanup, including administrator approvals.
+The indexer reads legacy files and public Consul versions. Each filesystem
+source has a separate scan, projection and reconciliation phase; database
+updates for that source commit in one transaction. Two complete successful
+scans must confirm absence before a bound filesystem row can be deleted.
+Rediscovery resets its missing counter. Failed scans neither advance nor reset
+confirmations. More than 20% deletion candidates relative to the pre-scan
+bound, retained database population block all deletion for that source.
+Repeated blocked scans retain the population and cannot drain it in batches.
+Consul projections and status metadata are preserved when source entries disappear.
+ACL-filtered Consul responses are treated as errors. All public versions are
+scanned periodically; Consul blocking queries are not yet implemented.
 
 If a Consul write succeeds but indexing fails, source data remains intact and
 the next successful scan repairs the index. There is no distributed transaction
@@ -261,12 +274,21 @@ that directory are rejected. Multiple certificates in one PEM file receive
 separate search records using the file path and block index. A certificate may
 therefore appear more than once. `CCI_LEGACY_PATHS` determines directory-to-area
 assignment. The catalog key includes area, source, relative file/block ID and
-fingerprint, so replacing a file preserves the previous entry and
-matching filenames in different roots are distinct records. Material reads,
+fingerprint, so replacing a file creates a new identity and marks the previous
+bound entry missing for guarded reconciliation. Matching filenames in different
+roots are distinct records. Material reads,
 private-key exports and Hiera tag reads explicitly select the record's area.
 Removing a mapping blocks material reads and retains catalog rows. Missing or unreadable roots and malformed certificates report
 indexing failures, while other areas and Consul indexing continue. Filesystem
 indexing creates no Consul records.
+
+Deletion preserves audit history and independent CSR records, removes cached
+PuppetDB observations with the certificate row, and invalidates the area's CA
+snapshot in the same transaction. CA discovery skips filesystem entries already
+marked missing, avoiding repeated material-read failures during the grace period
+or a blocked cleanup. Monitoring retains those entries until deletion, then
+omits them on the next response. See
+[filesystem reconciliation, limitations and administrator approval](legacy-deletion.md#automatic-filesystem-reconciliation).
 
 Archiving persists `archived: true` together with Puppet `status: delete` in one Consul CAS transaction. The UI audit record is stored in PostgreSQL. Confirmation includes the scope:
 all versions of a Consul certid in an area. Only Consul entries can be archived.

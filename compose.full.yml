@@ -25,6 +25,7 @@ x-rails-environment: &rails_environment
 # Public inventory reads do not need CCI_AREA_KEYS.
 x-inventory-environment: &inventory_environment
   CCI_LEGACY_PATHS: '{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
+  CCI_FILESYSTEM_RECONCILIATION: '{}'
   CONSUL_URL: "https://consul.example.test:8501"
   CONSUL_PREFIX: "cci"
   CONSUL_CA_FILE: "/run/consul/ca.pem"

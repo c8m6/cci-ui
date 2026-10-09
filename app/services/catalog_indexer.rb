@@ -68,35 +68,74 @@ class CatalogIndexer
 
   def filesystem
     failures = []
+    log_unassigned_filesystem_records(Certificate.retained.where(source: "filesystem").where.not(area: LegacyStore.areas))
     LegacyStore.areas.each do |area|
       filesystem_area(area)
     rescue Certificates::Error, ConsulConnection::Error => e
-      OperationalLog.failure(logger: "cci.indexer", message: "Filesystem inventory refresh failed",
-        error: e, level: :warn, operation: "refresh_filesystem_inventory", area: area)
+      OperationalLog.failure(logger: "cci.indexer", message: "Filesystem scan incomplete; reconciliation skipped",
+        error: e, operation: "refresh_filesystem_inventory", area: area)
       failures << e
     end
     raise failures.first if failures.any?
   end
 
-  def filesystem_area(area)
-    inventory = LegacyStore.inventory(area: area)
-    root = LegacyStore.root(area: area)
-    inventory.each do |entry|
-      relative = entry.fetch(:relative)
-      tag_path = relative.sub(/\.pem\z/i, ".tag")
-      tags = if root.join(tag_path).exist?
-               [LegacyStore.read(LegacyStore.safe_path(tag_path,
-                 area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?)
-             else
-               []
-             end
-      has_key = root.join(relative.sub(/\.pem\z/i,
-        ".key")).exist? || LegacyStore.read(LegacyStore.safe_path(relative,
-          area: area)).include?("PRIVATE KEY-----")
-      entry.fetch(:certificates).each_with_index do |cert, index|
-        upsert(cert, area: area, source: "filesystem", source_id: "#{relative}##{index}", tags: tags, has_key: has_key, active: true,
-          rollout_status: "active", archived: false)
+  def filesystem_area(area, approval: nil)
+    # Even direct source refreshes must serialize the scan, not just cleanup.
+    self.class.synchronize do
+      root = LegacyStore.root(area: area)
+      previous = Certificate.retained.where(area: area, source: "filesystem", filesystem_source_path: root.to_s).to_a
+      inventory = filesystem_inventory(area, root)
+      reconciliation = nil
+      Certificate.transaction do
+        found = inventory.flat_map do |entry|
+          entry.fetch(:certificates).each_with_index.map do |cert, index|
+            upsert(cert, area: area, source: "filesystem", source_id: "#{entry.fetch(:relative)}##{index}",
+              tags: entry.fetch(:tags), has_key: entry.fetch(:has_key), active: true, rollout_status: "active", archived: false,
+              filesystem_source_path: root.to_s, filesystem_missing_scans: 0, filesystem_cleanup_blocked: false).id
+          end
+        end
+        reconciliation = FilesystemReconciliation.new(area: area, source_path: root.to_s, previous_records: previous, found_ids: found)
+        reconciliation.call(approval: approval)
       end
+      unassigned = Certificate.retained.where(area: area, source: "filesystem")
+                              .where("filesystem_source_path IS DISTINCT FROM ?", root.to_s)
+      log_unassigned_filesystem_records(unassigned)
+      reconciliation.log_result
+    end
+  rescue SystemCallError, IOError, Timeout::Error => e
+    raise Certificates::Error, "Filesystem scan incomplete (#{e.class.name}); reconciliation skipped."
+  end
+
+  def filesystem_inventory(area, root)
+    inventory = LegacyStore.inventory(area: area) do |entries|
+      entries.each do |entry|
+        relative = entry.fetch(:relative)
+        tag_path = relative.sub(/\.pem\z/i, ".tag")
+        tags = if LegacyStore.optional_file?(root.join(tag_path))
+                 [LegacyStore.read(LegacyStore.safe_path(tag_path,
+                   area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?)
+               else
+                 []
+               end
+        data = LegacyStore.read(LegacyStore.safe_path(relative, area: area))
+        LegacyStore.verify_state!(LegacyStore.safe_path(relative, area: area), entry.fetch(:state))
+        if entry.fetch(:certificates).empty?
+          raise Certificates::Error, "PEM inventory file contains no certificates; reconciliation skipped."
+        end
+
+        has_key = LegacyStore.optional_file?(root.join(relative.sub(/\.pem\z/i, ".key"))) || data.include?("PRIVATE KEY-----")
+        entry.merge!(tags: tags, has_key: has_key)
+      end
+    end
+    raise Certificates::Error, "Filesystem source changed during scan." unless root == LegacyStore.root(area: area)
+
+    inventory
+  end
+
+  def log_unassigned_filesystem_records(records)
+    records.group(:area, :filesystem_source_path).count.each do |(area, source_path), count|
+      OperationalLog.warn(logger: "cci.indexer", message: "Filesystem records retained without a matching configured source",
+        operation: "reconcile_filesystem", source: "filesystem", area: area, source_path: source_path, retained_count: count)
     end
   end
 

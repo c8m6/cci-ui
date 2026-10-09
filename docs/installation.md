@@ -141,7 +141,9 @@ token on every web replica and keep the endpoint disabled when unused.
 
 Preserve area IDs: they determine Consul paths, encryption, roles and audit ownership.
 Removed local mappings block material reads but retain their catalog rows.
-Certificate metadata and audit history are never removed by an indexing pass.
+Consul metadata and audit history remain intact during indexing. Previously
+observed filesystem rows can be removed by guarded reconciliation after two
+complete absence confirmations; see [filesystem reconciliation](legacy-deletion.md#automatic-filesystem-reconciliation).
 
 ## Tests
 
@@ -475,8 +477,12 @@ See [the storage contract](consul-schema.md) and [Puppet integration](puppet.md)
 
 ## Legacy inventory consistency
 
-The indexer retains catalog entries when a file or mount disappears. Filesystem
-certificates create no Consul state. Explicit UI deletion renames files with
+The indexer preserves filesystem entries during failed scans, the confirmation
+period and blocked cleanup. By default, two complete scans confirm absence and
+more than 20% deletion candidates block all cleanup for that source. A blocked
+candidate requires rediscovery or exact administrator approval, even if later
+passes discover new certificates. Filesystem certificates create no Consul state.
+Explicit UI deletion renames files with
 `.DELETED` and hides their retained PostgreSQL rows. See
 [filesystem deletion](legacy-deletion.md). Missing material blocks
 export but retained metadata stays visible. Removing a directory mapping blocks

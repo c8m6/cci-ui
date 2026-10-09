@@ -35,6 +35,8 @@ identities and PuppetDB host associations. Detailed views are documented under
   certificate distribution, optional PuppetDB host associations, and an optional
   CA inventory. Consul certificates have status and archive controls, while
   filesystem deletion uses a separate confirmation and recovery workflow.
+  Read-only reconciliation removes externally deleted filesystem entries after
+  two complete scans, with a per-source 20% deletion guard.
 - **Access and audit:** Keycloak OIDC authentication, independent area-specific
   Reader, Writer, Key Exporter, CSR and Auditor roles, encrypted keys for imports and certificate requests,
   and audit records for UI changes and exports.

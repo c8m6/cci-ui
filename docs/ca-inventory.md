@@ -23,7 +23,9 @@ Disabling the feature stops scans and hides both the page
 and its download routes, while preserving the last stored snapshot.
 
 After each successful full index pass, CCI-UI reads public certificate material
-from all configured areas and both filesystem and Consul sources. All non-deleted catalogued
+from all configured areas and both filesystem and Consul sources. Filesystem
+entries marked missing by a complete scan are skipped, including while the
+deletion safety limit blocks cleanup. All other non-deleted catalogued
 versions participate, including inactive, archived and expired certificates.
 Issuer discovery stays within each area, matching the certificate detail page
 and existing access permissions. A CA needed in multiple areas must be present

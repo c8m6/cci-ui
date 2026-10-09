@@ -94,3 +94,9 @@ For system-trusted Consul/PuppetDB certificates, empty the corresponding
 without mutual TLS, empty both client certificate/key settings together.
 Keep `PUPPETDB_TOKEN` empty unless your endpoint requires it. Set
 `CCI_LEGACY_PATHS` to `{}` and remove legacy mounts if no disk inventory exists.
+
+`CCI_FILESYSTEM_RECONCILIATION` is shared by web and indexer in the inventory
+environment block. Its empty JSON object selects the defaults: enabled cleanup,
+two successful absence confirmations and a 20% deletion limit per source.
+See [filesystem reconciliation](legacy-deletion.md#automatic-filesystem-reconciliation)
+before changing these settings or approving a legitimate mass deletion.
