@@ -31,7 +31,7 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
 
   def with_method(object, name, replacement)
     original = object.method(name)
-    object.define_singleton_method(name) { |*args, **options| replacement.call(*args, **options) }
+    object.define_singleton_method(name) { |*args, **options, &block| replacement.call(*args, **options, &block) }
     yield
   ensure
     object.define_singleton_method(name, original)
@@ -103,13 +103,30 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
     end
   end
 
+  test "temporary loss of the configured directory preserves state and restoration rediscovers every row" do
+    @records.last.update!(filesystem_missing_scans: 1)
+    before = Certificate.order(:id).map(&:attributes)
+    offline = "#{@directory}-offline"
+    File.rename(@directory, offline)
+    3.times { assert_raises(Certificates::Error) { scan } }
+    assert_equal before, Certificate.order(:id).map(&:attributes)
+    File.rename(offline, @directory)
+    scan
+    assert_equal @records.map(&:id), Certificate.where(source: "filesystem").order(:id).pluck(:id)
+    assert_equal [0], Certificate.where(source: "filesystem").distinct.pluck(:filesystem_missing_scans)
+    assert_empty AuditEvent.where(action: "delete")
+  ensure
+    File.rename(offline, @directory) if offline && File.exist?(offline)
+  end
+
   test "disappearing files and unreadable companion metadata abort the complete source" do
     remove_files
     scan
     original = LegacyStore.method(:inventory)
-    disappearing = lambda do |**args|
+    disappearing = lambda do |**args, &block|
       entries = original.call(**args)
       File.delete(File.join(@directory, entries.first.fetch(:relative)))
+      block.call(entries)
       entries
     end
     with_method(LegacyStore, :inventory, disappearing) { assert_raises(Certificates::Error) { scan } }
@@ -132,9 +149,10 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
     scan
     path = File.join(@directory, "cert-1.pem")
     original = LegacyStore.method(:inventory)
-    changed = lambda do |**args|
+    changed = lambda do |**args, &block|
       entries = original.call(**args)
       File.write(path, @cert.to_pem + @cert.to_pem)
+      block.call(entries)
       entries
     end
     with_method(LegacyStore, :inventory, changed) { assert_raises(Certificates::Error) { scan } }
@@ -150,6 +168,108 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
     assert_equal 10, Certificate.where(source: "filesystem").count
     assert_equal [2], Certificate.where(source: "filesystem").distinct.pluck(:filesystem_missing_scans)
     assert_empty AuditEvent.where(action: "delete")
+    @records.each { |record| File.write(File.join(@directory, record.source_id.rpartition("#").first), @cert.to_pem) }
+    scan
+    assert_equal [0], Certificate.where(source: "filesystem").distinct.pluck(:filesystem_missing_scans)
+    assert_equal [false], Certificate.where(source: "filesystem").distinct.pluck(:filesystem_cleanup_blocked)
+    assert_equal @records.map(&:id), Certificate.where(source: "filesystem").order(:id).pluck(:id)
+  end
+
+  test "rediscovery during companion reads aborts approval without deleting restored certificates" do
+    remove_files(@records.first(3))
+    2.times { scan }
+    File.write(File.join(@directory, "cert-3.tag"), "synthetic tag")
+    before = Certificate.order(:id).map(&:attributes)
+    original = LegacyStore.method(:read)
+    restore = lambda do |path|
+      File.write(File.join(@directory, "cert-0.pem"), @cert.to_pem) if path.extname == ".tag"
+      original.call(path)
+    end
+    with_method(LegacyStore, :read, restore) do
+      assert_raises(Certificates::Error) do
+        FilesystemReconciliation.approve!(area: "zone_a", certificate_ids: @records.first(3).map(&:id), actor: "operator")
+      end
+    end
+    assert_equal before, Certificate.order(:id).map(&:attributes)
+    assert_empty AuditEvent.where(action: "delete")
+    scan
+    assert_equal 0, @records.first.reload.filesystem_missing_scans
+    assert_not @records.first.filesystem_cleanup_blocked
+  end
+
+  test "partial subtree traversal failure preserves all rows and recovery resets missing state" do
+    subtree = File.join(@directory, "subtree")
+    Dir.mkdir(subtree)
+    File.write(File.join(subtree, "nested.pem"), @cert.to_pem)
+    scan
+    nested = Certificate.find_by!(source_id: "subtree/nested.pem#0")
+    remove_files
+    scan
+    before = Certificate.order(:id).map(&:attributes)
+    original = Pathname.instance_method(:children)
+    Pathname.define_method(:children) do |*args|
+      raise Errno::EACCES, "synthetic subtree permission failure" if to_s == subtree
+
+      original.bind_call(self, *args)
+    end
+    assert_raises(Certificates::Error) { scan }
+    assert_equal before, Certificate.order(:id).map(&:attributes)
+    assert_equal 0, nested.reload.filesystem_missing_scans
+    Pathname.define_method(:children, original)
+    File.write(File.join(@directory, "cert-0.pem"), @cert.to_pem)
+    scan
+    assert_equal 0, @records.first.reload.filesystem_missing_scans
+    assert_equal 11, Certificate.where(source: "filesystem").count
+  ensure
+    Pathname.define_method(:children, original) if original
+  end
+
+  test "later companion reads cannot conceal changes to an already read certificate" do
+    remove_files
+    scan
+    File.write(File.join(@directory, "cert-3.tag"), "synthetic tag")
+    before = Certificate.order(:id).map(&:attributes)
+    original = LegacyStore.method(:read)
+    change = lambda do |path|
+      File.write(File.join(@directory, "cert-1.pem"), @cert.to_pem + @cert.to_pem) if path.extname == ".tag"
+      original.call(path)
+    end
+    with_method(LegacyStore, :read, change) { assert_raises(Certificates::Error) { scan } }
+    assert_equal before, Certificate.order(:id).map(&:attributes)
+    assert_empty AuditEvent.where(action: "delete")
+  end
+
+  test "a removed source preserves and logs its rows until explicitly configured again" do
+    before = Certificate.order(:id).map(&:attributes)
+    configure_legacy_paths({})
+    events = []
+    capture = ->(**fields) { events << fields }
+    with_method(OperationalLog, :warn, capture) { 3.times { scan } }
+    assert_equal before, Certificate.order(:id).map(&:attributes)
+    assert(events.any? do |event|
+      event[:operation] == "reconcile_filesystem" && event[:area] == "zone_a" && event[:retained_count] == 10
+    end)
+    configure_legacy_paths("zone_a" => @directory)
+    scan
+    assert_equal @records.map(&:id), Certificate.where(source: "filesystem").order(:id).pluck(:id)
+    assert_empty AuditEvent.where(action: "delete")
+  end
+
+  test "identical certificates and relative names in different sources reconcile independently" do
+    Dir.mktmpdir("cci-identical-source-") do |directory|
+      10.times { |index| File.write(File.join(directory, "cert-#{index}.pem"), @cert.to_pem) }
+      configure_legacy_paths("zone_a" => @directory, "zone_b" => directory)
+      scan
+      other = Certificate.where(area: "zone_b", source: "filesystem").order(:id).map(&:attributes)
+      remove_files
+      2.times { scan }
+      assert_not Certificate.exists?(@records.first.id)
+      remaining = Certificate.where(area: "zone_b", source: "filesystem").order(:id).map do |record|
+        record.attributes.except("indexed_at", "updated_at")
+      end
+      assert_equal other.map { |row| row.except("indexed_at", "updated_at") }, remaining
+      assert_empty AuditEvent.where(area: "zone_b", action: "delete")
+    end
   end
 
   test "exactly twenty percent is allowed and more than twenty percent is all or nothing" do
@@ -277,6 +397,8 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
     assert event.details.fetch("approved")
     assert_equal 30.0, event.details.fetch("delete_percent")
     assert_equal ["operator"], AuditEvent.where(action: "delete").pluck(:actor)
+    assert_raises(ArgumentError) { FilesystemReconciliation.approve!(area: "zone_a", certificate_ids: ids, actor: "operator") }
+    assert_equal 1, AuditEvent.where(action: "delete").count
   end
 
   test "reappearing files invalidate approval and roll back the fresh projection" do

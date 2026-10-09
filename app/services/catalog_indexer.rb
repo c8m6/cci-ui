@@ -68,6 +68,7 @@ class CatalogIndexer
 
   def filesystem
     failures = []
+    log_unassigned_filesystem_records(Certificate.retained.where(source: "filesystem").where.not(area: LegacyStore.areas))
     LegacyStore.areas.each do |area|
       filesystem_area(area)
     rescue Certificates::Error, ConsulConnection::Error => e
@@ -96,6 +97,9 @@ class CatalogIndexer
         reconciliation = FilesystemReconciliation.new(area: area, source_path: root.to_s, previous_records: previous, found_ids: found)
         reconciliation.call(approval: approval)
       end
+      unassigned = Certificate.retained.where(area: area, source: "filesystem")
+                              .where("filesystem_source_path IS DISTINCT FROM ?", root.to_s)
+      log_unassigned_filesystem_records(unassigned)
       reconciliation.log_result
     end
   rescue SystemCallError, IOError, Timeout::Error => e
@@ -103,26 +107,36 @@ class CatalogIndexer
   end
 
   def filesystem_inventory(area, root)
-    inventory = LegacyStore.inventory(area: area)
-    inventory.each do |entry|
-      relative = entry.fetch(:relative)
-      tag_path = relative.sub(/\.pem\z/i, ".tag")
-      tags = if LegacyStore.optional_file?(root.join(tag_path))
-               [LegacyStore.read(LegacyStore.safe_path(tag_path,
-                 area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?)
-             else
-               []
-             end
-      data = LegacyStore.read(LegacyStore.safe_path(relative, area: area))
-      LegacyStore.verify_state!(LegacyStore.safe_path(relative, area: area), entry.fetch(:state))
-      raise Certificates::Error, "PEM inventory file contains no certificates; reconciliation skipped." if entry.fetch(:certificates).empty?
+    inventory = LegacyStore.inventory(area: area) do |entries|
+      entries.each do |entry|
+        relative = entry.fetch(:relative)
+        tag_path = relative.sub(/\.pem\z/i, ".tag")
+        tags = if LegacyStore.optional_file?(root.join(tag_path))
+                 [LegacyStore.read(LegacyStore.safe_path(tag_path,
+                   area: area)).force_encoding("UTF-8").scrub.strip].reject(&:empty?)
+               else
+                 []
+               end
+        data = LegacyStore.read(LegacyStore.safe_path(relative, area: area))
+        LegacyStore.verify_state!(LegacyStore.safe_path(relative, area: area), entry.fetch(:state))
+        if entry.fetch(:certificates).empty?
+          raise Certificates::Error, "PEM inventory file contains no certificates; reconciliation skipped."
+        end
 
-      has_key = LegacyStore.optional_file?(root.join(relative.sub(/\.pem\z/i, ".key"))) || data.include?("PRIVATE KEY-----")
-      entry.merge!(tags: tags, has_key: has_key)
+        has_key = LegacyStore.optional_file?(root.join(relative.sub(/\.pem\z/i, ".key"))) || data.include?("PRIVATE KEY-----")
+        entry.merge!(tags: tags, has_key: has_key)
+      end
     end
     raise Certificates::Error, "Filesystem source changed during scan." unless root == LegacyStore.root(area: area)
 
     inventory
+  end
+
+  def log_unassigned_filesystem_records(records)
+    records.group(:area, :filesystem_source_path).count.each do |(area, source_path), count|
+      OperationalLog.warn(logger: "cci.indexer", message: "Filesystem records retained without a matching configured source",
+        operation: "reconcile_filesystem", source: "filesystem", area: area, source_path: source_path, retained_count: count)
+    end
   end
 
   def consul

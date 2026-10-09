@@ -49,7 +49,7 @@ class LegacyStore
   # Read the actual inventory; an incomplete scan must never authorize deletion
   # or an import. Dir.children reports inaccessible directories instead of
   # silently omitting their contents as a recursive glob can do.
-  def self.inventory(area: self.area)
+  def self.inventory(area: self.area, &completion)
     base = root(area: area)
     pending = [base]
     entries = []
@@ -74,10 +74,17 @@ class LegacyStore
         end
       end
     end
-    directories.each { |path, state| verify_state!(path, state) }
+    verify_inventory!(entries, directories, area: area, &completion)
     entries
   rescue SystemCallError
     raise Certificates::Error, I18n.t("errors.app.inventory_unreadable")
+  end
+
+  def self.verify_inventory!(entries, directories, area:)
+    # Finish source-specific reads before validating the complete snapshot.
+    yield entries if block_given?
+    entries.each { |entry| verify_state!(safe_path(entry.fetch(:relative), area: area), entry.fetch(:state)) }
+    directories.each { |path, state| verify_state!(path, state) }
   end
 
   # Generic metadata checks detect observed changes; they do not identify mounts.

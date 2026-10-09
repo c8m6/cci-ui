@@ -104,6 +104,9 @@ its applicable tag metadata. Observed I/O errors, permission failures, timeouts,
 invalid or empty certificate PEM files, disappearing entries and changes in
 file/directory metadata abort the source. No source projection, missing-counter
 change or deletion commits after such a failure. Other sources may still refresh.
+Final PEM and directory metadata checks run after companion reads as well, so
+rediscovery or changes to already-read PEM files during those reads abort the
+scan, including an administrator's fresh approval scan.
 Scanning, projection and cleanup use the existing PostgreSQL advisory lock; all
 database changes for one source, including audit and CA invalidation, commit or
 roll back together. Process termination before commit leaves the previous state.
@@ -115,6 +118,11 @@ rows of uncertain origin remain untouched. The additive migration does not
 infer origins from stale paths: old rows are bound only when a complete scan
 actually finds them. Previously missing, unbound rows need manual investigation.
 Changing a source root cannot reuse confirmations attached to its previous root.
+Removed source mappings, previous roots and unassigned retained rows produce
+an area/root-scoped warning with their retained count. Readding the original
+source does not itself delete anything: a successful scan first rediscovers
+present identities and resets their missing state. Rows still absent remain
+subject to the existing confirmation threshold and persistent deletion guard.
 
 For an unobserved pre-migration row, an administrator must establish its
 historical area/root assignment from trusted deployment records or backups.
@@ -190,8 +198,31 @@ and operation. Relevant messages are:
 | INFO | `Filesystem certificate missing; reconciliation pending` | Successful absence increased the counter; includes certificate ID, source reference and count. |
 | INFO | `Stale filesystem certificate catalog record removed` | Committed cleanup removed this record. |
 | WARN | `Filesystem reconciliation suspended by deletion limit` | No candidates were deleted; includes candidate count, previous population, percentage and limit. Investigate the source before approval. |
+| WARN | `Filesystem records retained without a matching configured source` | Removed mappings, changed roots or unknown origins leave rows untouched; includes area, previous root and retained count. |
 | ERROR | `Filesystem scan incomplete; reconciliation skipped` | Source refresh failed; previous catalog and missing counters remain intact. |
 
 Blocked passes repeat the warning without repeated material-read errors from CA
 discovery. Counter and deletion success messages are emitted only after the
 source transaction commits.
+
+### Local integration coverage
+
+The reconciliation tests use synthetic certificates and temporary directories
+with real PostgreSQL transactions and advisory locks. Run the focused checks
+with the isolated PostgreSQL/Consul services described in
+[container validation](container-publishing.md):
+
+```console
+ruby bin/rails db:prepare
+ruby bin/rails test test/services/filesystem_reconciliation_test.rb test/services/filesystem_reconciliation_concurrency_test.rb test/integration/filesystem_reconciliation_test.rb
+```
+
+Coverage includes two-pass cleanup, inaccessible and readable-empty sources,
+partial subtree failures, restoration, source removal/readdition, identical
+certificates across areas, late scan changes, transaction rollback, concurrent
+indexers and competing administrator approvals. HTTP tests verify CA cache/Hiera
+invalidation and rebuilding, overview/detail routes, public exports, Zabbix
+inventory and retained audit history after cleanup. I/O and permission failures
+are injected at filesystem calls; these tests do not exercise a real NFS server.
+Concurrency tests use separate database sessions and wait for the actual
+PostgreSQL advisory lock contention before continuing either scan.
