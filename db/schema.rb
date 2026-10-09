@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -74,6 +74,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_000100) do
     t.datetime "created_at", null: false
     t.string "created_by"
     t.datetime "deleted_at"
+    t.boolean "filesystem_cleanup_blocked", default: false, null: false
+    t.integer "filesystem_missing_scans", default: 0, null: false
+    t.text "filesystem_source_path"
     t.string "fingerprint", null: false
     t.boolean "has_key", default: false, null: false
     t.datetime "imported_at"
@@ -104,6 +107,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_000100) do
     t.index ["sha1_fingerprint"], name: "index_certificates_on_sha1_fingerprint"
     t.check_constraint "NOT archived OR rollout_status::text = 'delete'::text", name: "archived_certificates_request_deletion"
     t.check_constraint "client IS NULL OR lower(client::text) !~ '(^|[_.-])acme([_.-]|$)'::text", name: "certificates_no_acme_client"
+    t.check_constraint "filesystem_missing_scans >= 0", name: "filesystem_missing_scans_nonnegative"
     t.check_constraint "jsonb_typeof(puppetdb_hosts) = 'array'::text", name: "certificate_puppetdb_hosts_are_array"
     t.check_constraint "rollout_status::text = ANY (ARRAY['active'::character varying::text, 'norollout'::character varying::text, 'delete'::character varying::text])", name: "certificates_rollout_status"
     t.check_constraint "source::text <> 'filesystem'::text OR NOT archived AND rollout_status::text = 'active'::text", name: "filesystem_certificates_have_no_control_state"

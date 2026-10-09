@@ -18,6 +18,7 @@ export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base
 | --- | --- |
 | `CCI_AREAS` | Required, nonempty JSON object mapping stable area IDs to display names. IDs match `[a-z][a-z0-9_]{0,47}`; names contain 1–100 characters and cannot be whitespace-only. |
 | `CCI_LEGACY_PATHS` | JSON object mapping any subset of the configured areas to absolute directories inside the container. Default: `{}` (no disk inventory). Multiple areas may have independent roots. |
+| `CCI_FILESYSTEM_RECONCILIATION` | JSON object configuring read-only filesystem catalog cleanup. Defaults: `{"enabled":true,"missing_after_scans":2,"max_delete_percent":20}`. Omitted keys use defaults. `enabled` must be a Boolean, `missing_after_scans` an integer of at least 2, and `max_delete_percent` an integer from 0 to 100. Unknown keys and invalid values reject startup. See [reconciliation and controlled cleanup](legacy-deletion.md#automatic-filesystem-reconciliation). |
 | `CCI_AREA_KEYS` | JSON object mapping area IDs to Base64-encoded, exactly 32-byte encryption keys. Omitted or empty means no map entries. Required for private-key operations unless the fallback below supplies the key. |
 | `CCI_CERTIFICATE_AREA_MODE` | `multiple` (default) allows one imported or CSR-issued certificate in several areas. `single` requires exactly one selected area and rejects a fingerprint already retained in another area. |
 | `CCI_CERTIFICATE_EXPIRY_WARNING_DAYS` | Positive integer warning period in days. Defaults to `10` when unset or blank. Controls certificate validity badges, the overview warning count and the expiring-soon filter, including CA certificate badges. Invalid values are rejected. Restart the application after changing it. |
@@ -28,6 +29,13 @@ startup. Configuration is cached per process; recreate both services after
 changes. Area keys are checked when used. A malformed key map raises an error;
 it does not silently fall back to individual keys. Public-certificate operations
 do not need encryption keys.
+
+Reconciliation configuration is cached at startup and forwarded by all Compose
+deployment templates. Keep it identical for web and indexer. A failed or
+incomplete source scan preserves its previous missing counters and catalog rows.
+Setting `max_delete_percent` to 0 blocks all automatic deletions; setting it to
+100 removes the percentage protection. Prefer a reviewed, one-shot administrator
+approval over raising the limit for a legitimate mass deletion.
 
 The Compose templates explicitly forward `CCI_AREA_KEYS`, so arbitrary new areas
 need no additional environment declarations. Individual key variables exported

@@ -33,7 +33,8 @@ class CaInventoryRefresh
 
   def snapshot
     # Prefer filesystem references to preserve the .tag suffix used by Puppet.
-    @entries = Certificate.retained.where(area: @area).order(source: :desc, active: :desc, id: :asc).map do |record|
+    @entries = Certificate.retained.where(area: @area).where.not(source: "filesystem", filesystem_missing_scans: 1..)
+                          .order(source: :desc, active: :desc, id: :asc).map do |record|
       [record, CertificateMaterial.load(record).fetch(:certificate)]
     end
     @entries.uniq! { |record, _cert| record.fingerprint }

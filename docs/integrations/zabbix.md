@@ -107,8 +107,12 @@ This is the existing searchable catalogue, not a fresh scan of Consul or the
 filesystem. `generated_at` describes response generation, **not** the last source
 refresh. An indexer outage can therefore leave a reachable endpoint with stale
 inventory. Monitor the indexer and its existing health/logging separately.
-The filesystem index deliberately retains records after a file disappears until
-confirmed deletion, so removing a file alone does not remove its monitoring item.
+Filesystem records remain monitored during the reconciliation grace period and
+while the percentage safety limit blocks cleanup. After two complete successful
+scans confirm absence, eligible records are removed from the catalog and the
+next monitoring response omits them. Failed scans preserve the previous state.
+See [filesystem reconciliation](../legacy-deletion.md#automatic-filesystem-reconciliation)
+for the default 20% guard, source association and controlled mass cleanup.
 
 ### Sources and duplicate certificates
 

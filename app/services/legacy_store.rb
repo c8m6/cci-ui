@@ -25,7 +25,9 @@ class LegacyStore
   end
 
   def self.read(path)
-    raise Certificates::Error, I18n.t("errors.app.file_size") if path.size > Certificates::Codec::MAX_BYTES
+    stat = path.stat
+    raise Certificates::Error, I18n.t("errors.app.file_unreadable") unless stat.file?
+    raise Certificates::Error, I18n.t("errors.app.file_size") if stat.size > Certificates::Codec::MAX_BYTES
 
     path.binread
   rescue SystemCallError
@@ -51,8 +53,12 @@ class LegacyStore
     base = root(area: area)
     pending = [base]
     entries = []
+    directories = {}
     until pending.empty?
       directory = pending.pop
+      raise Certificates::Error, I18n.t("errors.app.inventory_symlinks") unless directory.lstat.directory?
+
+      directories[directory] = file_state(directory)
       directory.children.sort.each do |path|
         stat = path.lstat
         if stat.directory?
@@ -61,13 +67,34 @@ class LegacyStore
           raise Certificates::Error, I18n.t("errors.app.inventory_symlinks")
         elsif path.extname.downcase == ".pem"
           relative = path.relative_path_from(base).to_s
-          entries << { relative: relative, certificates: certificates(relative, area: area) }
+          resolved = safe_path(relative, area: area)
+          state = file_state(resolved)
+          entries << { relative: relative, certificates: certificates(relative, area: area), state: state }
+          verify_state!(resolved, state)
         end
       end
     end
+    directories.each { |path, state| verify_state!(path, state) }
     entries
   rescue SystemCallError
     raise Certificates::Error, I18n.t("errors.app.inventory_unreadable")
+  end
+
+  # Generic metadata checks detect observed changes; they do not identify mounts.
+  def self.file_state(path)
+    stat = path.stat
+    [stat.dev, stat.ino, stat.size, stat.mtime, stat.ctime]
+  end
+
+  def self.verify_state!(path, expected)
+    raise Certificates::Error, "Filesystem entry changed during scan." unless file_state(path) == expected
+  end
+
+  def self.optional_file?(path)
+    path.lstat
+    true
+  rescue Errno::ENOENT
+    false
   end
 
   def self.reject_duplicates!(fingerprints)
