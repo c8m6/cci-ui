@@ -96,7 +96,9 @@ rows = host_certids.map do |host, certids|
   fingerprints = certids.map { |certid| Certificates::Codec.fingerprint(issued.fetch(certid).first) }
   fingerprints << Certificates::Codec.fingerprint(root) if host.start_with?("web", "proxy")
   fingerprints << Certificates::Codec.fingerprint(legacy) if host.start_with?("web")
-  { "certname" => host, "facts" => { "certificates" => fingerprints.map { |fp| { "fingerprint" => fp } } } }
+  { "certname" => host, "facts" => { "certificates" => fingerprints.map do |fp|
+    { "fingerprint" => fp, "path" => "/etc/ssl/certs/service.pem" }
+  end } }
 end
 connection = Object.new
 connection.define_singleton_method(:inventory) { |_query| rows }

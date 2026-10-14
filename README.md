@@ -32,8 +32,8 @@ identities and PuppetDB host associations. Detailed views are documented under
   keys, and publish matching issued certificates to Consul. Certificate issuance
   by a CA remains an external step.
 - **Infrastructure integration:** Puppet readers and Hiera output for
-  certificate distribution, optional PuppetDB host associations, and an optional
-  CA inventory. Consul certificates have status and archive controls, while
+  certificate distribution, optional searchable PuppetDB host pages, and an optional
+  CA inventory with verified downstream certificate links. Consul certificates have status and archive controls, while
   filesystem deletion uses a separate confirmation and recovery workflow.
   Read-only reconciliation removes externally deleted filesystem entries after
   two complete scans, with a per-source 20% deletion guard.
@@ -41,14 +41,14 @@ identities and PuppetDB host associations. Detailed views are documented under
   Reader, Writer, Key Exporter, CSR and Auditor roles, encrypted keys for imports and certificate requests,
   and audit records for UI changes and exports.
 - **Operations:** container deployment, health checks, configurable expiry
-  warnings, a Zabbix 7.4 monitoring template, and German/English interfaces with
+  warnings, optional area-specific Consul ACL tokens, a Zabbix 7.4 monitoring template, and German/English interfaces with
   light and dark themes.
 
 For automated ACME issuance and renewal using this storage contract, see
 [zaeh-acme_kvstore](https://github.com/zaeh/zaeh-acme_kvstore), a compatible
 external Puppet implementation. It implements `active`, `norollout` and `delete`
 and stops renewal for archived CertIDs. CCI-UI displays its optional management
-metadata and warns before manual imports or activation. It is not a required
+metadata and explains the effect of manual imports or activation. It is not a required
 dependency. The bundled `cci` manifests remain a simpler reader without status
 processing; see [Puppet integration](docs/puppet.md).
 

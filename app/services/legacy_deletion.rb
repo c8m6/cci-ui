@@ -110,7 +110,7 @@ class LegacyDeletion
         end
         Certificate.where(id: records.map(&:id)).update_all(deleted_at: Time.current, active: false)
         # Invalidate cached links and exports immediately; the next scan rebuilds them.
-        CaInventory.where(area: @record.area).update_all(authorities: [], issues: [], checked_at: nil)
+        CaInventory.where(area: @record.area).update_all(authorities: [], issues: [], issuer_edges: {}, checked_at: nil)
       end
     rescue StandardError
       moved.reverse_each { |path| move("#{path}.DELETED", path) }

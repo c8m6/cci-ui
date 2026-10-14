@@ -58,6 +58,13 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       assert(!yaml.includes('Future'));
     };
     await login(process.env.CAPTURE_CA_ONLY === '1' ? 'zone_a_reader' : 'all:writer');
+    if (process.env.CAPTURE_HOSTS_ONLY === '1') {
+      await page.goto(base + '/hosts', { waitUntil: 'networkidle0' });
+      await ready();
+      await capture('hosts.png');
+      assert.deepEqual(errors, []);
+      return;
+    }
     if (process.env.CAPTURE_CA_ONLY === '1') {
       await captureCa();
       assert.deepEqual(errors, []);
@@ -137,6 +144,21 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       return;
     }
 
+    await page.goto(base + '/hosts', { waitUntil: 'networkidle0' });
+    await ready();
+    await capture('hosts.png');
+    const hostLink = await page.$eval('tbody a', node => node.href);
+    await page.goto(hostLink, { waitUntil: 'networkidle0' });
+    assert((await page.$eval('h1', node => node.textContent)).endsWith('.example.test'));
+    assert((await page.$$eval('.fingerprint-value', nodes => nodes.map(node => node.textContent))).every(value => /^[0-9a-f]{64}$/.test(value)));
+    await capture('host-details.png');
+    await page.goto(base + '/ca_inventories', { waitUntil: 'networkidle0' });
+    const caLink = await page.$eval('#zone_a-authorities-panel tr[data-depth="0"] a', node => node.href);
+    await page.goto(caLink, { waitUntil: 'networkidle0' });
+    assert.equal(await page.$eval('#issued-certificates', node => node.open), false);
+    await page.click('#issued-certificates summary');
+    await capture('ca-details.png');
+
     await page.click('.account input[type=submit], .account button.text-button');
     await page.waitForFunction(() => location.pathname === '/login');
     await login('all:auditor');
@@ -151,7 +173,7 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert(audit.includes('Certificates exported'));
     await capture('audit.png');
     assert.deepEqual(errors, []);
-    console.log('Updated overview.png, details.png, ca-certificates.png and audit.png; host counts, names and controls verified.');
+    console.log('Updated overview, certificate/CA details, host list/details and audit screenshots; navigation and controls verified.');
   } finally {
     await browser.close();
   }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_14_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -34,6 +34,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_000100) do
     t.datetime "checked_at"
     t.datetime "created_at", null: false
     t.datetime "error_at"
+    t.jsonb "issuer_edges", default: {}, null: false
     t.jsonb "issues", default: [], null: false
     t.datetime "updated_at", null: false
     t.index ["area"], name: "index_ca_inventories_on_area", unique: true
@@ -87,6 +88,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_000100) do
     t.datetime "puppetdb_checked_at"
     t.datetime "puppetdb_error_at"
     t.jsonb "puppetdb_hosts", default: [], null: false
+    t.jsonb "puppetdb_paths", default: {}, null: false
     t.string "rollout_status", default: "active", null: false
     t.jsonb "sans", default: [], null: false
     t.text "search_text", null: false

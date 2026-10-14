@@ -261,7 +261,7 @@ framework messages use the shared JSON formatter.
 The feature is disabled by default. Configure the same settings in web and
 indexer; web reads cached results only, while the scheduled indexer queries
 PuppetDB after indexing certificates. Setting `PUPPETDB_ENABLED=false` hides the
-host column and detail section and stops PuppetDB requests without erasing the
+host navigation, list/detail routes, column and detail section and stops PuppetDB requests without erasing the
 cached associations. Recreate both services after configuration changes.
 
 | Variable | Meaning and application default |

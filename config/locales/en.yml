@@ -1,6 +1,11 @@
 ---
 en:
   ui:
+    copy: "Copy"
+    copied: "Copied"
+    copy_failed: "Copy unavailable. Select and copy the full value manually."
+    copy_fingerprint: "Copy full fingerprint"
+    certificate_identity: "Certificate identity"
     certificate_type: "Certificate type"
     legacy_delete: "Delete filesystem certificate"
     legacy_delete_question: "Delete this filesystem certificate?"
@@ -491,6 +496,14 @@ en:
       two_words_connector: " and "
       last_word_connector: ", and "
   ca_inventory:
+    children: "Issued certificates (%{count})"
+    graph_note: "Verified issuer relationships in this area, not a unique trust path. Copies share one entry. All descendants includes up to twelve issuer hops."
+    graph_stale: "Inventory refresh failed. These are the last verified relationships."
+    graph_checked: "Relationships checked: %{time}"
+    direct_children: "Direct children"
+    all_children: "All descendants"
+    depth: "Depth %{count}"
+    multiple_issuers: "Multiple verified issuer candidates"
     unresolved_roots: "Without a complete path to a root"
     level: "Level %{level}."
     ca_type: "CA type"
@@ -592,3 +605,21 @@ en:
       conflict: "The destination changed or the CertID already exists. Review its current state and explicitly confirm a new version before retrying."
       consul: "Consul could not confirm publication. Retry when connectivity is restored."
       publication: "Publication failed during validation or secret decryption. Check the area key and issuer material before retrying."
+
+  hosts:
+    title: "Hosts"
+    scope: "Cached PuppetDB observations for certificates in your authorized areas. Counts include stored versions and copies; this is not a live host check."
+    search: "Search full certname"
+    sync: "Synchronization status"
+    current: "Last synchronization successful"
+    stale: "Historical / incomplete observations"
+    certname: "PuppetDB certname"
+    empty: "No matching hosts with visible certificate associations."
+    back: "← All hosts"
+    details: "Host details"
+    checked: "Last successful synchronization (oldest visible observation)"
+    path: "Reported certificate path"
+    stale_note: "Synchronization failed or an observation could not be refreshed. Last known associations are retained and may no longer apply."
+    count:
+      one: "1 host"
+      other: "%{count} hosts"

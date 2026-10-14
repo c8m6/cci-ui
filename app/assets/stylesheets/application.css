@@ -967,3 +967,23 @@ main.full-width { max-width: none; }
 .csr-form { display: grid; gap: 18px; }
 .csr-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 .csr-form label { display: flex; flex-direction: column; gap: 6px; }
+
+.management-note { padding: 14px 16px; background: var(--subtle); border: 1px solid var(--line); border-radius: 6px; line-height: 1.6; }
+.status-form { display: grid; gap: 12px; max-width: 850px; }
+.status-form select { justify-self: start; max-width: 100%; }
+.status-form .management-note, .status-form .status-actions { margin: 0; }
+.fingerprint { display: flex; flex-wrap: wrap; align-items: start; gap: 8px; min-width: 0; max-width: 100%; }
+.fingerprint-value { display: block; flex: 1 1 220px; min-width: 0; max-width: 100%; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; word-break: break-all; }
+.fingerprint-copy { flex: 0 0 auto; padding: 4px 8px; }
+.version-row { flex-wrap: wrap; }
+.version-row > .fingerprint { flex: 1 1 280px; }
+.ca-descendants { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
+.ca-descendants summary { cursor: pointer; font-weight: 600; }
+.descendant-list { list-style: none; padding: 0; }
+.descendant-list li { display: grid; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.descendant-list .badge { justify-self: start; }
+.host-certificate + .host-certificate { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 20px; }
+
+.host-table { table-layout: fixed; }
+.host-table th:first-child, .host-table td:first-child { width: 45%; }
+.host-table th:nth-child(2) { width: 18%; }

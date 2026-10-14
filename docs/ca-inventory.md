@@ -82,8 +82,9 @@ suffix from the certificate detail page:
 `lookup` identifies Consul material, while `issuer` and `subject` identify
 filesystem material. Each download belongs to the area shown on the page, which
 must be retained in the consuming Hiera context. Existing filesystem references
-need no migration. In the certificate detail page, Consul references appear in
-the `cci::certificates` block with `area`, `lookup` and `path`.
+need no migration. Certificate details show identity YAML (`certid` and `area` for Consul,
+`issuer` and `subject` for filesystem sources), not a generated Puppet class.
+This does not change the integration or CA Hiera download format.
 
 Identical references appear once in the YAML, even if multiple distinct
 certificates share those references. The page retains their separate
@@ -101,6 +102,26 @@ validity badges update at request time. The scan timestamp and chain diagnostics
 still describe the last scan.
 A source read failure retains the previous complete snapshot and marks it stale.
 A successful later scan clears that warning. Private keys are never loaded.
+
+## Issued certificates on CA details
+
+A CA or intermediate detail page includes an initially collapsed **Issued
+certificates** panel beside the export controls, when verified children exist.
+It shows direct children by default; **All descendants** traverses up to twelve
+issuer hops. Results are deduplicated by DER fingerprint within the permitted
+area and paginated at twenty certificates. Links include CertID/name, type and
+current validity. Existing export permissions and formats are unchanged.
+
+The panel reads `ca_inventories.issuer_edges`, populated during the existing
+public-material scan. Edges require a matching X.509 issuer name, CA constraints,
+certificate-signing key usage where present, and a verified signature. Cross-signed
+parents remain separate certificates; children with multiple matching parents
+are labeled ambiguous. The list is an inventory graph, not a unique trust path.
+Missing issuers create no guessed edges. The snapshot timestamp and stale marker
+remain visible; a failed scan retains previous data. Disabling CA inventory
+hides this panel too. Existing snapshots acquire edges on their next scan.
+
+![CA details with verified issued certificates](screenshots/ca-details.png)
 
 ## Public CAs and trust stores
 

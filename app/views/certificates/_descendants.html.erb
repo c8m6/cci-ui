@@ -1,0 +1,25 @@
+<details class="ca-descendants" id="issued-certificates" <%= "open" if params[:children_page].present? || params[:children_scope].present? %>>
+  <summary><%= t("ca_inventory.children", count: @descendants.total) %></summary>
+  <p class="muted small"><%= t("ca_inventory.graph_note") %></p>
+  <% if @descendants.inventory.error_at %><p class="flash flash-error"><%= t("ca_inventory.graph_stale") %></p><% end %>
+  <p class="small muted"><%= t("ca_inventory.graph_checked", time: l(@descendants.inventory.checked_at, format: :long)) %></p>
+  <div class="status-actions">
+    <%= link_to t("ca_inventory.direct_children"), certificate_path(@certificate, children_scope: "direct", anchor: "issued-certificates"), class: "button quiet" %>
+    <%= link_to t("ca_inventory.all_children"), certificate_path(@certificate, children_scope: "all", anchor: "issued-certificates"), class: "button quiet" %>
+  </div>
+  <ul class="descendant-list">
+    <% @descendants.records.each do |child| %>
+      <li>
+        <%= link_to child.certid.presence || child.common_name, certificate_path(child), class: "break-word" %>
+        <span class="small muted"><%= child.common_name %> · <%= t(@descendants.kind(child) == "certificate" ? "ui.certificate" : "ca_inventory.#{@descendants.kind(child)}") %> · <%= t("ca_inventory.depth", count: @descendants.depths.fetch(child.fingerprint)) %></span>
+        <span class="badge <%= child.status_class %>"><%= child.status %></span>
+        <% if @descendants.ambiguous?(child) %><span class="info-note small"><%= t("ca_inventory.multiple_issuers") %></span><% end %>
+      </li>
+    <% end %>
+  </ul>
+  <div class="pagination">
+    <span><%= t("ui.page", page: @descendants.page, pages: @descendants.pages) %></span>
+    <% if @descendants.page > 1 %><%= link_to t("ui.back"), certificate_path(@certificate, children_scope: @descendants.scope, children_page: @descendants.page - 1, anchor: "issued-certificates") %><% end %>
+    <% if @descendants.page < @descendants.pages %><%= link_to t("ui.next"), certificate_path(@certificate, children_scope: @descendants.scope, children_page: @descendants.page + 1, anchor: "issued-certificates") %><% end %>
+  </div>
+</details>

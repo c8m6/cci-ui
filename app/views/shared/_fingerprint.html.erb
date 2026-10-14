@@ -1,0 +1,5 @@
+<span class="fingerprint" data-controller="clipboard" data-clipboard-success-value="<%= t('ui.copied') %>" data-clipboard-failure-value="<%= t('ui.copy_failed') %>">
+  <code class="fingerprint-value mono" data-clipboard-target="value"><%= value %></code>
+  <button type="button" class="button quiet fingerprint-copy" data-action="clipboard#copy" aria-label="<%= t('ui.copy_fingerprint') %>"><%= t("ui.copy") %></button>
+  <span class="small muted" role="status" data-clipboard-target="status"></span>
+</span>

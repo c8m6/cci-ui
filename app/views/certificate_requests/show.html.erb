@@ -26,7 +26,7 @@
 <% if @certificate %>
   <section class="panel detail-panel">
     <h2><%= t("csr.issued_certificate") %></h2>
-    <dl><dt><%= t("ui.subject") %></dt><dd><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd><%= @certificate.issuer %></dd><dt><%= t("ui.validity") %></dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %> <%= ca_validity_badge(@certificate.attributes) %></dd><dt><%= t("ui.fingerprint") %></dt><dd class="mono"><%= @certificate.fingerprint %></dd></dl>
+    <dl><dt><%= t("ui.subject") %></dt><dd><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd><%= @certificate.issuer %></dd><dt><%= t("ui.validity") %></dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %> <%= ca_validity_badge(@certificate.attributes) %></dd><dt><%= t("ui.fingerprint") %></dt><dd><%= render "shared/fingerprint", value: @certificate.fingerprint %></dd></dl>
     <% if @certificate.error_code %><p class="flash flash-error"><%= t("csr.publication_errors.#{@certificate.error_code}") %></p><% end %>
     <% if @certificate.state == "published" %>
       <% @certificate.consul_versions.each do |area, version| %><p class="badge success"><%= area_label(area) %>: <%= t("csr.published_version", version: version) %></p><% end %>

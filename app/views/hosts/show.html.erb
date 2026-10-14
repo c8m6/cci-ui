@@ -1,0 +1,33 @@
+<% content_for :title, @certname %>
+<%= link_to t("hosts.back"), hosts_path, class: "back-link" %>
+<div class="page-heading"><div><span class="eyebrow"><%= t("hosts.details") %></span><h1 class="break-word"><%= @certname %></h1></div></div>
+<section class="panel detail-panel">
+  <dl><dt><%= t("hosts.certname") %></dt><dd class="mono break-word"><%= @certname %></dd>
+    <dt><%= t("ui.certificates") %></dt><dd><%= @summary.fetch(:total) %></dd>
+    <dt><%= t("hosts.checked") %></dt><dd><%= @summary[:checked_at] ? l(@summary[:checked_at], format: :long) : t("ui.puppetdb_no_query") %></dd>
+    <dt><%= t("hosts.sync") %></dt><dd><%= t(@summary.fetch(:stale) ? "hosts.stale" : "hosts.current") %></dd></dl>
+  <p class="info-note"><%= t("hosts.scope") %></p>
+  <% if @summary.fetch(:stale) %><p class="flash flash-error"><%= t("hosts.stale_note") %></p><% end %>
+</section>
+<section class="panel detail-panel host-certificates"><h2><%= t("ui.certificates") %></h2>
+  <% @certificates.each do |certificate| %>
+    <article class="host-certificate">
+      <h3><%= link_to certificate.common_name, certificate_path(certificate) %></h3>
+      <dl>
+        <dt><%= t("ui.area") %></dt><dd><%= area_label(certificate.area) %> (<%= certificate.area %>)</dd>
+        <% if certificate.source == "consul" && certificate.certid.present? %><dt>CertID</dt><dd class="mono"><%= certificate.certid %> · <%= t("ui.version") %> <%= certificate.certificate_version %></dd>
+        <% else %><dt><%= t("ui.issuer") %></dt><dd><%= certificate.issuer %></dd><dt><%= t("ui.subject") %></dt><dd><%= certificate.subject %></dd><% end %>
+        <dt><%= t("ui.valid_until") %></dt><dd><%= date_label(certificate.not_after) %> <span class="badge <%= certificate.status_class %>"><%= certificate.status %></span></dd>
+        <dt><%= t("ui.fingerprint") %></dt><dd><%= render "shared/fingerprint", value: certificate.fingerprint %></dd>
+        <% Array(certificate.puppetdb_paths[@certname]).each do |path| %><dt><%= t("hosts.path") %></dt><dd class="mono break-word"><%= path %></dd><% end %>
+      </dl>
+      <% unless certificate.active %><span class="badge neutral"><%= t("ui.old_version") %></span><% end %>
+      <% if certificate.archived %><span class="badge neutral"><%= t("ui.archived") %></span><% end %>
+      <% if certificate.puppetdb_refresh_failed? || puppetdb_fingerprint_missing?(certificate) %><p class="info-note"><%= t("hosts.stale_note") %></p><% end %>
+    </article>
+  <% end %>
+  <div class="pagination"><span><%= t("ui.page", page: @page, pages: @pages) %></span><div>
+    <% if @page > 1 %><%= link_to t("ui.back"), host_path(params[:id], page: @page - 1), class: "button quiet" %><% end %>
+    <% if @page < @pages %><%= link_to t("ui.next"), host_path(params[:id], page: @page + 1), class: "button quiet" %><% end %>
+  </div></div>
+</section>

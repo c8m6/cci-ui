@@ -42,7 +42,11 @@ class CaInventoryRefresh
     @candidates = candidates.group_by { |_record, cert| cert.subject.hash }
     @entries.each { |entry| walk(entry, []) }
     authorities = candidates.map { |entry| authority(*entry) }
-    { authorities: authorities.sort_by { |entry| [entry.fetch(:subject), entry.fetch(:fingerprint)] }, issues: @issues.values }
+    edges = @entries.to_h do |record, cert|
+      [record.fingerprint, root?(cert) ? [] : parents(record, cert).map { |parent, _| parent.fingerprint }.sort]
+    end
+    { authorities: authorities.sort_by { |entry| [entry.fetch(:subject), entry.fetch(:fingerprint)] },
+      issues: @issues.values, issuer_edges: edges }
   end
 
   private
