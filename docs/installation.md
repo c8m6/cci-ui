@@ -351,7 +351,8 @@ DATABASE_URL=postgresql://cci:<URL-encoded password>@db/cci
 SECRET_KEY_BASE=<random secret of at least 64 bytes>
 ALLOWED_HOSTS=cci.example.internal
 CONSUL_URL=https://consul.example.internal:8501
-CONSUL_TOKEN=<application token>
+CONSUL_TOKEN=<optional global fallback token>
+CCI_CONSUL_TOKENS='{"zone_a":"<area-a ACL token>","zone_b":"<area-b ACL token>"}'
 CCI_HEALTH_TOKEN=<random monitoring token>
 CONSUL_PREFIX=cci
 CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
@@ -377,8 +378,11 @@ filesystem deletion, the web service also needs directory write permissions and
 a read/write mount (`:rw`). Keep the indexer mount read-only (`:ro`). See
 [filesystem deletion and recovery](legacy-deletion.md).
 
-The application token needs read/write access to `cci/`. Puppet receives
-separate area tokens. Example read policy for a compiler that must distribute
+Application credentials need read/write access to the configured areas’
+`certids/`, `certs/` and `keys/` prefixes. Prefer per-area tokens through
+`CCI_CONSUL_TOKENS`; a global `CONSUL_TOKEN` remains an optional fallback. See
+[area ACL policy examples](environment.md#area-scoped-consul-credentials).
+Puppet receives separate reader tokens. Example read policy for a compiler that must distribute
 certificates and keys from area `zone_a`:
 
 ```hcl

@@ -27,6 +27,7 @@ x-inventory-environment: &inventory_environment
   CCI_LEGACY_PATHS: '{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
   CCI_FILESYSTEM_RECONCILIATION: '{}'
   CONSUL_URL: "https://consul.example.test:8501"
+  CCI_CONSUL_TOKENS: '${CCI_CONSUL_TOKENS:-{}}'
   CONSUL_PREFIX: "cci"
   CONSUL_CA_FILE: "/run/consul/ca.pem"
   CCI_CA_INVENTORY_ENABLED: "true"

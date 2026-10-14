@@ -143,7 +143,7 @@ class CsrPublicationTest < ActiveSupport::TestCase
         transaction.call(operations) if after_commit
         raise ConsulConnection::Error, "simulated lost response"
       end
-      ConsulStore.define_singleton_method(:client) { connection }
+      ConsulStore.define_singleton_method(:client) { |*_areas| connection }
       assert_equal "failed", CsrPublication.new(entry, identity: csr_identity).call.state
       assert entry.reload.prepared.any?
       assert_raises(Certificates::Error) { upload_csr(request, issued_for(request, serial: 2), replace: true) }

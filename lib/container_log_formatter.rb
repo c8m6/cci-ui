@@ -15,7 +15,7 @@ class ContainerLogFormatter < Logger::Formatter
     /\AFilter chain halted /,
     /\A\s*Rendered /
   ].freeze
-  SENSITIVE_KEY = /(?:\A|_)(?:authorization|cookie|password|private_key|secret|token|assertion|code|state|session_state)(?:\z|_)/i
+  SENSITIVE_KEY = /(?:\A|_)(?:authorization|cookie|password|private_key|secret|tokens?|assertion|code|state|session_state)(?:\z|_)/i
 
   def call(severity, time, progname, message)
     return "" if suppressed?(severity, message)
@@ -103,7 +103,10 @@ class ContainerLogFormatter < Logger::Formatter
       value if name.match?(/(?:TOKEN|SECRET|PASSWORD|_KEY)\z/) && !value.empty?
     end
     values.concat(JSON.parse(ENV.fetch("CCI_AREA_KEYS", "{}")).values) if ENV["CCI_AREA_KEYS"].to_s.start_with?("{")
-    values.select { |value| value.is_a?(String) && value.size >= 4 }.sort_by { |value| -value.size }
+    tokens = JSON.parse(ENV.fetch("CCI_CONSUL_TOKENS", "{}"))
+    values = values.select { |value| value.is_a?(String) && value.size >= 4 }
+    values.concat(tokens.values.select { |value| value.is_a?(String) && !value.empty? }) if tokens.is_a?(Hash)
+    values.sort_by { |value| -value.size }
   rescue JSON::ParserError
     values
   end

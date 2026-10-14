@@ -60,7 +60,7 @@ class AuditEventTest < ActiveSupport::TestCase
     cert, = issue
     connection = ConsulStore.client
     original_client = ConsulStore.method(:client)
-    ConsulStore.define_singleton_method(:client) { connection }
+    ConsulStore.define_singleton_method(:client) { |*_areas| connection }
     [ConsulConnection::Conflict, ConsulConnection::Error].zip(%w[rejected unknown]).each do |error_class, outcome|
       connection.define_singleton_method(:transaction) do |_operations|
         event = AuditEvent.order(:id).last

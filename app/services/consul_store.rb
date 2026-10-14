@@ -6,7 +6,7 @@ require "cci_writer"
 class ConsulStore
   ROLLOUT_STATUSES = %w[active norollout delete].freeze
   def self.namespace = ENV.fetch("CONSUL_PREFIX", "cci")
-  def self.client = ConsulConnection.new
+  def self.client(area = nil) = ConsulConnection.new(area: area, prefix: namespace)
 
   def self.prefix(area)
     raise Certificates::Error, I18n.t("errors.app.unknown_area") unless AreaConfiguration.ids.include?(area)
@@ -31,7 +31,7 @@ class ConsulStore
 
   def self.certid_snapshot(area, certid)
     validate_certid!(certid)
-    client.get("#{prefix(area)}/certids/#{certid}")
+    client(area).get("#{prefix(area)}/certids/#{certid}")
   end
 
   def self.status_snapshot(record)
@@ -57,7 +57,7 @@ class ConsulStore
 
   def self.get(area, id)
     split_id(id)
-    raw = client.get("#{prefix(area)}/certs/#{id}")
+    raw = client(area).get("#{prefix(area)}/certs/#{id}")
     raise Certificates::Error, I18n.t("errors.app.missing_consul_certificate") unless raw
 
     JSON.parse(raw.fetch(:value))
@@ -74,7 +74,7 @@ class ConsulStore
     end
 
     prefix(area)
-    writer = CciWriter.new(connection: self.client, prefix: namespace)
+    writer = CciWriter.new(connection: self.client(area), prefix: namespace)
     prepared = writer.prepare(area: area, certid: certid, cert: cert, key: key, tags: tags,
       client: client, actor: actor, expected_index: expected_certid_index)
     id = "#{certid}/#{prepared.fetch(:version)}"
@@ -137,7 +137,7 @@ class ConsulStore
   end
 
   def self.mutate(area, certid, actor:, action:, id:, data:, expected_index: nil, actor_display_name: nil)
-    connection = client
+    connection = client(area)
     path = "#{prefix(area)}/certids/#{certid}"
     current = connection.get(path) || raise(Certificates::Error, I18n.t("errors.app.missing_certid"))
     raise Certificates::Error, I18n.t("errors.app.certid_changed") if expected_index && current.fetch(:index).to_s != expected_index.to_s

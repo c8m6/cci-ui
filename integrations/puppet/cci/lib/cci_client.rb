@@ -15,8 +15,10 @@ class CciClient
   # This bounds signature checks for malformed or excessively long inventories.
   MAX_CHAIN_ISSUERS = 12
 
-  def initialize(url:, token: "", keys: {}, prefix: "cci", connection: nil)
-    @connection = connection || ConsulConnection.new(url: url, token: token)
+  def initialize(url:, token: ENV.fetch("CONSUL_TOKEN", ""), keys: {}, prefix: "cci", connection: nil)
+    @connections = Hash.new do |hash, area|
+      hash[area] = connection || ConsulConnection.new(url: url, token: token, area: area, prefix: prefix)
+    end
     @keys = keys
     @prefix = prefix
     @cache = {}
@@ -41,6 +43,8 @@ class CciClient
     when "private_key"
       material["decrypted_key"] ||= decrypt_private_key(material, area, certid, cert)
     end
+  rescue ConsulConnection::AclError => e
+    raise Error, e.message
   rescue Certificates::Error, ConsulConnection::Error, OpenSSL::OpenSSLError, KeyError, ArgumentError,
     JSON::ParserError, TypeError
     raise Error, "Certificate read failed (connection, format or key configuration)"
@@ -51,7 +55,7 @@ class CciClient
   def build_chain(area, leaf)
     return [leaf] if leaf.subject == leaf.issuer && leaf.verify(leaf.public_key)
 
-    candidates = @candidates[area] ||= @connection.all("#{@prefix}/#{area}/certs/").map do |item|
+    candidates = @candidates[area] ||= @connections[area].all("#{@prefix}/#{area}/certs/").map do |item|
       OpenSSL::X509::Certificate.new(JSON.parse(item.fetch(:value)).fetch("pem"))
     end
     chain = [leaf]
@@ -75,8 +79,9 @@ class CciClient
 
   # Resolve the mutable pointer once, then read immutable version paths.
   def load_material(area, certid, version)
+    connection = @connections[area]
     base = "#{@prefix}/#{area}"
-    entry = JSON.parse((@connection.get("#{base}/certids/#{certid}") || raise(Error, "CertID not found"))[:value])
+    entry = JSON.parse((connection.get("#{base}/certids/#{certid}") || raise(Error, "CertID not found"))[:value])
     selected = version || entry.fetch("active_version")
     raise Error, "Invalid active version" unless selected.is_a?(Integer) && selected.positive?
 
@@ -87,7 +92,7 @@ class CciClient
     private_path = "#{base}/keys/#{certid}/#{selected}"
     # get-or-empty keeps a public-only version readable with key access enabled.
     if @keys.key?(area)
-      result = @connection.transaction([
+      result = connection.transaction([
         { "Verb" => "get", "Key" => public_path },
         { "Verb" => "get-or-empty", "Key" => private_path }
       ])
@@ -95,7 +100,7 @@ class CciClient
       data = JSON.parse(Base64.strict_decode64(values.fetch(public_path)))
       data["envelope"] = Base64.strict_decode64(values[private_path]) if values[private_path]
     else
-      data = JSON.parse((@connection.get(public_path) || raise(Error, "Version not found"))[:value])
+      data = JSON.parse((connection.get(public_path) || raise(Error, "Version not found"))[:value])
     end
     data["client"] = CertificateProvenance.catalog_client(data["client"])
     data.merge("version" => selected, "certid" => certid, "status" => status)

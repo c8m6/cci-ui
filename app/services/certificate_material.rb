@@ -6,15 +6,7 @@ class CertificateMaterial
     record.require_retained!
 
     if record.source == "consul"
-      base = ConsulStore.prefix(record.area)
-      paths = ["#{base}/certs/#{record.source_id}"]
-      paths << "#{base}/keys/#{record.source_id}" if private_key
-      values = ConsulStore.client.get_many(paths)
-      data = JSON.parse(values.fetch(paths.first).fetch(:value))
-      cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
-      chain = []
-      key = private_key && OpenSSL::PKey.read(Certificates::Vault.decrypt(values.fetch(paths.last).fetch(:value),
-        area: record.area, id: record.source_id))
+      cert, key, chain = consul_material(record, private_key: private_key)
     elsif record.source == "filesystem"
       relative, index = record.source_id.rpartition("#").values_at(0, 2)
       certificates = LegacyStore.certificates(relative, area: record.area)
@@ -31,9 +23,24 @@ class CertificateMaterial
     raise Certificates::Error, I18n.t("errors.app.key_mismatch") if key && !cert.check_private_key(key)
 
     { certificate: cert, key: key, chain: Certificates::Codec.chain(cert, chain) }
+  rescue ConsulConnection::AclError
+    raise
   rescue ConsulConnection::Error, IndexError, ArgumentError, OpenSSL::OpenSSLError
     raise Certificates::Error, I18n.t("errors.app.invalid_material")
   end
+
+  def self.consul_material(record, private_key:)
+    base = ConsulStore.prefix(record.area)
+    paths = ["#{base}/certs/#{record.source_id}"]
+    paths << "#{base}/keys/#{record.source_id}" if private_key
+    values = ConsulStore.client(record.area).get_many(paths)
+    data = JSON.parse(values.fetch(paths.first).fetch(:value))
+    cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
+    key = private_key && OpenSSL::PKey.read(Certificates::Vault.decrypt(values.fetch(paths.last).fetch(:value),
+      area: record.area, id: record.source_id))
+    [cert, key, []]
+  end
+  private_class_method :consul_material
 
   def self.with_chain(record, material, identity)
     candidates = material[:chain].dup

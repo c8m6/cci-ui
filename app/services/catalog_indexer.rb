@@ -140,32 +140,43 @@ class CatalogIndexer
   end
 
   def consul
-    connection = ConsulStore.client
+    failures = []
     AreaConfiguration.ids.each do |area|
-      base = ConsulStore.prefix(area)
-      certids = connection.all("#{base}/certids/").to_h do |item|
-        [item.fetch(:key).delete_prefix("#{base}/certids/"), JSON.parse(item.fetch(:value))]
-      end
-      connection.all("#{base}/certs/").each do |item|
-        id = item.fetch(:key).delete_prefix("#{base}/certs/")
-        certid, version = ConsulStore.split_id(id)
-        data = JSON.parse(item.fetch(:value))
-        cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
-        entry = certids[certid]
-        next unless entry
-
-        state = ConsulStore.catalog_status(entry).merge(active: entry.fetch("active_version") == version)
-        upsert(cert, area: area, source: "consul", source_id: id,
-          certid: certid, certificate_version: version, tags: data.fetch("tags"), has_key: data.fetch("has_key"),
-          client: CertificateProvenance.catalog_client(data["client"]), created_by: data["created_by"],
-          imported_at: Time.iso8601(data.fetch("created_at")), **state)
-      end
-      certids.each do |certid, entry|
-        records = Certificate.where(source: "consul", area: area, certid: certid)
-        records.update_all(ConsulStore.catalog_status(entry))
-        records.where.not(certificate_version: entry.fetch("active_version")).update_all(active: false)
-      end
+      Certificate.transaction { consul_area(area) }
+    rescue Certificates::Error, ConsulConnection::Error => e
+      OperationalLog.failure(logger: "cci.indexer", message: "Consul area refresh failed", error: e,
+        operation: "refresh_consul_inventory", area: area)
+      failures << e
     end
+    raise failures.first if failures.any?
+
     ImportDraft.where("expires_at < ?", Time.current).delete_all
+  end
+
+  def consul_area(area)
+    connection = ConsulStore.client(area)
+    base = ConsulStore.prefix(area)
+    certids = connection.all("#{base}/certids/").to_h do |item|
+      [item.fetch(:key).delete_prefix("#{base}/certids/"), JSON.parse(item.fetch(:value))]
+    end
+    connection.all("#{base}/certs/").each do |item|
+      id = item.fetch(:key).delete_prefix("#{base}/certs/")
+      certid, version = ConsulStore.split_id(id)
+      data = JSON.parse(item.fetch(:value))
+      cert = OpenSSL::X509::Certificate.new(data.fetch("pem"))
+      entry = certids[certid]
+      next unless entry
+
+      state = ConsulStore.catalog_status(entry).merge(active: entry.fetch("active_version") == version)
+      upsert(cert, area: area, source: "consul", source_id: id,
+        certid: certid, certificate_version: version, tags: data.fetch("tags"), has_key: data.fetch("has_key"),
+        client: CertificateProvenance.catalog_client(data["client"]), created_by: data["created_by"],
+        imported_at: Time.iso8601(data.fetch("created_at")), **state)
+    end
+    certids.each do |certid, entry|
+      records = Certificate.where(source: "consul", area: area, certid: certid)
+      records.update_all(ConsulStore.catalog_status(entry))
+      records.where.not(certificate_version: entry.fetch("active_version")).update_all(active: false)
+    end
   end
 end

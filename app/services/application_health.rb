@@ -16,9 +16,11 @@ class ApplicationHealth
     probe(failures, "postgresql") do
       ActiveRecord::Base.connection_pool.with_connection { |connection| connection.select_value("SELECT 1") }
     end
-    probe(failures, "consul") do
-      client = ConsulStore.client
-      client.request("get", "#{client.path("#{ConsulStore.namespace}/")}?keys&consistent", missing: true)
+    AreaConfiguration.ids.each do |area|
+      probe(failures, "consul:#{area}") do
+        client = ConsulStore.client(area)
+        client.request("get", "#{client.path("#{ConsulStore.prefix(area)}/certids/")}?keys&consistent", missing: true)
+      end
     end
     AreaConfiguration.legacy_paths.each do |area, path|
       probe(failures, "filesystem:#{area}") do

@@ -9,7 +9,7 @@ require_relative "../lib/area_secrets"
 # Reads public material by default and opts into private-key access explicitly.
 module CertificateReadExample
   def self.read(area:, certid:, version: nil, private_key: false, include_chain: false,
-                prefix: ENV.fetch("CONSUL_PREFIX", "cci"), connection: ConsulConnection.new)
+                prefix: ENV.fetch("CONSUL_PREFIX", "cci"), connection: nil)
     keys = private_key ? { area => AreaSecrets.fetch(area) } : {}
     reader = CciClient.new(url: ENV.fetch("CONSUL_URL", "http://127.0.0.1:8500"),
       prefix: prefix, connection: connection, keys: keys)

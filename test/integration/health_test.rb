@@ -148,10 +148,11 @@ class HealthTest < ActionDispatch::IntegrationTest
     original_database = pool.method(:with_connection)
     original_consul = ConsulStore.method(:client)
     pool.define_singleton_method(:with_connection) { |**_options, &_block| raise ActiveRecord::ConnectionNotEstablished, "offline" }
-    ConsulStore.define_singleton_method(:client) { raise ConsulConnection::Error, "offline" }
+    ConsulStore.define_singleton_method(:client) { |*_areas| raise ConsulConnection::Error, "offline" }
     failures = ApplicationHealth.check
     assert failures.key?("postgresql")
-    assert failures.key?("consul")
+    assert failures.key?("consul:zone_a")
+    assert failures.key?("consul:zone_b")
   ensure
     pool.define_singleton_method(:with_connection, original_database) if original_database
     ConsulStore.define_singleton_method(:client, original_consul) if original_consul

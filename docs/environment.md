@@ -68,7 +68,8 @@ in the template macros, independently of UI expiration warnings.
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection URL. Set explicitly for deployment. The development fallback is `postgresql://certui:certui@127.0.0.1:55432/certui_development`; development Compose supplies its internal `db` connection. |
 | `CONSUL_URL` | Consul HTTP(S) endpoint. Application default: `http://127.0.0.1:8500`; development Compose uses `http://consul:8500`. |
-| `CONSUL_TOKEN` | Consul ACL token. Default: empty for local evaluation. Production Compose requires it. |
+| `CONSUL_TOKEN` | Fallback Consul ACL token for areas without an override. Default: empty (anonymous requests). Production can use area tokens without a global token. |
+| `CCI_CONSUL_TOKENS` | JSON object mapping configured area IDs to nonempty ACL token strings; default `{}`. Overrides `CONSUL_TOKEN` for those areas. Invalid JSON, unknown areas and invalid values reject startup. |
 | `CONSUL_PREFIX` | Consul KV namespace. Default: `cci`. |
 | `CONSUL_CA_FILE` | Optional CA certificate path inside the container for HTTPS Consul. Empty or omitted uses system trust. Mount the certificate into both services if needed. |
 | `AUTH_MODE` | `oidc` (application default) or `local`. Development Compose defaults to `local`; production Compose sets `oidc`. Production rejects local authentication. |
@@ -99,6 +100,53 @@ container.
 Consul tokens, OIDC secrets and encryption keys are supplied directly through
 the environment. Optional PuppetDB TLS credentials use the file paths below.
 Keep area key bytes stable so stored private keys remain decryptable.
+
+### Area-scoped Consul credentials
+
+```bash
+export CONSUL_TOKEN='<optional fallback token>'
+export CCI_CONSUL_TOKENS='{"zone_a":"<area-a-token>","zone_b":"<area-b-token>"}'
+```
+
+Provide the same map to web and indexer. Development, production and full Compose
+forward it to both; disposable CI and screenshot stacks explicitly use `{}`.
+The central `ConsulTokens` resolver selects the area's entry, otherwise the global
+token, otherwise an anonymous request. Empty map entries are configuration errors,
+not a way to request fallback. A 403 or ACL-filtered response fails that area;
+it never retries with the global token or another area's credential. Diagnostics
+identify the area without including credentials. TLS verification is unchanged.
+Area tokens and `CCI_AREA_KEYS` encryption secrets are independent.
+
+Use default-deny Consul ACLs and one token per area. For a web/indexer deployment
+that manages `zone_a` under the default prefix, the token's policy can be:
+
+```hcl
+key_prefix "cci/zone_a/certids/" { policy = "write" }
+key_prefix "cci/zone_a/certs/"   { policy = "write" }
+key_prefix "cci/zone_a/keys/"    { policy = "write" }
+```
+
+Change the literal prefix and area to match your deployment. Do not grant
+`key_prefix ""` access. A separate public-only reader needs `read` on just
+`certids/` and `certs/`; private-key readers additionally need `read` on `keys/`
+and the independent encryption key. Shared web/indexer credentials need the
+union of their operations; an isolated indexer does not itself need private-key
+access. Consul `write` includes reads and the CAS checks used by transactions.
+Health checks probe each area's public metadata, not the whole prefix.
+
+All normal reads and mutations bind their connection to an area. Scoped
+transactions reject keys outside that area before HTTP. With configured area
+tokens, multi-area CSR publication uses independently atomic area transactions
+and durable retry receipts; it cannot promise all-area atomicity. Global-token
+installations retain their existing all-area transaction. See [CSR retries](csr.md).
+An index failure in one area preserves its previous rows while other areas can
+refresh; the overall pass still reports the failure.
+
+Standalone `CciClient` and `CciWriter` use this resolver too. Supply `CCI_AREAS`
+when the standalone process should validate membership against an explicit
+allowlist; without it, syntactically valid area IDs are accepted. Explicitly
+injected connections remain the caller's responsibility. Never put tokens in
+URLs, Hiera references, audit details or browser configuration.
 
 ### Error pages and diagnostics
 
