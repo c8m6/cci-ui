@@ -106,7 +106,7 @@ PuppetdbInventory.refresh(connection: connection)
 abort "Demo host mapping failed" unless portal.reload.puppetdb_hosts.size == 3
 puts "Synthetic screenshot inventory ready: #{Certificate.count} certificates, #{rows.size} hosts."
 
-# Add a small synthetic hierarchy specifically for the CA documentation page.
+# Add a small synthetic hierarchy for CA detail and chain screenshots.
 nested, = issue("Example Service CA", serial: 102, days: 8,
   issuer: issuing, issuer_key: issuing_key, ca: true)
 retired_root, retired_key = issue("Example Retired Root CA", serial: 103, days: -10, ca: true)

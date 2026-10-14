@@ -3,15 +3,6 @@
 require "test_helper"
 
 class CaInventoryRefreshTest < ActiveSupport::TestCase
-  setup do
-    @enabled = ENV.fetch("CCI_CA_INVENTORY_ENABLED", nil)
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "true"
-  end
-
-  teardown do
-    ENV["CCI_CA_INVENTORY_ENABLED"] = @enabled
-  end
-
   test "index passes discover valid CAs for expired archived versions and retain legacy Hiera references" do
     root, root_key = issue(name: "Root", ca: true)
     intermediate, intermediate_key = issue(name: "Intermediate", ca: true, issuer: root, issuer_key: root_key)
@@ -35,6 +26,23 @@ class CaInventoryRefreshTest < ActiveSupport::TestCase
     ensure
       configure_legacy_paths("zone_a" => TEST_LEGACY_ROOT)
     end
+  end
+
+  test "expired roots retain nested intermediate relationships and unresolved diagnostics" do
+    root, key = issue(name: "Z Root", ca: true, expired: true)
+    intermediate, intermediate_key = issue(name: "A Intermediate", ca: true, issuer: root, issuer_key: key)
+    nested, = issue(name: "B Intermediate", ca: true, issuer: intermediate, issuer_key: intermediate_key)
+    [root, intermediate, nested].each_with_index { |cert, index| store(cert, certid: "ca-#{index}") }
+    missing = store(issue(name: "Missing issuer", expired: true).first, certid: "missing")
+    CaInventoryRefresh.run
+    inventory = CaInventory.find_by!(area: "zone_a")
+    groups = inventory.hierarchy.fetch(:rooted)
+    assert_equal 1, groups.size
+    assert_equal [0, 1, 2], groups.first.fetch(:rows).pluck(:depth)
+    assert_equal([root, intermediate, nested].map { |cert| Certificates::Codec.fingerprint(cert) },
+      groups.first.fetch(:rows).map { |row| row.fetch(:entry).fetch("fingerprint") })
+    assert_equal [missing.id], inventory.issues.pluck("certificate_id")
+    assert_equal ["missing"], inventory.issues.pluck("reason")
   end
 
   test "expired and future CAs resolve chains without exporting invalid CAs" do
@@ -81,14 +89,13 @@ class CaInventoryRefreshTest < ActiveSupport::TestCase
     assert_equal 3, inventory.issues.size
   end
 
-  test "disabled scans preserve previous data without loading source material" do
+  test "every regular index pass refreshes the CA snapshot without configuration" do
+    store(issue(ca: true).first)
     inventory = CaInventory.create!(area: "zone_a", checked_at: 1.day.ago)
     original = inventory.checked_at
-    record = store(issue.first)
-    record.update!(fingerprint: "unavailable")
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "false"
-    CaInventoryRefresh.run
-    assert_equal original, inventory.reload.checked_at
+    CatalogIndexer.run
+    assert_operator inventory.reload.checked_at, :>, original
+    assert_equal 1, inventory.authorities.size
     assert_nil inventory.error_at
   end
 

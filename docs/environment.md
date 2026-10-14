@@ -87,8 +87,7 @@ in the template macros, independently of UI expiration warnings.
 | `CCI_SHOW_ERROR_DETAILS` | `true` / `1` shows exception messages and stack traces on error pages. Default: `false`, including in development. Applies to all visitors, including users who are not signed in. Errors are logged regardless of this setting. Restart the web service after changing it. |
 | `PORT` | Puma listening port. Default: `3000`. Compose publishes the same port on `127.0.0.1`. |
 | `RAILS_MAX_THREADS` | Puma thread count and database connection pool size. Default: `5`. |
-| `CCI_CA_INVENTORY_ENABLED` | `true` / `1` enables CA discovery after each index pass and the CA certificates page. Default: `false`. Set identically for web and indexer. See [CA inventory](ca-inventory.md). |
-| `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. |
+| `INDEX_INTERVAL` | Seconds the indexer waits between completed indexing passes. Default: `60`. CA inventory runs after each successful full index pass without a feature flag. |
 
 The image build supplies `APP_VERSION`, `APP_REVISION` and `APP_BUILD_TIME`.
 They identify the release tag, exact source commit and UTC build timestamp.
@@ -373,7 +372,7 @@ app_env=(
   -e CONSUL_URL -e CONSUL_TOKEN -e CONSUL_PREFIX -e CONSUL_CA_FILE
   -e OIDC_ISSUER -e OIDC_CLIENT_ID -e OIDC_CLIENT_SECRET
   -e OIDC_REDIRECT_URI -e OIDC_ROLE_MAP -e OIDC_DISPLAY_NAME_CLAIM
-  -e INDEX_INTERVAL -e CCI_CA_INVENTORY_ENABLED
+  -e INDEX_INTERVAL
   -e PUPPETDB_ENABLED -e PUPPETDB_URL -e PUPPETDB_QUERY
   -e PUPPETDB_FACT_NAME -e PUPPETDB_FINGERPRINT_FIELD -e PUPPETDB_FINGERPRINT_ALGORITHM
   -e PUPPETDB_CA_FILE -e PUPPETDB_CLIENT_CERT_FILE -e PUPPETDB_CLIENT_KEY_FILE

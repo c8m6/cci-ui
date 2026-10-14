@@ -31,7 +31,7 @@ longer match the original filenames used by Puppet and the legacy UI. Existing
 copies on target hosts are not removed by this action.
 
 Deleted entries disappear from overview counts, searches, detail routes, exports
-and CA discovery. The area's cached CA page and Hiera output are invalidated
+and CA discovery. The area's cached CA snapshot and Hiera output are invalidated
 immediately and rebuilt by the next index pass. Audit history remains accessible
 to the area's auditors. No Consul record or Puppet rollout status is written.
 The existing Consul archive workflow is separate.

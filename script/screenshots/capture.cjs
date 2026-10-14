@@ -39,36 +39,12 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       await page.waitForFunction(() => !location.pathname.includes('login'));
       await ready();
     };
-    const captureCa = async () => {
-      await page.goto(base + '/ca_inventories', { waitUntil: 'networkidle0' });
-      await ready();
-      await page.waitForSelector('#zone_a-authorities-tab[aria-selected="true"]');
-      assert.equal(await page.$$eval('#zone_a-authorities-panel tr[data-depth="2"]', rows => rows.length), 1);
-      const badges = await page.$$eval('#zone_a-authorities-panel .badge', nodes => nodes.map(node => node.textContent.trim()));
-      for (const state of ['Expired', 'Not yet valid', 'Expiring soon']) assert(badges.includes(state), state);
-      assert.equal(await page.$eval('.ca-output td', node => getComputedStyle(node).whiteSpace), 'nowrap');
-      await capture('ca-certificates.png');
-      await page.click('#zone_a-issues-tab');
-      await page.waitForSelector('#zone_a-issues-panel:not([hidden])');
-      assert((await page.$eval('#zone_a-issues-panel', node => node.textContent)).includes('No gaps detected'));
-      await page.click('#zone_a-hiera-tab');
-      await page.waitForSelector('#zone_a-hiera-panel:not([hidden])');
-      const yaml = await page.$eval('#zone_a-hiera-panel pre', node => node.textContent);
-      assert(!yaml.includes('Retired'));
-      assert(!yaml.includes('Future'));
-    };
-    await login(process.env.CAPTURE_CA_ONLY === '1' ? 'zone_a_reader' : 'all:writer');
+    await login('all:writer');
     if (process.env.CAPTURE_HOSTS_ONLY === '1') {
       await page.goto(base + '/hosts', { waitUntil: 'networkidle0' });
       await ready();
       await capture('hosts.png');
       assert.deepEqual(errors, []);
-      return;
-    }
-    if (process.env.CAPTURE_CA_ONLY === '1') {
-      await captureCa();
-      assert.deepEqual(errors, []);
-      console.log('Updated ca-certificates.png; hierarchy, validity badges and tabs verified.');
       return;
     }
     await page.goto(`${base}/certificates?sort=name`, { waitUntil: 'networkidle0' });
@@ -88,7 +64,6 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
         assert.deepEqual(errors, []);
         return;
       }
-      await captureCa();
     }
 
     await page.goto(portal.url, { waitUntil: 'networkidle0' });
@@ -152,8 +127,9 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
     assert((await page.$eval('h1', node => node.textContent)).endsWith('.example.test'));
     assert((await page.$$eval('.fingerprint-value', nodes => nodes.map(node => node.textContent))).every(value => /^[0-9a-f]{64}$/.test(value)));
     await capture('host-details.png');
-    await page.goto(base + '/ca_inventories', { waitUntil: 'networkidle0' });
-    const caLink = await page.$eval('#zone_a-authorities-panel tr[data-depth="0"] a', node => node.href);
+    await page.goto(`${base}/certificates?sort=name`, { waitUntil: 'networkidle0' });
+    assert.equal(await page.$$eval('.nav-item[href="/ca_inventories"]', nodes => nodes.length), 0);
+    const caLink = await page.$$eval('a.certificate-name', nodes => nodes.find(node => node.textContent === 'Example Demo CA').href);
     await page.goto(caLink, { waitUntil: 'networkidle0' });
     assert.equal(await page.$eval('#issued-certificates', node => node.open), false);
     await page.click('#issued-certificates summary');

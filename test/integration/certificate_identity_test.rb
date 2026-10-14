@@ -22,8 +22,6 @@ class CertificateIdentityTest < ActionDispatch::IntegrationTest
   end
 
   test "CA descendants start collapsed and remain visible to readers without changing exports" do
-    previous = ENV.fetch("CCI_CA_INVENTORY_ENABLED", nil)
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "true"
     ca, key = issue(ca: true)
     record = store(ca, certid: "root")
     child = store(issue(issuer: ca, issuer_key: key).first, certid: "child")
@@ -35,10 +33,51 @@ class CertificateIdentityTest < ActionDispatch::IntegrationTest
     end
     get certificate_path(child)
     assert_select "#issued-certificates", count: 0
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "false"
+  end
+
+  test "root and intermediate descendants distinguish pending empty and failed scans in both languages" do
+    ca, key = issue(name: "Root", ca: true)
+    root = store(ca, certid: "root")
+    middle = store(issue(name: "Intermediate", ca: true, issuer: ca, issuer_key: key).first, certid: "middle")
+    post local_login_path, params: { identity: "zone_a_reader" }
+    %i[de en].each do |locale|
+      post locale_path, params: { locale: locale, return_to: certificate_path(root) }
+      CaInventory.delete_all
+      [root, middle].each { |record| assert_descendant_state(record, :pending, locale) }
+      CaInventoryRefresh.failed!
+      [root, middle].each do |record|
+        assert_descendant_state(record, :stale, locale)
+        assert_includes response.body, I18n.t("ca_inventory.graph_pending", locale: locale)
+      end
+      CaInventoryRefresh.run
+      assert_descendant_state(middle, :empty, locale)
+      get certificate_path(root)
+      assert_select "#issued-certificates a[href=?]", certificate_path(middle)
+      CaInventoryRefresh.failed!
+      assert_descendant_state(root, :stale, locale)
+      assert_select "#issued-certificates a[href=?]", certificate_path(middle)
+      assert_descendant_state(middle, :stale, locale)
+      assert_not_includes response.body, I18n.t("ca_inventory.graph_empty", locale: locale)
+      CaInventoryRefresh.run
+      assert_descendant_state(middle, :empty, locale)
+    end
+  end
+
+  test "an empty standalone root still has a collapsed descendants panel" do
+    record = store(issue(ca: true).first)
+    CaInventoryRefresh.run
+    post local_login_path, params: { identity: "zone_a_reader" }
+    assert_descendant_state(record, :empty, :de)
+  end
+
+  private
+
+  def assert_descendant_state(record, state, locale)
     get certificate_path(record)
-    assert_select "#issued-certificates", count: 0
-  ensure
-    ENV["CCI_CA_INVENTORY_ENABLED"] = previous
+    assert_response :success
+    assert_select "details#issued-certificates:not([open])" do
+      assert_select "[role=status]", text: I18n.t("ca_inventory.graph_#{state}", locale: locale)
+    end
+    assert_select "#issued-certificates .pagination", count: 0 if %i[empty pending].include?(state)
   end
 end

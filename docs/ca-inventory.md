@@ -1,26 +1,8 @@
 # CA inventory and Hiera export
 
-Set `CCI_CA_INVENTORY_ENABLED=true` in both the web and indexer environments.
-The default is `false`. `1` also enables the feature. Recreate both services
-after changing it. The **CA certificates** navigation entry opens
-`/ca_inventories`. Each area groups its output into tabs for CA certificates,
-unresolved issuer chains and, last, Hiera configuration. The page uses the full
-available width, with horizontal scrolling for wide tables and YAML. Tabs support
-arrow keys, Home and End. Without JavaScript, all sections remain visible.
-
-![CA certificates with synthetic data](screenshots/ca-certificates.png)
-
-The screenshot shows generated demonstration certificates and invented names.
-No production inventory, organizations, users or private keys are included.
-The **CA certificates** tab (**CA-Zertifikate** in German) presents roots followed
-by indented intermediate CAs. **Unresolved issuer chains** (**Unvollständige
-Ausstellerketten**) lists missing issuers, cycles and chains beyond the search
-limit. A complete chain does not appear there merely because one of its
-certificates is expired or not yet valid. **Hiera configuration** provides the
-flat YAML list and download for the area.
-
-Disabling the feature stops scans and hides both the page
-and its download routes, while preserving the last stored snapshot.
+CA inventory is always active as part of the regular index run. There is no
+separate CA overview page. Open a root or intermediate certificate in the
+certificate catalogue to inspect its chain and verified descendants.
 
 After each successful full index pass, CCI-UI reads public certificate material
 from all configured areas and both filesystem and Consul sources. Filesystem
@@ -35,22 +17,19 @@ Candidates must have `basicConstraints: CA:TRUE`, permit certificate signing
 when a key usage extension is present. Issuer names and signatures must match.
 Chain completeness is independent of certificate validity dates and active version
 selection. Expired and not-yet-valid certificates can complete a chain.
-Validity badges use the same states as the overview and are shown in both the CA
-and unresolved-chain tabs. The Hiera export only includes currently valid CAs
+Validity badges in certificate details use the same states as the overview.
+The Hiera export only includes currently valid CAs
 that can be referenced. Consul exports require the active version because
 `lookup` always resolves that selection. Self-signed roots and intermediate CAs are included
 without an additional approval workflow. Chains are bounded to twelve issuer
-hops, and cycles and missing usable issuers are reported on the page. This is
+hops, and cycles and missing usable issuers remain recorded in the area snapshot. This is
 issuer discovery, not full TLS path validation or a revocation check.
 
-Results are deduplicated by SHA-256 fingerprint within each area. The page labels
-roots and intermediates and links back to certificate details. The CA tab groups
-intermediates under their roots, with indentation for each issuer level. These
-relationships come from the indexer's verified signature matches, stored as
-fingerprint references in the PostgreSQL snapshot. A new index pass populates
-these relationships for existing snapshots.
+Results are deduplicated by SHA-256 fingerprint within each area. Verified
+signature matches are stored as fingerprint references in the PostgreSQL snapshot.
+Root/intermediate recognition and cached diagnostics remain independent of the UI.
 
-Certificate detail pages use the same hierarchy rows for the resolved issuer
+Certificate detail pages show a hierarchy for the resolved issuer
 chain, ending with the selected certificate. The detail-page chain
 omits fingerprints and truncates long subjects with an ellipsis. Hovering over a
 subject reveals its full value. Validity stays visible without horizontal scrolling.
@@ -59,13 +38,11 @@ subject and validity. The highest available
 issuer appears first. Missing roots keep the incomplete-chain notice, and
 certificates without a catalog entry remain visible without a detail link.
 
-Roots and siblings are sorted by subject and fingerprint. If a CA has multiple
-verified parents, it appears once under the first reachable root and branch in
-that order. Missing roots, disconnected chains and cycles remain visible in a
-separate section, preserving any available parent-child relationships without
-repeating certificates. Expired parents remain visible above their descendants.
-Subjects and issuers stay on one line, with horizontal scrolling when necessary.
-The Hiera export stays flat.
+## Hiera download
+
+The existing authenticated `GET /ca_inventories/:area` YAML download remains
+available, for example `/ca_inventories/zone_a`. It is restricted to the signed-in
+identity's areas. The collection URL `/ca_inventories` has no route or UI.
 
 The Hiera output
 is a YAML list of source-specific references. Consul entries use `lookup` with
@@ -80,14 +57,14 @@ suffix from the certificate detail page:
 ```
 
 `lookup` identifies Consul material, while `issuer` and `subject` identify
-filesystem material. Each download belongs to the area shown on the page, which
+filesystem material. Each download belongs to the area in the URL, which
 must be retained in the consuming Hiera context. Existing filesystem references
 need no migration. Certificate details show identity YAML (`certid` and `area` for Consul,
 `issuer` and `subject` for filesystem sources), not a generated Puppet class.
 This does not change the integration or CA Hiera download format.
 
 Identical references appear once in the YAML, even if multiple distinct
-certificates share those references. The page retains their separate
+certificates share those references. The inventory retains their separate
 fingerprints. A reference does not pin a version: a Consul lookup resolves the
 selected active version, and filesystem resolution follows the existing Puppet
 lookup. Scanning historical versions does not make their material independently
@@ -106,7 +83,13 @@ A successful later scan clears that warning. Private keys are never loaded.
 ## Issued certificates on CA details
 
 A CA or intermediate detail page includes an initially collapsed **Issued
-certificates** panel beside the export controls, when verified children exist.
+certificates** panel, including when no children have been found. It is visible to
+readers without export permission and does not require configuration. The panel
+distinguishes four states: verified descendants, no subordinate certificates,
+no successful synchronization yet, and failed synchronization with a potentially
+stale snapshot. A failed first scan also indicates that no successful scan exists;
+a failed later scan keeps previously verified relationships and their timestamp.
+CA recognition uses the loaded public certificate even before the first scan.
 It shows direct children by default; **All descendants** traverses up to twelve
 issuer hops. Results are deduplicated by DER fingerprint within the permitted
 area and paginated at twenty certificates. Links include CertID/name, type and
@@ -118,8 +101,8 @@ certificate-signing key usage where present, and a verified signature. Cross-sig
 parents remain separate certificates; children with multiple matching parents
 are labeled ambiguous. The list is an inventory graph, not a unique trust path.
 Missing issuers create no guessed edges. The snapshot timestamp and stale marker
-remain visible; a failed scan retains previous data. Disabling CA inventory
-hides this panel too. Existing snapshots acquire edges on their next scan.
+remain visible; a failed scan retains previous data. Existing snapshots acquire
+edges on their next scan. No stored CA data is migrated or removed.
 
 ![CA details with verified issued certificates](screenshots/ca-details.png)
 
@@ -149,9 +132,10 @@ The isolated screenshot stack seeds generated certificates and demo identities.
 It has its own PostgreSQL and Consul services and does not mount real inventory
 data. Start it with `docker compose -f script/screenshots/compose.yml up --build
 -d --wait`. With Puppeteer and Chromium installed, run
-`CAPTURE_CA_ONLY=1 node script/screenshots/capture.cjs`.
+`node script/screenshots/capture.cjs`.
 Use `PUPPETEER_MODULE` and `PUPPETEER_EXECUTABLE_PATH` for non-default installations.
-The script checks hierarchy depth, validity badges, tab navigation and the
-exclusion of expired and future CAs from Hiera before completing. Remove the
-disposable services afterward with
+The script checks chain hierarchy, validity badges, navigation and the initially
+collapsed CA descendants panel before completing. Rails integration tests verify
+the four synchronization states and the unchanged Hiera download contract.
+Remove the disposable services afterward with
 `docker compose -f script/screenshots/compose.yml down --volumes`.

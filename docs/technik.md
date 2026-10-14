@@ -61,8 +61,8 @@ old versions and archives. Filesystem identity keeps `issuer` and `subject`
 (including the existing `.tag` convention), with no invented CertID. Puppet/Hiera
 integration exports retain their existing format.
 
-CA details optionally show a collapsed, paginated list of verified direct or
-transitive children; see [CA inventory](ca-inventory.md#issued-certificates-on-ca-details).
+CA details always include a collapsed, paginated view of verified direct or
+transitive children, with distinct empty, pending and failed-synchronization states; see [CA inventory](ca-inventory.md#issued-certificates-on-ca-details).
 
 ![Certificate details with synthetic Puppet/ACME management, PuppetDB hosts, version history and Consul status controls](screenshots/details.png)
 

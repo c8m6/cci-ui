@@ -5,14 +5,14 @@ class CaDescendants
   PAGE_SIZE = 20
   attr_reader :inventory, :page, :pages, :total, :records, :depths, :scope
 
-  def initialize(record, identity:, page: 1, scope: "direct")
+  def initialize(record, identity:, certificate: nil, page: 1, scope: "direct")
     @records = []
     @total = 0
     @scope = scope == "all" ? "all" : "direct"
-    return unless CaInventory.enabled?
-
     @inventory = CaInventory.find_by(area: record.area)
-    return unless inventory&.authorities&.any? { |entry| entry.fetch("fingerprint") == record.fingerprint }
+    @authority = (certificate && Certificates::Codec.ca?(certificate)) ||
+                 inventory&.authorities&.any? { |entry| entry.fetch("fingerprint") == record.fingerprint }
+    return unless authority? && inventory&.checked_at
 
     @depths = descendant_depths(record.fingerprint)
     candidates = Certificate.visible_to(identity).where(area: record.area, fingerprint: depths.keys)
@@ -22,6 +22,17 @@ class CaDescendants
     @page = page.to_i.clamp(1, pages)
     @records = candidates.select("DISTINCT ON (fingerprint) certificates.*")
                          .order(:fingerprint, active: :desc, source: :asc, id: :asc).offset((@page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+  end
+
+  def authority?
+    !!@authority
+  end
+
+  def state
+    return :stale if inventory&.error_at
+    return :pending unless inventory&.checked_at
+
+    total.positive? ? :available : :empty
   end
 
   def kind(record)

@@ -29,7 +29,7 @@ Rails.application.routes.draw do
   end
   resources :imports, only: %i[new create]
   get "/imports/preview", to: "imports#preview", as: :import_preview
-  resources :ca_inventories, only: %i[index show]
+  resources :ca_inventories, only: :show
   resources :hosts, only: %i[index show]
   resources :audit_events, only: :index
 end

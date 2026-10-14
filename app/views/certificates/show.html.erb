@@ -2,7 +2,7 @@
 <%= link_to t("ui.back_certificates"), root_path, class: "back-link" %>
 <div class="page-heading"><div><span class="eyebrow"><%= t("ui.certificate_details") %></span><h1 class="break-word"><%= @certificate.common_name %></h1><p><span class="area-pill"><%= area_label(@certificate.area) %></span> <span class="badge <%= @certificate.status_class %>"><%= @certificate.status %></span> <span class="source-label"><%= @certificate.source_label %></span></p></div></div>
 <% if @material %><%= render "chain", material: @material, records: @chain_records, selected: @certificate %><% end %>
-<div class="detail-grid<%= " detail-grid-summary-only" if @material && !current_identity.export?(@certificate.area) && @descendants.total.zero? %>"><section class="panel detail-panel"><h2><%= t("ui.summary") %></h2><dl>
+<div class="detail-grid<%= " detail-grid-summary-only" if @material && !current_identity.export?(@certificate.area) && !@descendants.authority? %>"><section class="panel detail-panel"><h2><%= t("ui.summary") %></h2><dl>
   <% if @certificate.source == "consul" %><dt><%= t("ui.archive_status") %></dt><dd><%= @archived ? t("ui.archived") : t("ui.not_archived") %></dd><% end %>
   <dt><%= t("ui.puppet_status") %></dt><dd><%= @certificate.source == "consul" ? @rollout_status : t("ui.filesystem_unmanaged") %></dd>
   <dt><%= t("ui.storage_location") %></dt><dd><%= @certificate.source_label %></dd>
@@ -26,9 +26,9 @@
   <dt><%= t("ui.algorithm") %></dt><dd><%= @certificate.algorithm %></dd><dt><%= t("ui.key_file") %></dt><dd><%= @certificate.has_key ? t("ui.key_export_check") : t("ui.absent") %></dd>
   <dt><%= t("ui.tags") %></dt><dd><%= @certificate.tags.join(", ").presence || t("ui.none") %></dd>
   <% if @certificate.certid %><dt><%= t("ui.puppet_certid") %></dt><dd class="mono"><%= @certificate.certid %></dd><% end %>
-</dl></section><% if !@material || current_identity.export?(@certificate.area) || @descendants.total.positive? %><section class="panel detail-panel"><% if @material %>
+</dl></section><% if !@material || current_identity.export?(@certificate.area) || @descendants.authority? %><section class="panel detail-panel"><% if @material %>
 <% if current_identity.export?(@certificate.area) %><h2><%= t("ui.export") %></h2><%= form_with url: export_certificates_path, data: { turbo: false }, class: "detail-export" do |form| %><%= hidden_field_tag "ids[]", @certificate.id %><%= render "export_fields", form: form, writer: current_identity.export_key?(@certificate.area) %><% if @certificate.source == "filesystem" && current_identity.export_key?(@certificate.area) %><%= form.password_field :source_password, placeholder: t("ui.source_password_placeholder"), aria: { label: t("ui.source_password_label") }, autocomplete: "off" %><% end %><%= form.submit t("ui.download_certificate"), class: "button primary" %><% end %>
-<% end %><% else %><h2><%= t("ui.source_unavailable") %></h2><p><%= t("ui.source_unavailable_description") %></p><p class="muted"><%= @material_error %></p><% end %><% if @descendants.total.positive? %><%= render "descendants" %><% end %></section><% end %></div>
+<% end %><% else %><h2><%= t("ui.source_unavailable") %></h2><p><%= t("ui.source_unavailable_description") %></p><p class="muted"><%= @material_error %></p><% end %><% if @descendants.authority? %><%= render "descendants" %><% end %></section><% end %></div>
 <% if puppetdb_enabled? %><%= render "puppetdb_hosts", certificate: @certificate %><% end %>
 <% if @certificate.source == "consul" && current_identity.writer?(@certificate.area) %>
   <section class="panel detail-panel"><h2><%= t("ui.puppet_status") %></h2>

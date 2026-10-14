@@ -30,8 +30,9 @@ class CertificatesController < ApplicationController
                 else
                   []
                 end
-    @descendants = CaDescendants.new(@certificate, identity: current_identity, page: params[:children_page], scope: params[:children_scope])
     load_presentation
+    @descendants = CaDescendants.new(@certificate, identity: current_identity, certificate: @material&.fetch(:certificate),
+      page: params[:children_page], scope: params[:children_scope])
   end
 
   def archive

@@ -30,7 +30,6 @@ x-inventory-environment: &inventory_environment
   CCI_CONSUL_TOKENS: '${CCI_CONSUL_TOKENS:-{}}'
   CONSUL_PREFIX: "cci"
   CONSUL_CA_FILE: "/run/consul/ca.pem"
-  CCI_CA_INVENTORY_ENABLED: "true"
 
 # Web needs these settings for /health diagnostics as well as the feature flag.
 x-puppetdb-environment: &puppetdb_environment

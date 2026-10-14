@@ -88,12 +88,17 @@ class CertificateArchivingTest < ActiveSupport::TestCase
   test "missing Consul versions and certids never delete catalog records or reset archived status" do
     record = store(issue.first)
     archive(record)
+    CaInventoryRefresh.run
+    checked = CaInventory.find_by!(area: record.area).checked_at
     base = ConsulStore.prefix(record.area)
     ConsulStore.client.transaction([
       { "Verb" => "delete", "Key" => "#{base}/certs/#{record.source_id}" },
       { "Verb" => "delete", "Key" => "#{base}/certids/#{record.certid}" }
     ])
-    CatalogIndexer.run
+    assert_raises(Certificates::Error) { CatalogIndexer.run }
+    inventory = CaInventory.find_by!(area: record.area)
+    assert_equal checked, inventory.checked_at
+    assert_not_nil inventory.error_at
     assert record.reload.archived
     assert_equal "delete", record.rollout_status
     assert_equal 1, AuditEvent.where(action: "archive").count

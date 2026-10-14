@@ -32,7 +32,7 @@ identities and PuppetDB host associations. Detailed views are documented under
   keys, and publish matching issued certificates to Consul. Certificate issuance
   by a CA remains an external step.
 - **Infrastructure integration:** Puppet readers and Hiera output for
-  certificate distribution, optional searchable PuppetDB host pages, and an optional
+  certificate distribution, optional searchable PuppetDB host pages, and an always-active
   CA inventory with verified downstream certificate links. Consul certificates have status and archive controls, while
   filesystem deletion uses a separate confirmation and recovery workflow.
   Read-only reconciliation removes externally deleted filesystem entries after

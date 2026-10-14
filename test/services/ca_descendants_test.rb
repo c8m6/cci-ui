@@ -4,12 +4,8 @@ require "test_helper"
 
 class CaDescendantsTest < ActiveSupport::TestCase
   setup do
-    @enabled = ENV.fetch("CCI_CA_INVENTORY_ENABLED", nil)
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "true"
     @identity = Identity.new(name: "reader", roles: ["zone_a_reader"])
   end
-
-  teardown { ENV["CCI_CA_INVENTORY_ENABLED"] = @enabled }
 
   test "verified immediate and transitive children deduplicate DER and stay inside the area" do
     root, key = issue(name: "Root", ca: true)
@@ -54,7 +50,7 @@ class CaDescendantsTest < ActiveSupport::TestCase
     assert_empty result.inventory.issuer_edges.fetch(missing.fingerprint)
   end
 
-  test "feature gate empty CAs missing files and pagination bound the visible graph" do
+  test "empty CAs and pagination bound the visible graph" do
     @root = store(issue(ca: true).first)
     CaInventoryRefresh.run
     assert_equal 0, descendants.total
@@ -69,9 +65,6 @@ class CaDescendantsTest < ActiveSupport::TestCase
     assert_equal 20, descendants.records.size
     assert_equal 3, descendants(page: 2).records.size
     assert_equal 2, descendants(page: 999).page
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "false"
-    assert_empty descendants.records
-    assert_equal 0, descendants.total
   end
 
   private

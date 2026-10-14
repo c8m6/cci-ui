@@ -3,8 +3,6 @@
 # Resolves local issuer relationships without fetching URLs or loading private keys.
 class CaInventoryRefresh
   def self.run
-    return unless CaInventory.enabled?
-
     now = Time.current
     snapshots = AreaConfiguration.ids.to_h { |area| [area, new(area).snapshot] }
     CaInventory.transaction do
@@ -18,8 +16,6 @@ class CaInventoryRefresh
   end
 
   def self.failed!
-    return unless CaInventory.enabled?
-
     AreaConfiguration.ids.each do |area|
       CaInventory.find_or_initialize_by(area: area).update!(error_at: Time.current)
     end
