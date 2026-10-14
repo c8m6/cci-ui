@@ -30,19 +30,9 @@ class CertificatesController < ApplicationController
                 else
                   []
                 end
-    begin
-      @material = CertificateMaterial.with_chain(@certificate, CertificateMaterial.load(@certificate), current_identity)
-      fingerprints = [@material[:certificate], *@material[:chain]].map { |cert| Certificates::Codec.fingerprint(cert) }
-      @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(
-        active: :desc, id: :asc
-      ).to_a.group_by(&:fingerprint).transform_values(&:first)
-      @hiera = HieraSnippet.for(@certificate, @material[:certificate])
-    rescue Certificates::Error, ConsulConnection::Error => e
-      OperationalLog.failure(logger: "cci.certificates", message: "Certificate material loading failed", error: e,
-        certificate_id: @certificate.id)
-      @material = nil
-      @material_error = e.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : e.message
-    end
+    load_presentation
+    @descendants = CaDescendants.new(@certificate, identity: current_identity, certificate: @material&.fetch(:certificate),
+      page: params[:children_page], scope: params[:children_scope])
   end
 
   def archive
@@ -114,6 +104,24 @@ class CertificatesController < ApplicationController
   end
 
   private
+
+  def load_presentation
+    @material = CertificateMaterial.with_chain(@certificate, CertificateMaterial.load(@certificate), current_identity)
+    fingerprints = [@material[:certificate], *@material[:chain]].map { |cert| Certificates::Codec.fingerprint(cert) }
+    @chain_records = Certificate.visible_to(current_identity).where(area: @certificate.area, fingerprint: fingerprints).order(
+      active: :desc, id: :asc
+    ).to_a.group_by(&:fingerprint).transform_values(&:first)
+    @reference = if @certificate.source == "consul"
+                   { "certid" => @certificate.certid, "area" => @certificate.area }.compact
+                 else
+                   HieraSnippet.reference(@certificate, @material[:certificate])
+                 end
+  rescue Certificates::Error, ConsulConnection::Error => e
+    OperationalLog.failure(logger: "cci.certificates", message: "Certificate material loading failed", error: e,
+      certificate_id: @certificate.id)
+    @material = nil
+    @material_error = e.is_a?(ConsulConnection::Error) ? I18n.t("errors.app.store_unavailable") : e.message
+  end
 
   def require_consul!(record)
     raise Certificates::Error, I18n.t("errors.app.consul_only") unless record.source == "consul"

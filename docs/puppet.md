@@ -226,3 +226,10 @@ digits or underscores, starting with a letter. Each ID uses
 `CCI_AREA_KEYS` (or the per-area `<UPPERCASE_AREA_ID>_KEY` fallback). Consul
 ACLs enforce compiler access. Examples use
 `zone_a`; existing deployments retain their configured IDs.
+
+The bundled Ruby client's central token resolver also accepts
+`CCI_CONSUL_TOKENS` (see [area credentials](environment.md#area-scoped-consul-credentials)).
+Its area entry takes precedence over the bundled function's existing
+`CCI_<AREA>_CONSUL_TOKEN` fallback, followed by `CONSUL_TOKEN` and anonymous access.
+This concerns the bundled `cci` client; external implementations configure their
+own credentials independently.

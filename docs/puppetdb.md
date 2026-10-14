@@ -86,7 +86,9 @@ one of these forms. For example, the following is also supported:
 }
 ```
 
-Extra properties on an object containing the fingerprint field are ignored.
+An optional absolute `path` or `file` property is retained; an absolute map key
+can supply the path too. Control characters and paths longer than 4096 characters
+are ignored. Other properties on a fingerprint object are ignored.
 Other facts are ignored entirely and are not stored. An empty list or map means
 the host reports no certificates. Null, a missing fact, an invalid fingerprint,
 or an unsupported shape rejects the complete response. Adapt the custom fact
@@ -97,6 +99,41 @@ rows. Matching catalog records across sources, areas and historical versions
 share the same host list. Certificate access permissions still apply, but
 there is no separate host authorization model: anyone allowed to view a
 certificate can see all its matching hosts within the configured query scope.
+
+## Host list and details
+
+With the integration enabled, **Hosts** opens `/hosts`: search full certnames,
+filter by permitted area and synchronization state, and browse thirty hosts per
+page. Selecting a host opens its details with the full PuppetDB certname,
+certificate count, oldest successful observation among visible associations,
+synchronization status and paginated certificate records. Each record shows its
+area, actual CertID/version or filesystem identity, validity, full SHA-256
+fingerprint with copy button, detail link and any reported file paths.
+
+Host pages are a permission-scoped SQL projection of `certificates.puppetdb_hosts`;
+there is no separate Host model or second synchronization job. Counts refer to
+visible catalog records, including versions and source/area copies. One certificate
+can belong to several hosts. Hosts with no visible associated certificate are
+absent, so a user cannot discover hosts solely through another area's records.
+Encoded route IDs preserve the entire certname and are not authorization tokens.
+Pages perform no PuppetDB requests. Disabling the integration hides navigation
+and makes both host endpoints return 404.
+
+Historical versions and archives are labeled. Failed refreshes, missing selected
+digests and unqueried associations are not shown as current. A successful empty
+response clears associations and paths, causing now-unassociated hosts to disappear.
+An indexer that stops without attempting a query cannot create a failure marker;
+check the displayed observation time. These are PuppetDB observations, not live
+certificate deployment or service checks.
+
+The additive migration stores only optional reported public paths in
+`certificates.puppetdb_paths` (host-to-path arrays), alongside the existing host
+cache. Existing rows start empty and acquire paths on the next successful scan;
+no certificate material or external Puppet schema is migrated.
+
+![Host list with synthetic PuppetDB observations](screenshots/hosts.png)
+
+![Host detail with full fingerprint and reported file path](screenshots/host-details.png)
 
 ## Refresh and display behavior
 

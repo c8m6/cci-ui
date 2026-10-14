@@ -3,7 +3,7 @@
 require "test_helper"
 
 class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
-  test "legacy details render UTF8 issuer and subject in usable Hiera YAML" do
+  test "legacy details render only their real UTF8 identity in YAML" do
     previous = AreaConfiguration.configuration
     Dir.mktmpdir("cci-unicode-details-") do |directory|
       configure_legacy_paths("zone_a" => directory)
@@ -24,10 +24,11 @@ class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
       get certificate_path(record)
       assert_response :success
       document = Nokogiri::HTML(response.body)
-      snippet = document.at_xpath('//section[h2[text()="Hiera-Konfiguration"]]/pre').text
+      snippet = document.at_xpath('//section[h2[text()="Zertifikatsidentität"]]/pre').text
       parsed = YAML.safe_load(snippet)
       assert_equal 'CN=M\xC3\xBCller CA, O=Test', parsed.fetch("issuer")
       assert_equal 'CN=B\xC3\xBCro \xE6\x9D\xB1\xE4\xBA\xAC, O=Test_Prüfung', parsed.fetch("subject")
+      assert_equal %w[issuer subject], parsed.keys.sort
       assert_not_includes snippet, "\uFFFD"
     end
   ensure

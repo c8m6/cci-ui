@@ -363,3 +363,13 @@ ruby examples/read_certificate.rb zone_a portal.production 1
 See [Puppet integration](puppet.md) for `cci::certid`, integer version pinning,
 ACLs and Hiera examples. Run `ruby bin/package-puppet` after editing shared Ruby
 helpers. Keep the UI, writers and readers on this same contract.
+
+## Area-scoped transport credentials
+
+`CCI_CONSUL_TOKENS` optionally maps area IDs to ACL tokens; missing entries use
+`CONSUL_TOKEN`, then anonymous access. This is transport configuration, independent
+of area encryption keys and of the immutable storage schema and AAD. All standard
+client/writer paths resolve the token centrally. Area-scoped transactions cannot
+contain another area's keys. ACL denial or filtered results fail without fallback.
+See [configuration and ACL policy examples](environment.md#area-scoped-consul-credentials)
+and [multi-area CSR retry semantics](csr.md).

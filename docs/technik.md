@@ -42,15 +42,27 @@ requests. Existing NFS access is unchanged.
 
 The detail view shows a chain hierarchy from root CA through intermediates to
 the selected certificate, with validity badges and links. Metadata, reported
-PuppetDB hosts, status and archive controls, versions and Hiera configuration
+PuppetDB hosts, status and archive controls, versions and source-specific identity
 appear below it. This dark-theme example uses synthetic certificates and hosts.
 
 The optional `acme_renewal` extension is read directly from the CertID metadata
 in Consul. Valid summaries show automatic Puppet/ACME management, domains, key
 parameters and the version/expiry described by the external writer. Manual
-import and activation show a warning but retain the existing permissions and
+import and activation show a neutral management notice, grouped with the status
+controls on details, and retain the existing permissions and
 confirmation workflow. Unknown metadata remains intact during all UI writes;
 it is not a new catalog classification or storage source.
+
+Fingerprints in certificate details, version rows and host details are complete,
+monospace and wrap on narrow screens. Copy buttons copy the exact complete value;
+if browser clipboard permission is unavailable, select the value manually.
+Consul identity YAML contains only the actual `certid` and `area`, including for
+old versions and archives. Filesystem identity keeps `issuer` and `subject`
+(including the existing `.tag` convention), with no invented CertID. Puppet/Hiera
+integration exports retain their existing format.
+
+CA details always include a collapsed, paginated view of verified direct or
+transitive children, with distinct empty, pending and failed-synchronization states; see [CA inventory](ca-inventory.md#issued-certificates-on-ca-details).
 
 ![Certificate details with synthetic Puppet/ACME management, PuppetDB hosts, version history and Consul status controls](screenshots/details.png)
 
@@ -312,6 +324,7 @@ certificate fact is interpreted. Malformed rows, fingerprints or missing facts
 reject the entire synchronization before associations change.
 
 `certificates.puppetdb_hosts` contains sorted, unique certnames;
+`puppetdb_paths` stores optional reported public paths per host;
 `puppetdb_checked_at` records the last successful complete observation and
 `puppetdb_error_at` records a failed attempt. Updates are atomic across catalog
 records. The mapping uses the configured SHA-256 or SHA-1 fingerprints across
@@ -320,6 +333,12 @@ identity; the indexer additionally computes `sha1_fingerprint` from DER. Records
 without that additional digest retain their previous observations in SHA-1 mode
 until their source can be reindexed. It changes no certificate metadata, archive flags,
 rollout status, Consul data or audit events. See [PuppetDB integration](puppetdb.md).
+
+The host list and detail pages project these permission-scoped cached records
+without network queries or an independent Host model. The additive migration
+`20261014000100` adds only `puppetdb_paths` and the CA graph cache `issuer_edges`,
+both empty JSON objects initially. Run `db:prepare` before starting new web and
+indexer processes; their next scan populates the caches. No Consul content changes.
 
 ## Operations and limitations
 
@@ -360,3 +379,21 @@ signature verification and a successful Consul transaction. Only the newest
 submission can publish. Exact persisted transaction bytes reconcile lost replies
 without creating another version. CSR audit events use the existing area-scoped
 audit store. See [CSR validation, API, retry and rotation contracts](csr.md).
+
+## Browser checks for inventory views
+
+Use the disposable stack from `script/screenshots/compose.yml`, then run:
+
+```console
+node --test test/browser/inventory_test.cjs test/browser/localization_test.cjs test/browser/csr_test.cjs
+node script/screenshots/capture.cjs
+CSR_SCREENSHOT=1 node --test test/browser/csr_test.cjs
+```
+
+Install Puppeteer and Chromium for your supported Node version;
+`PUPPETEER_MODULE` and `PUPPETEER_EXECUTABLE_PATH` select existing installations.
+The inventory test checks full clipboard content, wrapping at 320–1440 pixels,
+neutral management information and host navigation. The capture script refreshes
+certificate/CA details, overview, host list/details and audit screenshots using
+only synthetic data. Remove the disposable stack with
+`docker compose -f script/screenshots/compose.yml down --volumes`.

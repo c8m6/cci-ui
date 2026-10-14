@@ -87,14 +87,22 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
   test "removing a mapping blocks stale material and retains catalog rows" do
     configure_paths("zone_a" => @paths.fetch("zone_a"))
     assert_raises(Certificates::Error) { CertificateMaterial.load(@records.fetch("zone_b")) }
-    CatalogIndexer.run
+    checked = CaInventory.find_by!(area: "zone_b").checked_at
+    assert_raises(Certificates::Error) { CatalogIndexer.run }
+    inventory = CaInventory.find_by!(area: "zone_b")
+    assert_equal checked, inventory.checked_at
+    assert_not_nil inventory.error_at
     assert_equal %w[zone_a zone_b], Certificate.where(source: "filesystem").order(:area).pluck(:area)
     assert File.exist?(File.join(@paths.fetch("zone_b"), "same.pem"))
   end
 
   test "empty mappings explicitly disable legacy inventories" do
     configure_paths({})
-    CatalogIndexer.run
+    checked = CaInventory.find_by!(area: "zone_b").checked_at
+    assert_raises(Certificates::Error) { CatalogIndexer.run }
+    inventory = CaInventory.find_by!(area: "zone_b")
+    assert_equal checked, inventory.checked_at
+    assert_not_nil inventory.error_at
     assert_equal 2, Certificate.where(source: "filesystem").count
     assert_nil LegacyStore.reject_duplicates!([Certificates::Codec.fingerprint(@cert)])
   end

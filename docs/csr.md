@@ -98,14 +98,22 @@ versions under `<CONSUL_PREFIX>/<area>/certids/<certid>`,
 `certs/<certid>/<version>` and `keys/<certid>/<version>`. The client marker is
 `cci-ui-csr`, with the authenticated actor. Existing rollout/archive metadata is
 preserved. The private key uses the existing area-key encryption and version AAD.
-The revoke password is never sent to Consul.
+The revoke password is never sent to Consul. With only a global token, all
+selected areas retain the existing single atomic transaction. If any target area
+has a `CCI_CONSUL_TOKENS` override, each area is published atomically using its
+resolved token. A later area's failure can therefore leave earlier areas already
+published. Retry the same submission: exact immutable bytes identify completed
+areas, which are not written again. A conflicting writer in a remaining area
+requires fresh confirmation there. No automatic rollback deletes published data.
+The submission is marked published only after every target area is confirmed.
 
 PostgreSQL and Consul cannot share a transaction. Before sending, the application
 saves the exact encrypted Consul operations and a separate audit intent. A retry
 compares immutable certificate/key values with these operations. If the response
 was lost after a successful commit, the existing version is acknowledged rather
-than writing another version. A CAS conflict clears the obsolete intent and
-requires a fresh preview/confirmation. Other transport errors preserve it.
+than writing another version. A CAS conflict clears obsolete, uncommitted area intents and
+requires a fresh preview/confirmation. Completed area receipts are retained.
+Other transport errors preserve the full intent.
 A failed catalog refresh does not undo a confirmed Consul publication. The
 indexer can refresh it later. The global catalog advisory lock serializes CSR
 publication, replacement and other application mutations.
@@ -113,7 +121,9 @@ publication, replacement and other application mutations.
 Publication errors are returned as a pending/failed state, never a success
 notice. Audit records retain identifiers, actor, time and fixed outcomes/codes,
 without secret values or raw transport errors. An interrupted mutation audit can
-remain `pending` or `unknown` until a later separately audited retry resolves it.
+remain `pending` or `unknown`; a later retry adds a separate `succeeded` receipt
+with code `reconciled` after verifying the exact published bytes. An existing
+successful receipt is not duplicated.
 
 Already authenticated sessions may use CSR pages while Consul is down, including
 creation and revoke-password access. Other pages likewise check dependencies

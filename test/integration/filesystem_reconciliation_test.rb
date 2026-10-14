@@ -5,9 +5,8 @@ require "test_helper"
 class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
   setup do
     @previous_configuration = AreaConfiguration.configuration
-    @previous_environment = ENV.to_h.slice("CCI_CA_INVENTORY_ENABLED", "CCI_ZABBIX_INTEGRATION_ENABLED",
+    @previous_environment = ENV.to_h.slice("CCI_ZABBIX_INTEGRATION_ENABLED",
       "CCI_ZABBIX_INTEGRATION_TOKEN", "CCI_ZABBIX_CERTIFICATE_SOURCES")
-    ENV["CCI_CA_INVENTORY_ENABLED"] = "true"
     ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = "true"
     ENV["CCI_ZABBIX_INTEGRATION_TOKEN"] = "synthetic-reconciliation-monitoring-token"
     ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = "filesystem"
@@ -26,7 +25,7 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
 
   teardown do
     AreaConfiguration.instance_variable_set(:@configuration, @previous_configuration)
-    %w[CCI_CA_INVENTORY_ENABLED CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN
+    %w[CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN
       CCI_ZABBIX_CERTIFICATE_SOURCES].each { |key| ENV[key] = @previous_environment[key] }
     FileUtils.remove_entry(@directory)
   end
@@ -63,8 +62,8 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
     assert_empty inventory.reload.authorities
     assert_equal 1, inventory.issues.size
     assert_not_includes inventory.issues.pluck("certificate_id"), @record.id
-    get ca_inventories_path
-    assert_select "a[href=?]", certificate_path(@record), count: 0
+    get ca_inventory_path("zone_a")
+    assert_empty YAML.safe_load(response.body)
     post export_certificates_path, params: { ids: [leaf.id], format_name: "pem" }
     assert_response :success
     assert_equal leaf.fingerprint, Certificates::Codec.fingerprint(OpenSSL::X509::Certificate.new(response.body))

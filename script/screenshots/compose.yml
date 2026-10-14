@@ -34,9 +34,9 @@ services:
     environment:
       RAILS_ENV: development
       AUTH_MODE: local
-      CCI_CA_INVENTORY_ENABLED: "true"
       DATABASE_URL: postgresql://screenshots:screenshots@db/screenshots
       CONSUL_URL: http://consul:8500
+      CCI_CONSUL_TOKENS: '{}'
       CONSUL_PREFIX: cci-screenshots/v1
       CCI_AREAS: '{"zone_a":"Zone A","zone_b":"Zone B"}'
       CCI_LEGACY_PATHS: '{"zone_a":"/tmp/cci-screenshot-legacy"}'

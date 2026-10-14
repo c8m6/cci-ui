@@ -8,7 +8,7 @@ require_relative "../lib/cci_writer"
 # Runnable standalone writer example using the same CAS and encryption contract as Rails.
 module CertificateExample
   def self.add(area:, certid:, cert:, key: nil, tags: [], client: "puppet", actor: nil,
-               prefix: ENV.fetch("CONSUL_PREFIX", "cci"), connection: ConsulConnection.new, encryption_key: nil)
+               prefix: ENV.fetch("CONSUL_PREFIX", "cci"), connection: nil, encryption_key: nil)
     CciWriter.new(connection: connection, prefix: prefix).save(area: area, certid: certid,
       cert: cert, key: key, tags: tags, client: client, actor: actor, encryption_key: encryption_key)
   end

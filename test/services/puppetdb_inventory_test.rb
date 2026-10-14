@@ -98,6 +98,8 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
       row("other.example.test", ["a" * 64])
     ])
     assert_equal %w[a.example.test z.example.test], @record.reload.puppetdb_hosts
+    assert_equal({ "a.example.test" => ["/etc/ssl/cert.pem"], "z.example.test" => ["/etc/ssl/cert.pem"] }, @record.puppetdb_paths)
+    assert_equal @record.puppetdb_paths, duplicate.reload.puppetdb_paths
     assert_equal @record.puppetdb_hosts, duplicate.reload.puppetdb_hosts
     assert_not duplicate.archived
     assert_equal "active", duplicate.rollout_status
@@ -105,6 +107,20 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     assert_equal @record.puppetdb_checked_at, other.puppetdb_checked_at
     assert_nil @record.puppetdb_error_at
     assert_not @record.active
+  end
+
+  test "reported public paths are optional deduplicated and retained only with their observation" do
+    refresh([row("web.example.test", [{ "fingerprint" => @record.fingerprint, "path" => "/etc/tls/public.pem" },
+      { "fingerprint" => @record.fingerprint, "path" => "/etc/tls/public.pem" },
+      { "fingerprint" => @record.fingerprint, "path" => "relative.pem" },
+      { "fingerprint" => @record.fingerprint, "path" => "/invalid\npath" }])])
+    expected = { "web.example.test" => ["/etc/tls/public.pem"] }
+    assert_equal expected, @record.reload.puppetdb_paths
+    assert_raises(PuppetdbConnection::Error) { refresh([row("web.example.test", nil)]) }
+    assert_equal expected, @record.reload.puppetdb_paths
+    refresh([])
+    assert_empty @record.reload.puppetdb_paths
+    assert_empty @record.puppetdb_hosts
   end
 
   test "successful complete refresh replaces previous hosts including an empty result" do
@@ -115,6 +131,7 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
       refresh([])
     end
     assert_empty @record.reload.puppetdb_hosts
+    assert_empty @record.puppetdb_paths
     assert @record.puppetdb_checked_at
   end
 

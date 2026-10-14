@@ -87,7 +87,7 @@ class CertificateRequestsTest < ActionDispatch::IntegrationTest
     original = ConsulStore.method(:client)
     connection = original.call
     connection.define_singleton_method(:get) { |*| raise ConsulConnection::Error, "offline" }
-    ConsulStore.define_singleton_method(:client) { connection }
+    ConsulStore.define_singleton_method(:client) { |*_areas| connection }
     post certificate_requests_path(format: :json), params: { csr: csr_input }
     assert_response :created
     csr = CertificateRequest.find(response.parsed_body.fetch("id"))

@@ -8,7 +8,8 @@ class PuppetdbInventory
     configuration = PuppetdbConfiguration.new(environment)
     connection ||= PuppetdbConnection.new(environment: environment)
     rows = connection.inventory(configuration.query)
-    hosts = new(configuration).hosts_by_fingerprint(rows)
+    inventory = new(configuration)
+    hosts = inventory.hosts_by_fingerprint(rows)
     checked_at = Time.current
     column = configuration.fingerprint_column
     # Older retained entries may have no SHA-1 digest until their source is
@@ -19,14 +20,7 @@ class PuppetdbInventory
     end
     # Validate the entire response before replacing any cached associations.
     # An empty successful result means no hosts in the configured query scope.
-    Certificate.transaction do
-      records.update_all(puppetdb_hosts: [], puppetdb_checked_at: checked_at, puppetdb_error_at: nil)
-      records.distinct.pluck(column).each do |fingerprint|
-        next unless hosts.key?(fingerprint)
-
-        records.where(column => fingerprint).update_all(puppetdb_hosts: hosts.fetch(fingerprint).to_a.sort)
-      end
-    end
+    inventory.replace_associations(records, column, hosts, checked_at)
     result = if rows.empty?
                "no_data"
              elsif differences.zero?
@@ -47,11 +41,27 @@ class PuppetdbInventory
 
   def initialize(configuration)
     @configuration = configuration
+    @paths = {}
   end
+
+  def replace_associations(records, column, hosts, checked_at)
+    Certificate.transaction do
+      records.update_all(puppetdb_hosts: [], puppetdb_paths: {}, puppetdb_checked_at: checked_at, puppetdb_error_at: nil)
+      records.distinct.pluck(column).each do |fingerprint|
+        next unless hosts.key?(fingerprint)
+
+        records.where(column => fingerprint).update_all(puppetdb_hosts: hosts.fetch(fingerprint).to_a.sort,
+          puppetdb_paths: paths.fetch(fingerprint, {}))
+      end
+    end
+  end
+
+  attr_reader :paths
 
   def hosts_by_fingerprint(rows)
     raise PuppetdbConnection::Error, "PuppetDB must return an array of host inventories." unless rows.is_a?(Array)
 
+    @paths = {}
     hosts = Hash.new { |hash, key| hash[key] = Set.new }
     rows.each do |row|
       unless row.is_a?(Hash) && row["certname"].is_a?(String) && row["certname"].match?(/\A[^\s\p{Cntrl}]{1,1024}\z/) &&
@@ -65,8 +75,13 @@ class PuppetdbInventory
           "The configured certificate fact is missing from the PuppetDB inventory. Check the query and PUPPETDB_FACT_NAME."
       end
 
-      fingerprints(facts.fetch(@configuration.fact_name)).each do |fingerprint|
+      fingerprints(facts.fetch(@configuration.fact_name)).each do |fingerprint, path|
         hosts[fingerprint] << row.fetch("certname")
+        next unless path
+
+        @paths[fingerprint] ||= {}
+        (@paths[fingerprint][row.fetch("certname")] ||= []) << path
+        @paths[fingerprint][row.fetch("certname")].uniq!
       end
     end
     hosts
@@ -76,22 +91,26 @@ class PuppetdbInventory
 
   # Accept a fingerprint, a list, or a map keyed by certificate path/name.
   # A certificate object must contain the configured fingerprint field; its
-  # remaining metadata is deliberately ignored, as are all unrelated facts.
-  def fingerprints(value)
+  # optional absolute file path is retained; other metadata and facts are ignored.
+  def fingerprints(value, path = nil)
     case value
     when String
-      [normalize_fingerprint(value)]
+      [[normalize_fingerprint(value), safe_path(path)]]
     when Array
-      value.flat_map { |entry| fingerprints(entry) }
+      value.flat_map { |entry| fingerprints(entry, path) }
     when Hash
       if value.key?(@configuration.fingerprint_field)
-        [normalize_fingerprint(value.fetch(@configuration.fingerprint_field))]
+        [[normalize_fingerprint(value.fetch(@configuration.fingerprint_field)), safe_path(value["path"] || value["file"] || path)]]
       else
-        value.values.flat_map { |entry| fingerprints(entry) }
+        value.flat_map { |name, entry| fingerprints(entry, safe_path(name) || path) }
       end
     else
       raise PuppetdbConnection::Error, "Invalid certificate fact: expected fingerprints, lists or certificate objects."
     end
+  end
+
+  def safe_path(value)
+    value if value.is_a?(String) && value.start_with?("/") && value.length <= 4096 && !value.match?(/\p{Cntrl}/)
   end
 
   def normalize_fingerprint(value)

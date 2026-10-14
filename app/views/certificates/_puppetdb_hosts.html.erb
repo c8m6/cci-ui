@@ -9,7 +9,7 @@
   <% if certificate.puppetdb_checked_at %>
     <p><%= t("ui.host_count_html", count: certificate.puppetdb_hosts.size) %></p>
     <% if certificate.puppetdb_hosts.any? %>
-      <ul><% certificate.puppetdb_hosts.each do |host| %><li class="mono break-word"><%= host %></li><% end %></ul>
+      <ul><% certificate.puppetdb_hosts.each do |host| %><li class="mono break-word"><%= link_to host, host_path(PuppetdbHosts.identifier(host)) %></li><% end %></ul>
     <% else %>
       <p><%= t("ui.puppetdb_no_hosts") %></p>
     <% end %>

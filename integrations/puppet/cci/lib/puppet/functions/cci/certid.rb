@@ -15,7 +15,7 @@ Puppet::Functions.create_function(:"cci::certid") do
     clients = compiler.instance_variable_get(:@cci_clients) || compiler.instance_variable_set(:@cci_clients, {})
     secret = AreaSecrets.fetch(area)
     client = clients[area] ||= CciClient.new(
-      url: ENV.fetch("CCI_CONSUL_URL"), token: ENV.fetch("CCI_#{area.upcase}_CONSUL_TOKEN", ""),
+      url: ENV.fetch("CCI_CONSUL_URL"), token: ENV.fetch("CCI_#{area.upcase}_CONSUL_TOKEN", ENV.fetch("CONSUL_TOKEN", "")),
       prefix: ENV.fetch("CCI_CONSUL_PREFIX", "cci"), keys: secret.empty? ? {} : { area => secret }
     )
     value = client.read_certificate(area: area, certid: name, field: field, version: version)

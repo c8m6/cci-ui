@@ -96,7 +96,9 @@ rows = host_certids.map do |host, certids|
   fingerprints = certids.map { |certid| Certificates::Codec.fingerprint(issued.fetch(certid).first) }
   fingerprints << Certificates::Codec.fingerprint(root) if host.start_with?("web", "proxy")
   fingerprints << Certificates::Codec.fingerprint(legacy) if host.start_with?("web")
-  { "certname" => host, "facts" => { "certificates" => fingerprints.map { |fp| { "fingerprint" => fp } } } }
+  { "certname" => host, "facts" => { "certificates" => fingerprints.map do |fp|
+    { "fingerprint" => fp, "path" => "/etc/ssl/certs/service.pem" }
+  end } }
 end
 connection = Object.new
 connection.define_singleton_method(:inventory) { |_query| rows }
@@ -104,7 +106,7 @@ PuppetdbInventory.refresh(connection: connection)
 abort "Demo host mapping failed" unless portal.reload.puppetdb_hosts.size == 3
 puts "Synthetic screenshot inventory ready: #{Certificate.count} certificates, #{rows.size} hosts."
 
-# Add a small synthetic hierarchy specifically for the CA documentation page.
+# Add a small synthetic hierarchy for CA detail and chain screenshots.
 nested, = issue("Example Service CA", serial: 102, days: 8,
   issuer: issuing, issuer_key: issuing_key, ca: true)
 retired_root, retired_key = issue("Example Retired Root CA", serial: 103, days: -10, ca: true)

@@ -3,8 +3,6 @@
 # Resolves local issuer relationships without fetching URLs or loading private keys.
 class CaInventoryRefresh
   def self.run
-    return unless CaInventory.enabled?
-
     now = Time.current
     snapshots = AreaConfiguration.ids.to_h { |area| [area, new(area).snapshot] }
     CaInventory.transaction do
@@ -18,8 +16,6 @@ class CaInventoryRefresh
   end
 
   def self.failed!
-    return unless CaInventory.enabled?
-
     AreaConfiguration.ids.each do |area|
       CaInventory.find_or_initialize_by(area: area).update!(error_at: Time.current)
     end
@@ -42,7 +38,11 @@ class CaInventoryRefresh
     @candidates = candidates.group_by { |_record, cert| cert.subject.hash }
     @entries.each { |entry| walk(entry, []) }
     authorities = candidates.map { |entry| authority(*entry) }
-    { authorities: authorities.sort_by { |entry| [entry.fetch(:subject), entry.fetch(:fingerprint)] }, issues: @issues.values }
+    edges = @entries.to_h do |record, cert|
+      [record.fingerprint, root?(cert) ? [] : parents(record, cert).map { |parent, _| parent.fingerprint }.sort]
+    end
+    { authorities: authorities.sort_by { |entry| [entry.fetch(:subject), entry.fetch(:fingerprint)] },
+      issues: @issues.values, issuer_edges: edges }
   end
 
   private

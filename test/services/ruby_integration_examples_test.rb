@@ -110,7 +110,7 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
   end
 
   test "packaged Puppet libraries match application libraries" do
-    %w[cci_client.rb cci_writer.rb consul_connection.rb area_secrets.rb].each do |file|
+    %w[cci_client.rb cci_writer.rb consul_connection.rb consul_tokens.rb area_secrets.rb].each do |file|
       assert_equal File.read(Rails.root.join("lib", file)),
         File.read(Rails.root.join("integrations/puppet/cci/lib", file)), file
     end

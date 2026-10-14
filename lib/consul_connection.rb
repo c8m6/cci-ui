@@ -6,18 +6,23 @@ require "json"
 require "base64"
 require "openssl"
 require "securerandom"
+require_relative "consul_tokens"
 
 # Minimal Consul KV transport with TLS verification and atomic transaction support.
 class ConsulConnection
   class Error < StandardError; end
   class Conflict < Error; end
+  class AclError < Error; end
 
-  def initialize(url: ENV.fetch("CONSUL_URL", "http://127.0.0.1:8500"), token: ENV.fetch("CONSUL_TOKEN", ""))
+  def initialize(url: ENV.fetch("CONSUL_URL", "http://127.0.0.1:8500"), token: ENV.fetch("CONSUL_TOKEN", ""),
+                 area: nil, prefix: ENV.fetch("CONSUL_PREFIX", "cci"))
     @base = URI(url)
     raise Error, "Consul requires an HTTP(S) URL without credentials." unless %w[http
       https].include?(@base.scheme) && @base.host && !@base.userinfo
 
-    @token = token
+    @area = area
+    @scope = "#{prefix}/#{area}/" if area
+    @token = area ? ConsulTokens.resolve(area, fallback: token) : token
   end
 
   def request(method, path, body: nil, missing: false)
@@ -35,21 +40,28 @@ class ConsulConnection
     request["X-Request-ID"] = LogContext.correlation_id if defined?(LogContext) && LogContext.correlation_id
     request.body = body if body
     response = http.request(request)
+    validate_response!(response, missing: missing)
     return nil if missing && response.code == "404"
-    raise Conflict, "Concurrent change detected. Please try again." if response.code == "409"
-    raise Error, "Consul request failed (HTTP #{response.code})." unless response.is_a?(Net::HTTPSuccess)
-    if response["X-Consul-Results-Filtered-By-ACLs"] == "true"
-      raise Error,
-        "Consul results are filtered by ACLs. Check the token configuration."
-    end
 
     JSON.parse(response.body)
   rescue IOError, SystemCallError, Timeout::Error, SocketError, OpenSSL::SSL::SSLError, JSON::ParserError
     raise Error, "Consul is unreachable or returned an invalid response."
   end
 
+  def validate_response!(response, missing: false)
+    raise AclError, "Consul ACL denied#{area_context} (HTTP 403). Check the assigned token policy." if response.code == "403"
+    if response["X-Consul-Results-Filtered-By-ACLs"] == "true"
+      raise AclError, "Consul results are filtered by ACLs#{area_context}. Check the assigned token policy."
+    end
+    return if missing && response.code == "404"
+
+    raise Conflict, "Concurrent change detected. Please try again." if response.code == "409"
+    raise Error, "Consul request failed#{area_context} (HTTP #{response.code})." unless response.is_a?(Net::HTTPSuccess)
+  end
+
   def path(key)
-    encoded = key.split("/").map { |part| URI.encode_www_form_component(part).gsub("+", "%20") }.join("/")
+    validate_scope!(key)
+    encoded = key.split("/", -1).map { |part| URI.encode_www_form_component(part).gsub("+", "%20") }.join("/")
     "/v1/kv/#{encoded}"
   end
 
@@ -78,6 +90,8 @@ class ConsulConnection
   def transaction(operations)
     raise Error, "Too many changes for one Consul transaction." if operations.size > 64
 
+    operations.each { |operation| validate_scope!(operation.fetch("Key")) }
+
     writes = operations.reject { |operation| %w[get get-tree check-index check-not-exists].include?(operation["Verb"]) }
     transaction_id = SecureRandom.uuid
     log_transaction(writes, "attempted", transaction_id)
@@ -97,6 +111,15 @@ class ConsulConnection
         system: "consul", operation: operation["Verb"], result: outcome,
         consul_transaction_id: transaction_id, operation_index: index)
     end
+  end
+
+  def area_context = @area ? " for area #{@area}" : ""
+
+  def validate_scope!(key)
+    return unless @scope
+    return if key.is_a?(String) && key.start_with?(@scope) && !key.split("/").intersect?(%w[. ..])
+
+    raise Error, "Consul operation outside the assigned area #{@area}."
   end
 
   def self.set(key, value, index: nil)

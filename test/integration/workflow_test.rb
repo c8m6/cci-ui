@@ -131,7 +131,7 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     assert CertificateMaterial.load(zone_b, private_key: true)[:certificate].check_private_key(@key)
   end
 
-  test "reader sees Hiera and linked chain but no export controls or raw PEM" do
+  test "reader sees actual CertID identity and linked chain but no export controls or raw PEM" do
     root, root_key = issue(name: "Root CA", ca: true)
     parent = store(root, certid: "root")
     leaf, = issue(issuer: root, issuer_key: root_key, name: "chain.example.test")
@@ -140,7 +140,8 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     get certificate_path(record)
     assert_response :success
     assert_select "a[href=?]", certificate_path(parent)
-    assert_includes response.body, "cci::certificates"
+    assert_equal({ "certid" => "chain", "area" => "zone_a" }, YAML.safe_load(css_select("pre").last.text))
+    assert_not_includes response.body, "cci::certificates"
     assert_not_includes response.body, "Zertifikat herunterladen"
     assert_not_includes response.body, "BEGIN CERTIFICATE"
     get root_path

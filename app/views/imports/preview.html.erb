@@ -8,7 +8,7 @@
       <p><span class="badge neutral"><%= entry["key"] ? t("ui.matching_key") : t("ui.public_certificate") %></span></p>
       <p class="muted small"><%= t("ui.certid_status", certid: entry.fetch("certid"), status: entry.fetch("rollout_status")) %></p>
       <% if entry["automatically_managed"] && !entry["reuse_version"] %>
-        <p class="flash flash-error" role="note"><%= t("ui.automated_warning") %></p>
+        <p class="info-note management-note" role="note"><%= t("ui.automated_warning") %></p>
       <% end %>
       <% if entry["reuse_version"] %>
         <p class="flash"><%= t("ui.issuer_reused", version: entry.fetch("reuse_version")) %></p>

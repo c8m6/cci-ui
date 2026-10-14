@@ -95,6 +95,6 @@ class FilesystemReconciliation
       @events << [:info, "Stale filesystem certificate catalog record removed",
         { certificate_id: record.id, source_id: record.source_id }]
     end
-    CaInventory.where(area: @area).update_all(authorities: [], issues: [], checked_at: nil)
+    CaInventory.where(area: @area).update_all(authorities: [], issues: [], issuer_edges: {}, checked_at: nil)
   end
 end

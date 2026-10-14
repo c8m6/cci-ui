@@ -12,7 +12,7 @@ require "time"
 class CciWriter
   attr_reader :connection, :prefix
 
-  def initialize(connection: ConsulConnection.new, prefix: "cci")
+  def initialize(connection: nil, prefix: "cci")
     @connection = connection
     @prefix = prefix
   end
@@ -25,7 +25,7 @@ class CciWriter
 
     base = "#{prefix}/#{area}"
     path = "#{base}/certids/#{certid}"
-    snapshot = connection.get(path)
+    snapshot = connection_for(area).get(path)
     index = snapshot ? snapshot.fetch(:index) : 0
     raise ConsulConnection::Conflict, "Certificate changed since preview" if expected_index && expected_index != index
 
@@ -47,18 +47,22 @@ class CciWriter
         encryption_key: encryption_key || AreaSecrets.fetch(area))
       operations << ConsulConnection.set("#{base}/keys/#{certid}/#{version}", envelope, index: 0)
     end
-    { version: version, data: data, previous: entry, updated: updated, operations: operations }
+    { area: area, version: version, data: data, previous: entry, updated: updated, operations: operations }
   end
 
   # Every operation uses CAS so a conflict leaves the entire batch unapplied.
   def commit(prepared)
-    connection.transaction(prepared.fetch(:operations))
+    connection_for(prepared.fetch(:area)).transaction(prepared.fetch(:operations))
     prepared.fetch(:version)
   end
 
   def save(**) = commit(prepare(**))
 
   private
+
+  def connection_for(area)
+    connection || ConsulConnection.new(area: area, prefix: prefix)
+  end
 
   # Validate caller-owned metadata before constructing Consul paths or reading state.
   def validate_input(area:, certid:, client:, actor:, tags:, cert:, key:)

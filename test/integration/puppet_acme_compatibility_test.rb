@@ -23,7 +23,9 @@ class PuppetAcmeCompatibilityTest < ActionDispatch::IntegrationTest
     assert_select "dd", text: "Automatisch durch Puppet / ACME"
     assert_select "dd", text: "www.example.test"
     assert_includes response.body, "puppet:worker.example.test"
-    assert_includes response.body, I18n.t("ui.automated_warning")
+    assert_select ".status-form .management-note[role=note]", text: I18n.t("ui.automated_warning")
+    assert_select ".status-form .flash-error", count: 0
+    assert_select ".status-form input[type=submit]"
     refute_includes response.body, @key.private_to_pem
     refute @record.attributes.key?("acme_renewal")
 

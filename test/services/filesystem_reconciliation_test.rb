@@ -428,7 +428,7 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
     assert_equal 10, Certificate.where(source: "filesystem").count
   end
 
-  test "missing files do not repeatedly fail optional CA discovery" do
+  test "missing files do not repeatedly fail CA discovery" do
     remove_files
     scan
     snapshot = CaInventoryRefresh.new("zone_a").snapshot

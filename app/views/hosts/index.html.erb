@@ -1,0 +1,23 @@
+<% content_for :title, t("hosts.title") %>
+<div class="page-heading"><div><h1><%= t("hosts.title") %></h1><p class="muted"><%= t("hosts.scope") %></p></div></div>
+<section class="panel catalog">
+  <%= form_with url: hosts_path, method: :get, class: "search-form" do |form| %>
+    <div class="search-box"><%= icon("search") %><%= form.search_field :q, value: params[:q], placeholder: t("hosts.search"), aria: { label: t("hosts.search") } %></div>
+    <div class="filters">
+      <label><%= t("ui.area") %><%= form.select :area, [[t("ui.all_areas"), ""], *current_identity.areas.map { |area| [area_label(area), area] }], selected: params[:area] %></label>
+      <label><%= t("hosts.sync") %><%= form.select :sync, [[t("ui.all"), ""], [t("hosts.current"), "current"], [t("hosts.stale"), "stale"]], selected: params[:sync] %></label>
+      <%= form.submit t("ui.search"), class: "button secondary" %>
+    </div>
+  <% end %>
+  <div class="results-heading"><h2><%= t("hosts.count", count: @inventory.fetch(:total)) %></h2></div>
+  <div class="table-scroll"><table class="host-table"><thead><tr><th><%= t("hosts.certname") %></th><th><%= t("ui.certificates") %></th><th><%= t("hosts.sync") %></th></tr></thead><tbody>
+    <% @inventory.fetch(:rows).each do |host| %>
+      <tr><td><%= link_to host.fetch("certname"), host_path(PuppetdbHosts.identifier(host.fetch("certname"))), class: "mono break-word" %></td><td><%= host.fetch("certificate_count") %></td><td><%= t(host.fetch("stale") ? "hosts.stale" : "hosts.current") %></td></tr>
+    <% end %>
+  </tbody></table></div>
+  <% if @inventory.fetch(:total).zero? %><div class="empty-state"><p><%= t("hosts.empty") %></p></div><% end %>
+  <div class="pagination"><span><%= t("ui.page", page: @inventory.fetch(:page), pages: @inventory.fetch(:pages)) %></span><div>
+    <% if @inventory.fetch(:page) > 1 %><%= link_to t("ui.back"), hosts_path(params.permit(:q, :area, :sync).merge(page: @inventory.fetch(:page) - 1)), class: "button quiet" %><% end %>
+    <% if @inventory.fetch(:page) < @inventory.fetch(:pages) %><%= link_to t("ui.next"), hosts_path(params.permit(:q, :area, :sync).merge(page: @inventory.fetch(:page) + 1)), class: "button quiet" %><% end %>
+  </div></div>
+</section>
