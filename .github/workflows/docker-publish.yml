@@ -26,7 +26,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
       - name: Generate notes from Conventional Commits
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           version: v2.13.1
           config: cliff.toml
@@ -87,7 +87,7 @@ jobs:
       - name: Prepare security report directory
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mkdir -p tmp/security/sarif
-      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+      - uses: ruby/setup-ruby@e81a8fa391b11a595c1b7ed84177cc0fe02faf83 # v1
         id: ruby
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
@@ -140,7 +140,7 @@ jobs:
           retention-days: 14
       - name: Upload scanner SARIF to GitHub Security
         if: ${{ !cancelled() && hashFiles('tmp/security/sarif/*.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
         with:
           sarif_file: tmp/security/sarif/
           category: cci-ui-security
