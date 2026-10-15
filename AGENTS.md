@@ -321,25 +321,19 @@ The intended release workflow is:
 Implement changes on dev
 → create logical Conventional Commits
 → merge dev into main
-→ publish a GitHub release and tag from main
-→ generate release notes since the previous release tag
-→ update the published GitHub release
-→ build, test, and publish the versioned container image
+→ manually dispatch container release on main in dry-run mode
+→ inspect full image build, tests and security gates
+→ manually dispatch again with dry_run=false
+→ create the validated tag → push the exact tested image to Docker Hub
+→ generate git-cliff notes → publish the GitHub release
 ```
 
-Creating a GitHub release and release tag triggers the container build.
+Manual workflow dispatch is the only supported publishing trigger. Creating a
+tag or publishing a GitHub release manually must not independently build or push
+a container. The workflow must never publish from a branch other than main,
+reuse an existing tag, or publish before validation. Do not deploy to production
+hosts as part of this workflow.
 
-If a GitHub release is created with:
-
-```text
-v1.4.2
-```
-
-the resulting container and application must identify themselves as:
-
-```text
-v1.4.2
-```
 
 ## Build metadata
 
@@ -404,7 +398,7 @@ APP_BUILD_TIME=unknown
 ## GitHub Actions release metadata
 
 The GitHub Actions workflow responsible for release container builds should
-derive build metadata from the GitHub release context.
+derive build metadata from validated manual release inputs and the checked-out main commit.
 
 For a release tagged:
 
@@ -531,9 +525,7 @@ rendering through:
 cliff.toml
 ```
 
-The release workflow runs `git-cliff` against the tag of the published GitHub
-release. It replaces that release's description with entries from after the
-previous matching release tag through the current tag. Do not maintain a
+The manual release workflow creates the tag only after all gates pass, then runs `git-cliff` against that tag to prepare release notes for the GitHub release created after Docker Hub publication. Do not maintain a
 parallel `CHANGELOG` or another version source manually.
 
 Public categories are:
