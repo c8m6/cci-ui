@@ -223,10 +223,7 @@ In particular, preserve area encryption keys and the session secret.
 | `CSR_DEFAULT_*` | `csr.defaults` fields |
 | `PUPPETDB_*` | `puppetdb.enabled`, `.url`, `.inventory`, `.tls`, `.authentication`, `.request` |
 | `CCI_ZABBIX_*` | `integrations.zabbix` |
-| `INDEX_INTERVAL` | `integrations.writer.client_id` | string | `puppet`; standalone CLI provenance marker |
-| `integrations.writer.actor` | string | Empty; optional standalone CLI audit actor |
-| `integrations.writer.key_password` | secret | Empty; optional standalone CLI source-key password |
-| `indexer.interval_seconds` |
+| `INDEX_INTERVAL` | `indexer.interval_seconds` |
 | `PORT`, `RAILS_MAX_THREADS`, `ALLOWED_HOSTS`, `SECRET_KEY_BASE`, `LOG_LEVEL`, `CCI_HEALTH_TOKEN`, `CCI_SHOW_ERROR_DETAILS` | Matching `server` fields |
 | Puppet compiler `CCI_CONSUL_URL`, `CCI_CONSUL_PREFIX`, `CCI_<AREA>_CONSUL_TOKEN` | `consul.url`, `consul.prefix`, `areas.<id>.consul.token` in its YAML configuration |
 | `CCI_CERTIFICATE_AREA_MODE` | Removed; every new operation uses one area |
