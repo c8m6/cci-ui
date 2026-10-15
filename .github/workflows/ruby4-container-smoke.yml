@@ -47,7 +47,10 @@ jobs:
       - name: Prepare database with the production image
         run: |
           docker run --rm --network cci-ruby4-smoke \
-            -e RAILS_ENV=production -e AUTH_MODE=local -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e RAILS_ENV=production -e AUTH_MODE=oidc -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e OIDC_ISSUER=https://keycloak.example.test/realms/cci \
+            -e OIDC_CLIENT_ID=cci-ui -e OIDC_CLIENT_SECRET=ci-placeholder \
+            -e OIDC_REDIRECT_URI=https://localhost/auth/keycloak/callback \
             -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
             -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
             -e CONSUL_URL=http://cci-ruby4-consul:8500 \
@@ -56,7 +59,10 @@ jobs:
       - name: Start production entrypoint and check HTTP readiness
         run: |
           docker run -d --name cci-ruby4-web --network cci-ruby4-smoke \
-            -e RAILS_ENV=production -e AUTH_MODE=local -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e RAILS_ENV=production -e AUTH_MODE=oidc -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e OIDC_ISSUER=https://keycloak.example.test/realms/cci \
+            -e OIDC_CLIENT_ID=cci-ui -e OIDC_CLIENT_SECRET=ci-placeholder \
+            -e OIDC_REDIRECT_URI=https://localhost/auth/keycloak/callback \
             -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
             -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
             -e CONSUL_URL=http://cci-ruby4-consul:8500 \
@@ -66,19 +72,23 @@ jobs:
             abort "Expected Ruby 4" unless RUBY_VERSION.start_with?("4.0.")
             50.times do
               begin
-                statuses = %w[/up /ready].map do |path|
-                  Net::HTTP.start("127.0.0.1", 3000, open_timeout: 2, read_timeout: 2) { |http| http.get(path).code }
+                response = Net::HTTP.start("127.0.0.1", 3000, open_timeout: 2, read_timeout: 2) do |http|
+                  request = Net::HTTP::Get.new("/up")
+                  request["Host"] = "localhost"
+                  request["X-Forwarded-Proto"] = "https"
+                  http.request(request)
                 end
-                if statuses == %w[200 200]
-                  puts "Ruby #{RUBY_VERSION}: /up and /ready returned 200"
+                if response.code == "200"
+                  puts "Ruby #{RUBY_VERSION}: production Rails /up returned 200"
                   exit 0
                 end
               rescue IOError, SystemCallError, Timeout::Error
               end
               sleep 2
             end
-            abort "Production startup or dependency readiness failed"
+            abort "Production HTTP startup failed"
           '
+
       - name: Inspect logs and clean up
         if: always()
         run: |
