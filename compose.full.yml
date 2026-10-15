@@ -17,6 +17,7 @@ services:
     restart: "no"
   web:
     <<: *app
+    restart: unless-stopped
     ports: ["127.0.0.1:3000:3000"]
     volumes:
       - ./config.yml:/etc/cci/config.yml:ro
@@ -37,4 +38,4 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    restart: on-failure
+    restart: unless-stopped
