@@ -12,8 +12,8 @@ gem "rails", "~> 8.1.4"
 gem "rubyzip", "~> 3.7"
 gem "stimulus-rails", "~> 1.3"
 gem "turbo-rails", "~> 2.0"
-# Rails 8.1 calls JSON.parse with an options hash; JSON 3 requires keywords.
-gem "json", ">= 2.9", "< 3"
+# Rails >= 8.1.4 supports JSON 3 keyword options in ActiveSupport::JSON.decode.
+gem "json", ">= 2.9", "< 4"
 
 # Static analysis also runs when building the application image.
 gem "rubocop", "~> 1.92", require: false
