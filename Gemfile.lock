@@ -194,7 +194,7 @@ GEM
       activesupport (>= 7.0.0)
       rack
     public_suffix (7.0.5)
-    puma (7.2.1)
+    puma (8.0.2)
       nio4r (~> 2.0)
     racc (1.8.1)
     rack (3.2.7)
@@ -325,7 +325,7 @@ DEPENDENCIES
   omniauth_openid_connect (~> 0.8)
   pg (~> 1.7)
   propshaft (~> 1.1)
-  puma (~> 7.0)
+  puma (~> 8.0)
   rails (~> 8.1.4)
   rubocop (~> 1.92)
   rubocop-rake (~> 0.7)
