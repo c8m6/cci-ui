@@ -2,8 +2,6 @@
 
 # Owns local CSR creation and disclosure independently of Consul availability.
 class CsrWorkflow
-  MAX_TARGET_AREAS = 21
-
   def self.authorize!(identity, areas)
     CsrNames.fail!(:forbidden) unless Array(areas).all? { |area| identity.csr?(area) }
   end
@@ -11,7 +9,6 @@ class CsrWorkflow
   def self.create(input, identity:)
     input = input.stringify_keys
     areas = CertificateAreaConfiguration.validate_selection!(input["areas"].presence || [input.fetch("area", "")])
-    CsrNames.fail!(:target_count) if areas.size > MAX_TARGET_AREAS
     authorize!(identity, areas)
     ConsulStore.validate_certid!(input["certid"])
     areas.each { |area| Certificates::Vault.key(area) }

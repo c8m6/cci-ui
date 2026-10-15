@@ -5,14 +5,11 @@ require "stringio"
 
 class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
   setup do
-    @environment = ENV.to_h.slice(
-      "AUTH_MODE", "OIDC_CLIENT_ID", "OIDC_ISSUER", "OIDC_ROLE_MAP", "OIDC_DISPLAY_NAME_CLAIM"
-    )
-    ENV["AUTH_MODE"] = "oidc"
-    ENV["OIDC_CLIENT_ID"] = "cci-ui"
-    ENV["OIDC_ISSUER"] = "https://keycloak.example.test/realms/example"
-    ENV["OIDC_ROLE_MAP"] = JSON.generate("/cci/editors" => "zone_a_writer", "cci-reader" => "zone_b_reader")
-    ENV["OIDC_DISPLAY_NAME_CLAIM"] = "preferred_username"
+    settings["authentication"]["mode"] = "oidc"
+    settings["authentication"]["oidc"]["client_id"] = "cci-ui"
+    settings["authentication"]["oidc"]["issuer"] = "https://keycloak.example.test/realms/example"
+    settings["authentication"]["oidc"]["role_map"] = { "/cci/editors" => "zone_a_writer", "cci-reader" => "zone_b_reader" }
+    settings["authentication"]["oidc"]["display_name_claim"] = "preferred_username"
     @original_role_mapping = Rails.application.config.x.oidc_role_mapping
     @original_display_name_claim = Rails.application.config.x.oidc_display_name_claim
     Rails.application.config.x.oidc_role_mapping = OidcConfiguration.load_role_mapping
@@ -28,9 +25,6 @@ class OidcCallbackLoggingTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    %w[AUTH_MODE OIDC_CLIENT_ID OIDC_ISSUER OIDC_ROLE_MAP OIDC_DISPLAY_NAME_CLAIM].each do |name|
-      @environment.key?(name) ? ENV[name] = @environment.fetch(name) : ENV.delete(name)
-    end
     Rails.application.config.x.oidc_role_mapping = @original_role_mapping
     Rails.application.config.x.oidc_display_name_claim = @original_display_name_claim
     Rails.application.env_config["action_dispatch.logger"] = @original_request_logger

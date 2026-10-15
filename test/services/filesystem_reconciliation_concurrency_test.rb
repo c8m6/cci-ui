@@ -21,8 +21,8 @@ class FilesystemReconciliationConcurrencyTest < ActiveSupport::TestCase
   teardown do
     Certificate.where(id: @records.map(&:id)).delete_all
     AuditEvent.where(area: "zone_a", actor: "indexer").delete_all
-    AreaConfiguration.instance_variable_set(:@configuration, @previous_configuration)
-    FilesystemReconciliationConfiguration.instance_variable_set(:@configuration, @previous_settings)
+    configure_legacy_paths(@previous_configuration.fetch("legacy_paths"))
+    settings["certificates"]["reconciliation"] = @previous_settings
     FileUtils.remove_entry(@directory)
   end
 

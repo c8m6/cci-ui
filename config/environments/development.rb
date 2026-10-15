@@ -3,6 +3,6 @@
 Rails.application.configure do
   config.enable_reloading = true
   config.eager_load = false
-  config.secret_key_base = ENV["SECRET_KEY_BASE"].presence || ("local-development-only-" * 8)
-  config.hosts += ENV.fetch("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+  config.secret_key_base = CciConfiguration.current.dig("server", "secret_key_base").presence || ("local-development-only-" * 8)
+  config.hosts += CciConfiguration.current.dig("server", "allowed_hosts")
 end

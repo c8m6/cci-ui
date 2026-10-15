@@ -39,7 +39,7 @@ bundle exec rubocop --force-exclusion
 # Refresh the shipped Puppet libraries after changing shared Ruby code.
 ruby bin/package-puppet
 
-RAILS_ENV=test ruby bin/rails db:prepare test
+CCI_CONFIG_FILE=test/config.yml RAILS_ENV=test ruby bin/rails db:prepare test
 bundle exec brakeman --no-pager --confidence-level 2
 bundle exec bundler-audit check --update
 ```

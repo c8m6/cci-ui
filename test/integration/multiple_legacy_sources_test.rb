@@ -8,8 +8,7 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
     @directory = Dir.mktmpdir("cci-zone-files-")
     @paths = %w[zone_a zone_b].to_h { |area| [area, File.join(@directory, area)] }
     @paths.each_value { |path| Dir.mkdir(path) }
-    AreaConfiguration.instance_variable_set(:@configuration,
-      @previous_configuration.merge("legacy_paths" => @paths))
+    configure_legacy_paths(@paths)
     @certificates = {}
     @paths.each do |area, path|
       cert, key = issue(name: "#{area}.example.test")
@@ -23,7 +22,7 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    AreaConfiguration.instance_variable_set(:@configuration, @previous_configuration)
+    configure_legacy_paths(@previous_configuration.fetch("legacy_paths"))
     FileUtils.remove_entry(@directory)
   end
 

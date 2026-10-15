@@ -31,8 +31,8 @@ class AreaConfigurationTest < ActionDispatch::IntegrationTest
       params: { ids: [record.id], format_name: "pem", include_key: "1", password: "new-area-password" }
     assert_response :success
     assert_includes response.body, "ENCRYPTED PRIVATE KEY"
-    client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      keys: { "zone_b" => ENV.fetch("ZONE_B_KEY") })
+    client = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      keys: { "zone_b" => settings["areas"]["zone_b"]["encryption_key"] })
     assert_equal cert.to_pem, client.read_certificate(area: "zone_b", certid: "new-area")
     assert cert.check_private_key(OpenSSL::PKey.read(client.read_certificate(area: "zone_b", certid: "new-area",
       field: "private_key")))

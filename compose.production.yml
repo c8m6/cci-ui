@@ -7,16 +7,23 @@ services:
       POSTGRES_DB: cci
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD setzen}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+    - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "cci"]
+      test:
+      - CMD
+      - pg_isready
+      - -U
+      - cci
       interval: 5s
       timeout: 5s
       retries: 15
     restart: unless-stopped
   web:
     healthcheck:
-      test: ["CMD", "ruby", "bin/healthcheck"]
+      test:
+      - CMD
+      - ruby
+      - bin/healthcheck
       interval: 30s
       timeout: 10s
       start_period: 30s
@@ -24,91 +31,67 @@ services:
     build: .
     image: ${CCI_IMAGE:-cci-ui:local}
     ports:
-      - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"
-    env_file:
-      - path: ${CCI_ENV_FILE:-.env.production}
-        required: false
-    environment: &production_environment
+    - 127.0.0.1:${CCI_HTTP_PORT:-3000}:${CCI_CONTAINER_PORT:-3000}
+    environment:
       RAILS_ENV: production
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CCI_ZABBIX_CERTIFICATE_SOURCES: ${CCI_ZABBIX_CERTIFICATE_SOURCES:-consul}
-      CCI_ZABBIX_INTEGRATION_ENABLED: ${CCI_ZABBIX_INTEGRATION_ENABLED:-false}
-      CCI_ZABBIX_INTEGRATION_TOKEN: ${CCI_ZABBIX_INTEGRATION_TOKEN:-}
-      CCI_HEALTH_TOKEN: ${CCI_HEALTH_TOKEN:-}
-      CCI_SHOW_ERROR_DETAILS: ${CCI_SHOW_ERROR_DETAILS:-false}
-      AUTH_MODE: oidc
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE setzen}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS setzen}
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL auf postgres db setzen}
-      CONSUL_URL: ${CONSUL_URL:?CONSUL_URL setzen}
-      CONSUL_TOKEN: ${CONSUL_TOKEN:-}
-      CCI_CONSUL_TOKENS: '${CCI_CONSUL_TOKENS:-{}}'
-      CONSUL_PREFIX: ${CONSUL_PREFIX:-cci}
-      OIDC_ISSUER: ${OIDC_ISSUER:?OIDC_ISSUER setzen}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?OIDC_CLIENT_ID setzen}
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET setzen}
-      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?OIDC_REDIRECT_URI setzen}
-      OIDC_ROLE_MAP: ${OIDC_ROLE_MAP:-{}}
-      OIDC_DISPLAY_NAME_CLAIM: ${OIDC_DISPLAY_NAME_CLAIM:-preferred_username}
-      CCI_AREAS: ${CCI_AREAS:?CCI_AREAS als JSON-Objekt setzen}
-      CCI_CERTIFICATE_EXPIRY_WARNING_DAYS: ${CCI_CERTIFICATE_EXPIRY_WARNING_DAYS:-10}
-      CCI_CERTIFICATE_AREA_MODE: ${CCI_CERTIFICATE_AREA_MODE:-multiple}
-      CCI_LEGACY_PATHS: '${CCI_LEGACY_PATHS:-{}}'
-      CCI_FILESYSTEM_RECONCILIATION: '${CCI_FILESYSTEM_RECONCILIATION:-{}}'
-      CCI_AREA_KEYS: ${CCI_AREA_KEYS:-}
-      CSR_DEFAULT_KEY_ALGORITHM: ${CSR_DEFAULT_KEY_ALGORITHM:-RSA}
-      CSR_DEFAULT_KEY_SIZE: ${CSR_DEFAULT_KEY_SIZE:-4096}
-      CSR_DEFAULT_DIGEST: ${CSR_DEFAULT_DIGEST:-SHA512}
-      CSR_DEFAULT_COUNTRY: ${CSR_DEFAULT_COUNTRY:-}
-      CSR_DEFAULT_STATE: ${CSR_DEFAULT_STATE:-}
-      CSR_DEFAULT_LOCALITY: ${CSR_DEFAULT_LOCALITY:-}
-      CSR_DEFAULT_ORGANIZATION: ${CSR_DEFAULT_ORGANIZATION:-}
-      CSR_DEFAULT_ORGANIZATIONAL_UNIT: ${CSR_DEFAULT_ORGANIZATIONAL_UNIT:-}
-      CONSUL_CA_FILE: ${CONSUL_CA_FILE:-}
-      PUPPETDB_ENABLED: ${PUPPETDB_ENABLED:-false}
-      PUPPETDB_URL: ${PUPPETDB_URL:-}
-      PUPPETDB_QUERY: ${PUPPETDB_QUERY:-}
-      PUPPETDB_FACT_NAME: ${PUPPETDB_FACT_NAME:-certificates}
-      PUPPETDB_FINGERPRINT_FIELD: ${PUPPETDB_FINGERPRINT_FIELD:-fingerprint}
-      PUPPETDB_FINGERPRINT_ALGORITHM: ${PUPPETDB_FINGERPRINT_ALGORITHM:-sha256}
-      PUPPETDB_CA_FILE: ${PUPPETDB_CA_FILE:-}
-      PUPPETDB_CLIENT_CERT_FILE: ${PUPPETDB_CLIENT_CERT_FILE:-}
-      PUPPETDB_CLIENT_KEY_FILE: ${PUPPETDB_CLIENT_KEY_FILE:-}
-      PUPPETDB_TOKEN: ${PUPPETDB_TOKEN:-}
-      PUPPETDB_TIMEOUT: ${PUPPETDB_TIMEOUT:-30}
-      PUPPETDB_MAX_RESPONSE_BYTES: ${PUPPETDB_MAX_RESPONSE_BYTES:-52428800}
-      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
-      PORT: ${PORT:-3000}
-      INDEX_INTERVAL: ${INDEX_INTERVAL:-60}
+      CCI_CONFIG_FILE: /etc/cci/config.yml
     volumes:
-      - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:rw
+    - type: bind
+      source: ${CCI_CONFIG_FILE:-./config.yml}
+      target: /etc/cci/config.yml
+      read_only: true
+      bind:
+        create_host_path: false
+    - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:rw
+    - ${CCI_SECRETS_PATH:-./secrets}:/run/secrets:ro
+    - ${CCI_TLS_PATH:-./tls}:/run/tls:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
   migrate:
     image: ${CCI_IMAGE:-cci-ui:local}
-    command: ["ruby", "bin/rails", "db:prepare"]
-    env_file:
-      - path: ${CCI_ENV_FILE:-.env.production}
-        required: false
-    environment: *production_environment
+    command:
+    - ruby
+    - bin/rails
+    - db:prepare
+    environment:
+      RAILS_ENV: production
+      CCI_CONFIG_FILE: /etc/cci/config.yml
     depends_on:
       db:
         condition: service_healthy
-    restart: "no"
+    restart: 'no'
+    volumes:
+    - type: bind
+      source: ${CCI_CONFIG_FILE:-./config.yml}
+      target: /etc/cci/config.yml
+      read_only: true
+      bind:
+        create_host_path: false
+    - ${CCI_SECRETS_PATH:-./secrets}:/run/secrets:ro
+    - ${CCI_TLS_PATH:-./tls}:/run/tls:ro
   indexer:
     image: ${CCI_IMAGE:-cci-ui:local}
-    command: ["ruby", "bin/indexer"]
-    env_file:
-      - path: ${CCI_ENV_FILE:-.env.production}
-        required: false
-    environment: *production_environment
+    command:
+    - ruby
+    - bin/indexer
+    environment:
+      RAILS_ENV: production
+      CCI_CONFIG_FILE: /etc/cci/config.yml
     volumes:
-      - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
+    - type: bind
+      source: ${CCI_CONFIG_FILE:-./config.yml}
+      target: /etc/cci/config.yml
+      read_only: true
+      bind:
+        create_host_path: false
+    - ${LEGACY_PATH:?LEGACY_PATH auf NFS-Mount setzen}:/legacy:ro
+    - ${CCI_SECRETS_PATH:-./secrets}:/run/secrets:ro
+    - ${CCI_TLS_PATH:-./tls}:/run/tls:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 volumes:
-  postgres_data:
+  postgres_data: null

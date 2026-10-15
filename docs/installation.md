@@ -1,516 +1,166 @@
-# Installing CCI-UI
-
-For prebuilt images and CI setup, see [GitHub Actions and Docker Hub](container-publishing.md).
-For direct imports and client identity, see [Consul schema and Ruby examples](consul-schema.md).
+# Installation and operations
 
 ## Local development on a VM
 
-Requirements: Docker Engine with Compose 2.24 or newer (optional `env_file` support), an available local port
-3000, approximately 2 GiB of available RAM for initial evaluation, and internet
-access when building images. The local secret setup helper requires Ruby;
-alternatively, create the environment variables using `.env.example` as a guide.
-
-From the project directory:
+Install Docker Engine, Docker Compose 2.24+, Ruby and the Linux `acl` tools. From the repository:
 
 ```console
 ruby bin/setup-local
-docker compose up --build -d --wait
-docker compose ps
+setfacl -m u:10001:r config.yml
+docker compose -f compose.yml up --build -d --wait
 ```
 
-`bin/setup-local` optionally creates the area/path JSON variables and random,
-separate secrets for the configured areas in
-`.env` with permissions `0600`. It does not overwrite an existing file. The file
-is excluded from Git and the Docker build context. Preserve its secrets across
-container restarts so existing private keys remain readable. The application
-also starts with variables supplied directly by the shell or your orchestrator;
-no `.env` or application configuration file is required. For a new installation,
-`ruby bin/setup-local --stdout` emits shell-safe `export` commands without writing
-a file. Keep these keys available for decrypting stored private keys.
+Open http://localhost:3000 and select a local synthetic identity. The helper
+creates protected `config.yml` with independent area keys. Keep this file;
+regenerating keys makes existing encrypted material unreadable. Existing ENV
+installations require manual migration before starting the new code. Copy their
+exact keys into YAML; `setup-local` is only for a new installation.
 
-Open `http://localhost:3000`. For a remote VM, expose the local port through an
-SSH tunnel. The development service binds only to `127.0.0.1`; the databases
-do not publish host ports.
-
-Compose starts Rails, a Ruby indexer, PostgreSQL and a persistent single-server
-Consul instance. The one-shot `migrate` service prepares the database before web and indexer start.
-`data/` is mounted at `/legacy`, read/write for web and read-only for the indexer. The development Compose defaults set
-`CCI_AREAS` to the two example zones and `CCI_LEGACY_PATHS` to `{"zone_a":"/legacy"}`.
-The indexer runs every 60 seconds, so a newly connected collection may initially
-appear empty. The local `data/` directory is not copied into the application image.
-
-Local mode provides Reader, Writer, Key Exporter and Auditor
-identities for each configured area, plus combined identities. This mode is
-for testing; the local Consul/PostgreSQL settings are not intended for network
-exposure.
-
-Inspect logs and stop services:
+Compose starts PostgreSQL, Consul, one migration job, web and indexer. The
+indexer defaults to 60 seconds between passes. Local authentication is prohibited
+in production. Application settings come exclusively from YAML; see the
+[complete configuration reference](configuration.md) and
+[config.example.yml](../config.example.yml). Restart services after edits:
 
 ```console
-docker compose logs --tail 100 web indexer
-docker compose stop
+docker compose -f compose.yml up -d --force-recreate migrate web indexer
 ```
 
-`stop` preserves containers and volumes. `down` removes containers but preserves
-named data volumes by default. `down -v` deletes volumes and is not part of the
-normal restart procedure.
-
-After code changes:
-
-```console
-ruby bin/package-puppet
-docker compose up --build -d --wait
-```
-
-Containers use the built application code, not a mounted working directory.
+The application image excludes local configuration, secrets, `data/` and Git.
+Release metadata continues to come from the release build.
 
 ## Configuring areas
 
-All deployment-specific application settings come from environment variables.
-No area YAML file or configuration mount is used. Set the same values in web
-and indexer; the Compose files forward the JSON maps to both services.
-
-```bash
-export CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
-export CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
-export CCI_AREA_KEYS='{"zone_a":"<existing Base64 key>","zone_b":"<existing Base64 key>"}'
-```
-
-These examples use JSON objects inside shell strings. `CCI_AREAS` is required
-by the application and maps stable IDs to display names. IDs start with a
-lowercase letter, contain only lowercase letters, digits and underscores, and
-have at most 48 characters. Roles and local test identities are generated from
-these IDs. `CCI_LEGACY_PATHS` maps any subset of the IDs to absolute paths inside
-the containers; the application default is `{}`, meaning no local inventory.
-With a custom area list in development Compose, also set `CCI_LEGACY_PATHS`
-explicitly because the development template defaults to the example Zone A.
-
-For a shared host parent such as `/mnt/certificates`, set the production Compose
-variable `LEGACY_PATH=/mnt/certificates`. Its `/legacy` mount makes
-`/mnt/certificates/zone_a` available as `/legacy/zone_a`, and likewise for Zone B.
-`LEGACY_PATH` is only the Compose host-mount setting; the application selects
-its roots from `CCI_LEGACY_PATHS`.
-
-For host directories under different parents, add explicit bind
-mounts to both services through your container orchestrator or a Compose
-override, for example:
+Define stable IDs under `areas`, each with a name and the existing Base64
+32-byte encryption key. Optionally add `filesystem.legacy_path` and Consul
+connection overrides. Read-only legacy indexing does not migrate material.
+Never rename IDs merely to change labels. Roles, stored references and encryption
+contexts use the IDs. Existing records remain stored when an area is removed.
 
 ```yaml
-services:
-  web:
-    volumes:
-      - /mnt/zone-a-certificates:/legacy/zone_a:rw
-      - /srv/zone-b-certificates:/legacy/zone_b:rw
-  indexer:
-    volumes:
-      - /mnt/zone-a-certificates:/legacy/zone_a:ro
-      - /srv/zone-b-certificates:/legacy/zone_b:ro
+areas:
+  global:
+    name: Global
+    encryption_key:
+      file: /run/secrets/global-key
+    filesystem:
+      legacy_path: /legacy/global
+    consul:
+      token:
+        file: /run/secrets/global-token
 ```
 
-Mount declarations are container infrastructure; application settings are still
-supplied through environment variables. Both processes must see identical paths
-and contents. An area omitted from `CCI_LEGACY_PATHS` remains available for Consul
-certificates. Map one path to multiple areas only when intentionally granting
-those areas access to the same inventory; permissions and export audit ownership
-stay separate. Filesystem certificates have no editable Puppet status.
-
-`CCI_AREA_KEYS` maps area IDs to 32-byte keys encoded as Base64. The map lets
-Compose forward arbitrary area keys from the shell without editing its service
-definitions. Existing `<UPPERCASE_AREA_ID>_KEY` variables remain supported when
-injected into the process; map entries take precedence. Keep key bytes stable
-so stored private-key envelopes remain decryptable. Public-only operations do
-not require area keys.
-
-The Compose `env_file` is optional: `.env` for development and `.env.production`
-for production. `CCI_ENV_FILE` selects another optional file. When using a file
-for Compose substitutions, also pass it with `--env-file`. When supplying all
-variables through the shell or orchestrator, omit the file entirely.
-
-The process caches area/path configuration at startup. Recreate web and indexer
-after changing the environment. For production with exported variables:
-
-```console
-docker compose -f compose.production.yml up -d --force-recreate web indexer
-```
-
-See the [environment reference](environment.md) for all supported variables,
-a `docker run` example without configuration files, and deployment settings.
-For optional certificate expiration monitoring, see
-[Integrations → Zabbix](integrations/zabbix.md). Configure its dedicated bearer
-token on every web replica and keep the endpoint disabled when unused.
-
-Preserve area IDs: they determine Consul paths, encryption, roles and audit ownership.
-Removed local mappings block material reads but retain their catalog rows.
-Consul metadata and audit history remain intact during indexing. Previously
-observed filesystem rows can be removed by guarded reconciliation after two
-complete absence confirmations; see [filesystem reconciliation](legacy-deletion.md#automatic-filesystem-reconciliation).
+Mount the same paths and contents in all consumers. Web requires read/write
+legacy access only for the existing confirmed filesystem deletion action;
+indexer uses read-only access. `LEGACY_PATH` in production Compose is the host
+parent mounted at `/legacy`. Omit filesystem mappings and mounts when unused.
+For inventories in separate host directories, add each bind mount explicitly.
+Area encryption is independent of the Consul ACL token. Multiple areas can
+inherit one cluster or select independent clusters; see
+[inheritance and ACLs](configuration.md#area-identity-and-multiple-consul-clusters).
 
 ## Tests
 
+Use the disposable services and synthetic configuration, never production data:
+
 ```console
-docker compose run --rm -e RAILS_ENV=test web ruby bin/rails db:prepare test
+docker build -t cci-ui:ci .
+docker compose -f compose.ci.yml up -d --wait db consul
+docker compose -f compose.ci.yml run --rm app ruby bin/rails db:prepare test
+docker compose -f compose.ci.yml down --volumes
 ```
 
-Tests use `certui_test`, a separate Consul test prefix and an independent
-two-zone configuration. They do not change the sample certificates.
-The separate [Puppet idempotence test](puppet.md#verification) requires Puppet 8
-on the test host and a reachable, isolated Consul test server.
+Direct Rails tests use `CCI_CONFIG_FILE=test/config.yml` (local PostgreSQL and
+Consul). The container tests use `test/container.yml`. Test helpers create
+synthetic certificates, an isolated legacy directory and a random Consul prefix.
+See [required security checks](container-publishing.md#security-validation).
 
 ## Keycloak
 
-Create a confidential OIDC client for CCI-UI in the desired realm:
+Create an OIDC client with Authorization Code flow and PKCE. Configure the exact
+redirect URI, issuer, client ID and client secret under `authentication.oidc`.
+Production issuer and redirect URLs require HTTPS. Publish the needed role
+claims for the client. Sessions last one hour; changes apply on a new login.
 
-| Setting | Value |
-| --- | --- |
-| Standard Flow | Enabled |
-| Client Authentication | Enabled |
-| Local redirect URI | `http://localhost:3000/auth/keycloak/callback` |
-| Production redirect URI | `https://cci.example.internal/auth/keycloak/callback` |
-| Group/role claims | Available in the ID token or UserInfo |
+CCI-UI reads `groups`, `realm_access.roles` and client roles under
+`resource_access.<client_id>.roles`. Other clients' roles are ignored. Direct
+CCI role names work without a mapping. An optional native YAML `role_map`
+translates incoming names once; unknown effective roles grant no access.
+Unknown target roles/areas in the map stop startup.
 
-Application roles follow the configured area IDs. For the example area `zone_a`:
-
-```text
-zone_a_reader
-zone_a_writer
-zone_a_key_exporter
-zone_a_auditor
-zone_a_csr
+```yaml
+authentication:
+  mode: oidc
+  oidc:
+    issuer: https://auth.example.test/realms/cci
+    client_id: cci-ui
+    client_secret:
+      file: /run/secrets/oidc-client-secret
+    redirect_uri: https://cci.example.test/auth/keycloak/callback
+    display_name_claim: preferred_username
+    role_map:
+      /cci/editors: global_writer
+      /cci/requesters: [global_reader, global_csr]
+      /cci/auditors: [global_auditor, secure_auditor]
 ```
 
-Writers can export public certificates and optional chains. Key Exporter is the
-only role that can export private keys. It includes read access but does not
-allow imports, version changes, status changes or archiving. Reader and Writer
-roles cannot export private keys. Independent Auditor roles allow reading audit
-logs within their area and grant no certificate or export permissions. Assign the
-Auditor roles of all desired areas for a combined view. Local Auditor identities
-land directly at `/audit_events` after login.
-The independent `zone_a_csr` role grants CSR creation, area-scoped request and
-issued-certificate access, confirmed revoke-password disclosure and publication
-of matching certificates. It grants no general Reader, Writer or Key Exporter
-permissions. Local identities `zone_a_csr` and `all:csr` land at
-`/certificate_requests`. See [CSR operations and key rotation](csr.md).
+Each role uses `<area>_reader`, `_writer`, `_key_exporter`, `_csr` or `_auditor`.
+Writer and Key Exporter imply certificate read access; CSR and Auditor remain
+independent. Key Exporter alone permits private-key export. CSR grants only
+its own lifecycle, including publication of matching certificates. The role menu
+shows actual assigned CCI roles without changing permissions.
 
-Readers cannot export. Users without an effective CCI-UI role are signed out
-after the OIDC callback and see a message that no permissions were assigned.
-
-### OIDC display name
-
-CCI-UI uses the OIDC subject returned by OmniAuth as the stable user UID. This
-UID remains the actor stored in audit records and sent with write operations.
-The name shown in the upper-right account area can be selected independently:
-
-```dotenv
-OIDC_DISPLAY_NAME_CLAIM=preferred_username
-```
-
-Allowed values are `preferred_username`, `name` and `email`. The default is
-`preferred_username`. If the selected claim is missing or blank, CCI-UI tries
-`preferred_username`, `name` and `email` in that order, then displays the stable
-UID. Configure Keycloak to include the desired claim in the ID token or
-UserInfo response. Changing this setting requires a container restart and a new
-login because the resolved display name is stored in the session. With
-`LOG_LEVEL=DEBUG`, the callback log includes `display_name` and
-`display_name_source` without logging tokens.
-
-### OIDC_ROLE_MAP JSON format
-
-`OIDC_ROLE_MAP` translates names supplied by your identity provider into CCI-UI
-application roles. Set it to a JSON object. An omitted, empty or whitespace-only
-value is treated as `{}`, which disables translation. CCI-UI validates nonempty
-JSON and its value types during startup. Invalid configuration stops the container with an
-`OIDC_ROLE_MAP must contain a valid JSON object` error before any login can be
-attempted. The configured JSON content is not included in that error. Each
-property has:
-
-- **Key:** an incoming group or role name, exactly as it appears in the claims.
-  Matching is case-sensitive. A leading slash is part of the name, so
-  `/cci/zone_a-editors` and `cci/zone_a-editors` are different keys. There is no
-  wildcard, prefix or regular-expression matching.
-- **Value:** one CCI-UI role as a JSON string, or multiple roles as an array of
-  strings. Each role uses `<area_id>_<role>`, where `area_id` is a key from
-  `CCI_AREAS`, not its display label. Supported suffixes are `reader`, `writer`,
-  `key_exporter`, `auditor` and `csr`.
-
-For example, with `zone_a` and `zone_b` configured in `CCI_AREAS`:
-
-```json
-{
-  "/cci/zone_a-editors": "zone_a_writer",
-  "/cci/zone_a-key-export": "zone_a_key_exporter",
-  "/cci/auditors": ["zone_a_auditor", "zone_b_auditor"],
-  "cci-requesters": ["zone_a_reader", "zone_a_csr"]
-}
-```
-
-This maps the editors group to Writer in Zone A, the key-export group to Key
-Exporter in Zone A, and the auditors group to Auditor in both areas. The
-`cci-requesters` role grants both Reader and CSR permissions in Zone A. Mapping
-a group to several roles grants all of them, not a choice between them.
-
-#### Incoming claims and resulting roles
-
-CCI-UI combines these fields from the OIDC authentication data (`raw_info`):
-
-| Claim | Names used as mapping keys |
-| --- | --- |
-| `groups` | Group names or full group paths, as supplied by the provider |
-| `realm_access.roles` | Realm role names |
-| `resource_access.<OIDC_CLIENT_ID>.roles` | Client role names for the configured CCI-UI client |
-
-Client roles belonging to other clients are not read. All three sources use the
-same mapping, so an identical name in a group and a role has the same result.
-Configure Keycloak to include the required claims in the ID token or UserInfo.
-A mapping entry alone does not assign a role: the user must supply its key in
-one of these claims.
-
-For every incoming name, CCI-UI applies the following rules at login:
-
-1. If the name is a key in `OIDC_ROLE_MAP`, replace it with that entry's value.
-   Mapping is applied once, so values are not looked up again as mapping keys.
-2. Otherwise, keep the incoming name unchanged. This allows direct assignment
-   of application roles such as `zone_a_reader` without a mapping entry.
-3. Combine all results, remove duplicates and keep only valid application roles
-   for the configured areas. Unknown names and roles for unconfigured areas
-   grant no permissions.
-
-For example, with the mapping above, these claims:
-
-```json
-{
-  "groups": ["/cci/zone_a-editors", "/cci/auditors"],
-  "realm_access": { "roles": ["zone_b_reader", "unrelated-role"] },
-  "resource_access": {
-    "cci-ui": { "roles": ["cci-requesters"] }
-  }
-}
-```
-
-produce the following roles when `OIDC_CLIENT_ID=cci-ui`:
-
-```json
-[
-  "zone_a_writer",
-  "zone_a_auditor",
-  "zone_b_auditor",
-  "zone_b_reader",
-  "zone_a_reader",
-  "zone_a_csr"
-]
-```
-
-`unrelated-role` is discarded. No private-key export permission is granted in
-this example because no `key_exporter` role results from these claims.
-
-The default `{}` performs no translation and still accepts valid application
-roles directly. It does not disable role-based access. To discard a particular
-incoming name, map it to an empty array, for example `{"zone_a_writer":[]}`.
-This only discards that name: another incoming group or role can still grant
-`zone_a_writer` through its own mapping.
-
-#### Setting the environment variable
-
-In a Compose `.env` file, put the JSON on one line and wrap it in single quotes:
-
-```dotenv
-OIDC_ROLE_MAP='{"/cci/zone_a-editors":"zone_a_writer","/cci/zone_a-key-export":"zone_a_key_exporter","/cci/auditors":["zone_a_auditor","zone_b_auditor"],"cci-requesters":["zone_a_reader","zone_a_csr"]}'
-```
-
-For a shell environment, use the same assignment preceded by `export`.
-The outer single quotes protect the JSON and are not part of the environment
-variable's value. JSON keys and role strings require double quotes. Do not use
-comments, trailing commas, a top-level array, `null`, numbers or nested objects.
-Invalid JSON causes the login callback to fail. Use `{}` for an empty mapping.
-
-Recreate the application containers after changing the variable. Users must
-sign out and sign in again for the new mapping to apply, because roles are
-stored in the session at login.
-
-### Testing OIDC login
-
-For a local SSO test, set `AUTH_MODE=oidc`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
-`OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI` in `.env`, then recreate the containers.
-`OIDC_ISSUER` is the realm URL, for example
-`https://keycloak.example.internal/realms/internal`.
+The OIDC subject stays the stable audit identity. `display_name_claim` selects
+`preferred_username` (default), `name` or `email`; a missing value falls back
+to the UID. `server.log_level: debug` logs interpreted authorization diagnostics
+without token bodies. A login with no effective CCI role clears the session and
+returns a localized permission message. For local SSO testing, change YAML to
+OIDC mode and supply the same settings, then restart.
 
 ## Production deployment
 
-The separate `compose.production.yml` runs Rails and PostgreSQL behind an HTTPS
-reverse proxy. It uses a persistent Consul instance operated by your team.
-For a single Consul server on the same VM, configure its data directory,
-snapshot procedure, ACLs and TLS beforehand. Ensure it is reachable from the
-application containers.
+Use an immutable image tag or digest, PostgreSQL, Consul and an HTTPS reverse
+proxy. Local identities are unavailable in production. Prepare protected
+`config.yml`, `secrets/` and TLS files using [config.example.yml](../config.example.yml).
+Copy existing encryption/session secrets unchanged. Ensure UID 10001 can read
+files, while preventing access by unauthorized users.
 
-Supply these variables through your deployment environment or, optionally,
-a protected `.env.production` file excluded from Git and images:
-
-```dotenv
-CCI_IMAGE=c8m6/cci-ui:<release tag>
-POSTGRES_PASSWORD=<strong database password>
-DATABASE_URL=postgresql://cci:<URL-encoded password>@db/cci
-SECRET_KEY_BASE=<random secret of at least 64 bytes>
-ALLOWED_HOSTS=cci.example.internal
-CONSUL_URL=https://consul.example.internal:8501
-CONSUL_TOKEN=<optional global fallback token>
-CCI_CONSUL_TOKENS='{"zone_a":"<area-a ACL token>","zone_b":"<area-b ACL token>"}'
-CCI_HEALTH_TOKEN=<random monitoring token>
-CONSUL_PREFIX=cci
-CCI_AREAS='{"zone_a":"Zone A","zone_b":"Zone B"}'
-CCI_LEGACY_PATHS='{"zone_a":"/legacy/zone_a","zone_b":"/legacy/zone_b"}'
-CCI_AREA_KEYS='{"zone_a":"<32 bytes, Base64>","zone_b":"<another 32 bytes, Base64>"}'
-OIDC_ISSUER=https://keycloak.example.internal/realms/internal
-OIDC_CLIENT_ID=cci-ui
-OIDC_CLIENT_SECRET=<Keycloak client secret>
-OIDC_REDIRECT_URI=https://cci.example.internal/auth/keycloak/callback
-OIDC_DISPLAY_NAME_CLAIM=preferred_username
-LEGACY_PATH=/mnt/certificates
-```
-
-Generate and supply secrets using your secret-management system. The example
-uses environment variables; when using Docker secret files, load their contents
-into these variables before starting the application. There is currently no
-built-in secret `_FILE` option. For a private Consul CA, mount the CA file in
-web and indexer containers and set `CONSUL_CA_FILE` to its container path.
-
-The container runs as UID 10001. This UID needs read access to the NFS legacy
-collection, including key files if their export is permitted. For confirmed
-filesystem deletion, the web service also needs directory write permissions and
-a read/write mount (`:rw`). Keep the indexer mount read-only (`:ro`). See
-[filesystem deletion and recovery](legacy-deletion.md).
-
-Application credentials need read/write access to the configured areas’
-`certids/`, `certs/` and `keys/` prefixes. Prefer per-area tokens through
-`CCI_CONSUL_TOKENS`; a global `CONSUL_TOKEN` remains an optional fallback. See
-[area ACL policy examples](environment.md#area-scoped-consul-credentials).
-Puppet receives separate reader tokens. Example read policy for a compiler that must distribute
-certificates and keys from area `zone_a`:
-
-```hcl
-key_prefix "cci/zone_a/certids/" {
-  policy = "read"
-}
-key_prefix "cci/zone_a/certs/" {
-  policy = "read"
-}
-key_prefix "cci/zone_a/keys/" {
-  policy = "read"
-}
-```
-
-Omit the final block if private keys are not needed. Each additional area needs
-its own corresponding policy. Do not place management tokens on compilers.
-
-### Start a published image
-
-The public image is [c8m6/cci-ui on Docker Hub](https://hub.docker.com/r/c8m6/cci-ui).
-Choose a published tag from [GitHub Releases](https://github.com/c8m6/cci-ui/releases)
-and confirm that it exists in the [image tag list](https://hub.docker.com/r/c8m6/cci-ui/tags).
-Replace `<release tag>` in `CCI_IMAGE` above with that exact tag. Review whether
-the release is marked as a prerelease before deploying it. Images currently
-support `linux/amd64`. The publishing workflow creates no `latest` alias.
-Use `c8m6/cci-ui@sha256:<digest>` to pin an immutable image.
-
-From a checkout of the matching release, after configuring the variables above:
+The production template mounts YAML at `/etc/cci/config.yml` read-only. It also
+mounts `secrets/` and `tls/` read-only into web, indexer and migrate. Change host
+paths through the infrastructure variables `CCI_CONFIG_FILE`, `CCI_SECRETS_PATH`,
+`CCI_TLS_PATH` and `LEGACY_PATH`, or edit the deployment manifest. The bundled
+PostgreSQL password must match `database.password` in YAML.
 
 ```console
-docker compose --env-file .env.production -f compose.production.yml pull web indexer migrate
-docker compose --env-file .env.production -f compose.production.yml up -d --no-build --wait
+CCI_IMAGE=c8m6/cci-ui:<release-tag> POSTGRES_PASSWORD='<database-password>' LEGACY_PATH=/srv/cci/legacy docker compose -f compose.production.yml up -d --no-build --wait
 ```
 
-Omit `--env-file .env.production` when supplying variables directly through the
-deployment environment. Web, indexer and the migration job use the same
-`CCI_IMAGE`. The migration job must succeed before the application starts. For
-updates to an existing deployment, follow the
-[replica and migration ordering](#deploying-multiple-web-replicas).
-
-For a local source build instead, omit `CCI_IMAGE` and run
-`docker compose --env-file .env.production -f compose.production.yml up --build -d --wait`.
-See [container publishing](container-publishing.md) for CI, tag and metadata details.
-
-The reverse proxy forwards HTTPS to `127.0.0.1:3000`, preserves the original Host
-and `Authorization` header, sets `X-Forwarded-Proto: https`, and limits request
-bodies, for example to 25 MiB.
-The application allows at most 20 MiB per import. Production enforces HTTPS and
-secure cookies and rejects `AUTH_MODE=local`.
-
-Production settings are prepared but have not been validated against your
-actual Keycloak/Consul infrastructure because its configuration is unavailable.
+For external PostgreSQL and Consul, use [compose.full.yml](../compose.full.yml)
+and its [deployment notes](compose-full.md). Do not point local tests at those
+systems. Keep one indexer active and run the migration job successfully before
+starting replicas. Database setup is never part of normal web startup.
 
 ## Backup and recovery
 
-Back up PostgreSQL, Consul snapshots, area secrets, configuration and the existing
-NFS collection together. Search metadata is reconstructible only while the
-corresponding source material still exists. Retained entries for missing sources,
-UI audit history, pending previews and all CSR records and encrypted CSR secrets
-require a database backup. Test
-restoration on an isolated VM. Restore Consul using the same prefix and original
-area secrets.
-
-Do not replace existing area secrets with newly generated ones. A key-rotation
-UI is not implemented. See the [offline CSR rotation procedure](csr.md#secret-management-and-rotation)
-for the CSR maintenance helper and coordination with Consul and import drafts. The SSO session secret, `SECRET_KEY_BASE`, can be
-rotated independently; doing so invalidates existing login sessions.
+Back up PostgreSQL (audit history, CSR secrets, issued certificate history and
+publication intents), Consul snapshots, legacy material and the protected YAML/
+secret files. Store backups and encryption keys through separate protected
+channels. Backups of data encrypted with old keys require those old keys.
+Reindexing does not restore audit records or CSR state. Restore these components
+as one coordinated version before resuming writers. Test restores independently.
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| Search remains empty | Indexer logs, `CCI_LEGACY_PATHS` and container mounts, file permissions, roles and Consul connectivity |
-| An error page shows a request ID without technical details | Check the Rails application log. `CCI_SHOW_ERROR_DETAILS=true` enables exception messages and stack traces for all visitors after restarting web. See [error pages and diagnostics](environment.md#error-pages-and-diagnostics). |
-| Startup rejects area configuration | `CCI_AREAS` JSON, valid IDs/display names, and absolute `CCI_LEGACY_PATHS` |
-| Upload with a private key fails | Correct Base64 encoding and exactly 32 decoded bytes in the area's secret |
-| Reader sees no export action | Expected; Writers export public certificates, while only Key Exporter exports private keys |
-| Consul returns HTTP 403 | Token and ACL prefix; do not copy secret values into tickets |
-| SSO fails | Issuer, callback URI, client secret and claim mapping |
-| JKS import fails | Use matching store and key passwords |
-| Old PFX is rejected | Use AES/PBES2 or 3DES; RC2 is unsupported |
-| Filesystem certificate has no status or archive controls | Expected: Puppet status and archiving apply only to Consul. Filesystem writers have a separate deletion action |
-| Archived certificate is missing from the overview | Use a text search or “Archivierte einschließen”; normal area and other filters still apply |
-| “Hosts” is missing | Set `PUPPETDB_ENABLED=true` in both services and recreate them |
-| Hosts show “–” | No successful observation yet; check indexer logs, URL, TLS, query and fact settings |
-| Hosts show `0` | The last successful complete response had no matching fingerprint within the query scope; check fact name and fingerprint algorithm |
-| “Abfrage fehlgeschlagen” appears | Check indexer logs and PuppetDB connectivity or fact format; previous host associations are retained |
-| “Fingerprint fehlt” appears | In SHA-1 mode, rescan the readable certificate source to compute the missing digest; retained entries with missing sources keep their previous observations |
+A YAML configuration error stops boot. Check the referenced file exists inside
+every container and is readable by UID 10001. An invalid key is never silently
+replaced. Use `docker compose logs web indexer migrate`, and keep diagnostic
+output protected. Do not enable raw HTTP logging. Missing source mounts or TLS
+failures preserve previous inventory data and appear in structured logs.
 
-## Initial database setup
-
-Run `ruby bin/rails db:prepare` in a separate deployment job to prepare the current
-SQL structure. Deploy the supplied Ruby/Puppet clients with the application.
-The supplied Puppet module does not enforce `norollout` or `delete` yet.
-See [the storage contract](consul-schema.md) and [Puppet integration](puppet.md).
-
-## Legacy inventory consistency
-
-The indexer preserves filesystem entries during failed scans, the confirmation
-period and blocked cleanup. By default, two complete scans confirm absence and
-more than 20% deletion candidates block all cleanup for that source. A blocked
-candidate requires rediscovery or exact administrator approval, even if later
-passes discover new certificates. Filesystem certificates create no Consul state.
-Explicit UI deletion renames files with
-`.DELETED` and hides their retained PostgreSQL rows. See
-[filesystem deletion](legacy-deletion.md). Missing material blocks
-export but retained metadata stays visible. Removing a directory mapping blocks
-material access through it.
-
-For Consul certificates, “Archivieren” sets archive state and `status: delete`
-without deleting versions or keys. UI actions are audited in PostgreSQL before
-the Consul write, with their outcome recorded afterward. Back up PostgreSQL for
-UI history and metadata whose original source is no longer available.
-
-## Optional PuppetDB connection
-
-PuppetDB integration is off by default. Prepare the database with
-`ruby bin/rails db:prepare` before starting the indexer, then configure the
-[optional PuppetDB settings](environment.md#optional-puppetdb-host-inventory)
-and mount TLS credentials into the indexer if required. The provided custom fact
-and host names in the examples are anonymized; substitute your deployment's
-actual fact name and endpoint. Enable the feature in both web and indexer.
-
-A successful scan populates “Hosts” in the overview and “Hosts laut PuppetDB” in
-details. Until then, counts show “–”. On query or parsing errors the indexer logs
-a sanitized message, preserves the last successful host list and marks it as
-potentially stale in the UI. No certificate is removed. See the
-[fact format and operational limits](puppetdb.md).
+The dashboard and host pages use local projections; timestamps describe recorded
+checks, not live readiness or current host deployments. See [UI behavior](technik.md)
+and [PuppetDB observations](puppetdb.md). See [filesystem recovery](legacy-deletion.md)
+for confirmed deletion and fail-safe automatic reconciliation.
 
 ## Health checks
 
@@ -522,7 +172,7 @@ potentially stale in the UI. No certificate is removed. See the
 
 `/up` and `/ready` remain anonymous. `/health` requires
 `Authorization: Bearer <token>`, with the expected high-entropy token supplied as
-`CCI_HEALTH_TOKEN` in the web deployment secret. Configure your monitoring client
+`server.health_token` in the web deployment secret. Configure your monitoring client
 to send this header and make sure every reverse proxy forwards it. An absent
 configured token makes `/health` unavailable (HTTP 503); an absent or invalid
 request token receives HTTP 401. Neither case runs dependency checks.
@@ -533,7 +183,7 @@ process for up to 10 seconds, starting a refresh after five seconds. Only one
 refresh runs per process; concurrent requests receive the last result while it
 is still valid, or HTTP 503 if none is valid. All diagnostic responses retain
 `Cache-Control: no-store`; proxies and clients must not cache them.
-`CCI_SHOW_ERROR_DETAILS=true` exposes diagnostic details. Leave it disabled in production.
+`server.show_error_details: true` exposes diagnostic details. Leave it disabled in production.
 
 Compose uses `/ready`. Use `/up` for orchestrator liveness and `/ready` for
 routing. Do not restart replicas because a shared dependency is unavailable.
@@ -571,7 +221,7 @@ docker compose -f compose.production.yml run --rm --no-deps migrate && \\
 ```
 
 Use the same immutable image for all three services. Build or pull it before
-running the job. Keep one indexer active. Share `SECRET_KEY_BASE`, area keys,
+running the job. Keep one indexer active. Share `server.secret_key_base`, area keys,
 OIDC settings and role mappings across replicas. Legacy operations require
 the same mounted inventory on each replica.
 
@@ -588,3 +238,17 @@ former `fetch` method. Routes use English paths such as `/login`, `/local-login`
 `/logout`, `/locale`, `/certificates`, `/imports/preview` and `/audit_events`,
 independently of the selected interface language. Update older external callers
 and bookmarks that still use the former method or German paths.
+
+## Manual acceptance checks
+
+Use synthetic data in a separate development deployment. Copy existing area
+keys unchanged only when migrating an existing dataset; never connect disposable
+tests to production databases or certificate inventories.
+
+1. Import into exactly one authorized area. Repeat independently in another
+   area if needed; the first area's data must remain unchanged. A multi-area
+   request must be refused.
+2. Restart after YAML edits. Confirm that a wrong type, unknown key, unknown role
+   reference or missing secret file prevents startup without printing values.
+   In a separate two-Consul test deployment, use different area URLs/prefixes and
+   verify that writes and reads stay in the selected cluster.

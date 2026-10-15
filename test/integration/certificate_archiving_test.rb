@@ -114,6 +114,6 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
       assert_nil ConsulStore.status_snapshot(record)
     end
   ensure
-    AreaConfiguration.instance_variable_set(:@configuration, previous)
+    configure_legacy_paths(previous.fetch("legacy_paths"))
   end
 end

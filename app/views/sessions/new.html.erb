@@ -3,7 +3,7 @@
   <span class="eyebrow"><%= t("ui.welcome") %></span>
   <h1><%= t("ui.login_heading") %><br><%= t("ui.login_heading_end") %></h1>
   <p class="muted"><%= t("ui.login_description") %></p>
-  <% if ENV["AUTH_MODE"] == "local" %>
+  <% if CciConfiguration.current.dig("authentication", "mode") == "local" %>
     <h2><%= t("ui.local_login") %></h2><p class="muted"><%= t("ui.local_login_help") %></p>
     <%= form_with url: local_login_path do |form| %>
       <%= form.label :identity, t("ui.test_identity") %>

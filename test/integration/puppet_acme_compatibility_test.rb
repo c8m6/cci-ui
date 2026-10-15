@@ -87,16 +87,13 @@ class PuppetAcmeCompatibilityTest < ActionDispatch::IntegrationTest
   end
 
   test "Zabbix endpoint retains Puppet classification and exposes no extension metadata" do
-    previous = ENV.to_h.slice("CCI_ZABBIX_INTEGRATION_ENABLED", "CCI_ZABBIX_INTEGRATION_TOKEN")
-    ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = "true"
-    ENV["CCI_ZABBIX_INTEGRATION_TOKEN"] = "synthetic-acme-monitoring-token"
-    get "/integrations/zabbix", headers: { "Authorization" => "Bearer #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")}" }
+    settings["integrations"]["zabbix"]["enabled"] = true
+    settings["integrations"]["zabbix"]["token"] = "synthetic-acme-monitoring-token"
+    get "/integrations/zabbix", headers: { "Authorization" => "Bearer #{settings["integrations"]["zabbix"]["token"]}" }
     assert_response :success
     entry = response.parsed_body.fetch("certificates").find { |row| row.fetch("id") == @record.id }
     assert_equal "puppet", entry.fetch("renewal")
     refute_match(/acme|worker|private|issuers|domains/, response.body)
-  ensure
-    %w[CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN].each { |name| ENV[name] = previous[name] }
   end
 
   test "bundle preview clearly distinguishes existing issuer reuse from version replacement" do

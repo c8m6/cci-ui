@@ -9,6 +9,7 @@ require "logger"
 require_relative "log_context"
 require_relative "container_log_formatter"
 require_relative "application_build"
+require_relative "cci_configuration"
 
 # Routes application events through the same structured logger as Rails.
 module OperationalLog
@@ -34,7 +35,7 @@ module OperationalLog
     def close; end
   end
 
-  def self.resolve_level(value = ENV.fetch("LOG_LEVEL", "INFO"))
+  def self.resolve_level(value = CciConfiguration.instance_variable_get(:@current)&.dig("server", "log_level") || "INFO")
     normalized = value.to_s.upcase
     return [normalized == "WARNING" ? :warn : normalized.downcase.to_sym, nil] if LEVELS.key?(normalized)
 
@@ -77,7 +78,7 @@ module OperationalLog
     status = message[/\bHTTP ([1-5][0-9]{2})\b/, 1]
     reasons << "HTTP #{status}" if status
     reasons << "invalid JSON data (content omitted)" if error.is_a?(JSON::ParserError)
-    reasons << "check required environment configuration" if error.is_a?(KeyError)
+    reasons << "check required YAML configuration" if error.is_a?(KeyError)
     reasons << "check DNS resolution" if error.is_a?(SocketError)
     reasons << "file or directory missing: check container mounts" if error.is_a?(Errno::ENOENT)
     reasons << "permission denied: check container UID and file permissions" if error.is_a?(Errno::EACCES)
@@ -87,21 +88,21 @@ module OperationalLog
   end
 
   def self.configuration(service)
-    prefix = { "consul" => "CONSUL", "puppetdb" => "PUPPETDB", "oidc" => "OIDC" }[service]
-    return {} unless prefix
-
-    url = ENV.fetch(prefix == "OIDC" ? "OIDC_ISSUER" : "#{prefix}_URL", "")
+    configuration = CciConfiguration.current
+    section, area = service.split(":", 2)
+    settings = case section
+               when "consul" then configuration.consul(area)
+               when "puppetdb" then configuration.fetch("puppetdb")
+               when "oidc" then configuration.dig("authentication", "oidc")
+               else return {}
+               end
+    url = settings.fetch(section == "oidc" ? "issuer" : "url", "")
+    files = section == "puppetdb" ? settings.fetch("tls") : { "ca_file" => settings.fetch("ca_file", "") }
     uri = URI.parse(url)
-    files = %W[#{prefix}_CA_FILE #{prefix}_CLIENT_CERT_FILE #{prefix}_CLIENT_KEY_FILE SSL_CERT_FILE]
     { endpoint: { scheme: uri.scheme, host: uri.host, port: uri.port },
-      files: files.filter_map do |name|
-        path = ENV[name].to_s
-        next if path.empty?
-
-        { setting: name, exists: File.file?(path), readable: File.readable?(path) }
+      files: files.filter_map do |name, path|
+        { setting: name, exists: File.file?(path), readable: File.readable?(path) } unless path.empty?
       end }
-  rescue URI::InvalidURIError
-    { endpoint: "invalid URL" }
   end
 
   def self.startup

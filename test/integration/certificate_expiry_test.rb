@@ -4,22 +4,12 @@ require "test_helper"
 
 class CertificateExpiryTest < ActionDispatch::IntegrationTest
   setup do
-    @previous = ENV.fetch("CCI_CERTIFICATE_EXPIRY_WARNING_DAYS", nil)
-    ENV.delete("CCI_CERTIFICATE_EXPIRY_WARNING_DAYS")
+    @previous = settings["certificates"]["expiry_warning_days"]
+    settings["certificates"]["expiry_warning_days"] = 10
   end
 
   teardown do
-    ENV["CCI_CERTIFICATE_EXPIRY_WARNING_DAYS"] = @previous
-  end
-
-  test "warning period defaults and invalid configuration" do
-    assert_equal 10, CertificateExpiryConfiguration.warning_days({})
-    assert_equal 10, CertificateExpiryConfiguration.warning_days("CCI_CERTIFICATE_EXPIRY_WARNING_DAYS" => " ")
-    %w[0 -1 1.5 invalid].each do |value|
-      assert_raises(ArgumentError) do
-        CertificateExpiryConfiguration.warning_days("CCI_CERTIFICATE_EXPIRY_WARNING_DAYS" => value)
-      end
-    end
+    settings["certificates"]["expiry_warning_days"] = @previous
   end
 
   test "badges search statistics and translations share the configured warning period" do
@@ -32,7 +22,7 @@ class CertificateExpiryTest < ActionDispatch::IntegrationTest
       get certificates_path
       assert_select ".stat-card small", text: "Innerhalb der nächsten 10 Tage"
 
-      ENV["CCI_CERTIFICATE_EXPIRY_WARNING_DAYS"] = "20"
+      settings["certificates"]["expiry_warning_days"] = 20
       assert_equal "expiring", record.status_key
       assert_equal [record.id], CertificateSearch.call(Certificate.all, status: "soon").pluck(:id)
       get certificates_path

@@ -20,13 +20,12 @@ class MultipleLegacySourcesTest < ActiveSupport::TestCase
   end
 
   teardown do
-    AreaConfiguration.instance_variable_set(:@configuration, @previous_configuration)
+    configure_legacy_paths(@previous_configuration.fetch("legacy_paths"))
     FileUtils.remove_entry(@directory)
   end
 
   def configure_paths(paths)
-    AreaConfiguration.instance_variable_set(:@configuration,
-      @previous_configuration.merge("legacy_paths" => paths))
+    configure_legacy_paths(paths)
   end
 
   test "same fingerprint and relative path retain independent zone records" do

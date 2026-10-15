@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Durable per-area CAS intents preserve atomic writes and safe multi-area retries.
+# Durable CAS intents preserve atomic writes and safe retries within one area.
 class CsrPublication
   def initialize(entry, identity:)
     @entry = entry
@@ -9,14 +9,15 @@ class CsrPublication
   end
 
   def call(expected_index: 0, expected_indices: nil, confirm_overwrite: false)
+    CertificateAreaConfiguration.validate_selection!(@request.areas)
     CsrWorkflow.authorize!(@identity, @request.areas)
     CatalogIndexer.synchronize do
       @entry.reload
+      CsrNames.fail!(:stale) if (area_preparations.keys - @request.areas).any?
       CsrNames.fail!(:stale) unless @request.latest_certificate&.id == @entry.id
       return @entry if @entry.state == "published"
 
       CatalogIndexer.new.consul
-      CertificateAreaConfiguration.validate_fingerprint!(@entry.fingerprint, areas: @request.areas)
       verify!
       return @entry if @entry.state == "awaiting_issuer"
 
@@ -66,7 +67,7 @@ class CsrPublication
     preparations = @request.areas.to_h do |area|
       next [area, existing.fetch(area).deep_symbolize_keys] if existing.key?(area)
 
-      writer = CciWriter.new(connection: ConsulStore.client(area), prefix: ConsulStore.namespace)
+      writer = CciWriter.new(connection: ConsulStore.client(area), prefix: ConsulStore.namespace(area))
       prepared = writer.prepare(area: area, certid: @request.certid, cert: cert, key: key, tags: [],
         client: "cci-ui-csr", actor: @identity.uid, expected_index: expected_indices.fetch(area))
       [area, prepared]
@@ -80,18 +81,14 @@ class CsrPublication
     preparations = area_preparations
     completed, pending = preparations.partition { |area, prepared| already_written?(area => prepared) }.map(&:to_h)
     record_confirmed!(completed)
-    # Preserve the existing all-area atomic transaction for global-token installations.
-    # Scoped credentials require independently atomic, durably prepared area writes.
-    scoped = ConsulTokens.mapping.keys.intersect?(@request.areas)
-    batches = scoped ? pending.map { |area, prepared| { area => prepared } } : [pending]
-    batches.reject(&:empty?).each { |batch| publish_batch!(batch, scoped: scoped) }
+    pending.each { |area, prepared| publish_batch!(area => prepared) }
     @entry.update!(state: "published", published_at: Time.current, error_code: nil)
     # Catalog refresh is independent of successful source publication.
     CatalogIndexer.new.consul
   end
 
-  def publish_batch!(preparations, scoped:)
-    connection = ConsulStore.client(scoped ? preparations.keys.first : nil)
+  def publish_batch!(preparations)
+    connection = ConsulStore.client(preparations.keys.fetch(0))
     AuditEvent.record_mutations!(events: audit_events(preparations)) do
       connection.transaction(preparations.values.flat_map { |prepared| prepared.fetch("operations") })
     end

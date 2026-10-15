@@ -5,34 +5,17 @@ require "socket"
 
 class ConsulTokensTest < ActiveSupport::TestCase
   setup do
-    @previous = ENV.to_h.slice("CCI_CONSUL_TOKENS", "CONSUL_TOKEN")
-    ENV["CCI_CONSUL_TOKENS"] = '{"zone_a":"area-a-secret","zone_b":"area-b-secret"}'
-    ENV["CONSUL_TOKEN"] = "global-secret"
+    settings["areas"]["zone_a"]["consul"] = { "token" => "area-a-secret" }
+    settings["areas"]["zone_b"]["consul"] = { "token" => "area-b-secret" }
+    settings["consul"]["token"] = "global-secret"
   end
 
-  teardown do
-    %w[CCI_CONSUL_TOKENS CONSUL_TOKEN].each { |name| ENV[name] = @previous[name] }
-  end
-
-  test "area overrides fallback and absent entries retain global or anonymous behavior" do
+  test "area inherits global settings only when no override is configured" do
     assert_equal "area-a-secret", ConsulTokens.resolve("zone_a")
-    assert_equal "area-b-secret", ConsulTokens.resolve("zone_b", fallback: "explicit")
-    ENV["CCI_CONSUL_TOKENS"] = "{}"
+    assert_equal "area-b-secret", ConsulTokens.resolve("zone_b")
+    settings["areas"]["zone_a"].delete("consul")
     assert_equal "global-secret", ConsulTokens.resolve("zone_a")
-    assert_equal "explicit", ConsulTokens.resolve("zone_a", fallback: "explicit")
-    ENV.delete("CONSUL_TOKEN")
-    assert_equal "", ConsulTokens.resolve("zone_a")
-  end
-
-  test "malformed configurations reject values without exposing secrets" do
-    ["secret-json", "[]", "null", '{"unknown":"secret"}', '{"zone_a":1}', '{"zone_a":null}',
-      '{"zone_a":{}}', '{"zone_a":""}', '{"zone_a":"a secret"}', '{"zone_a":"a\\nsecret"}'].each do |value|
-      error = assert_raises(ArgumentError) do
-        ConsulTokens.mapping({ "CCI_CONSUL_TOKENS" => value }, areas: %w[zone_a zone_b])
-      end
-      assert_not_includes error.message, "secret"
-    end
-    assert_raises(ArgumentError) { ConsulTokens.resolve("unknown") }
+    assert_raises(KeyError) { ConsulTokens.resolve("unknown") }
   end
 
   test "scoped transport sends the chosen credential and never retries ACL failures" do
@@ -65,7 +48,7 @@ class ConsulTokensTest < ActiveSupport::TestCase
   test "logs redact mapping fields and individual tokens even in exception strings" do
     formatter = ContainerLogFormatter.new
     result = formatter.call("WARN", Time.current, "test",
-      { message: "area-a-secret global-secret", CCI_CONSUL_TOKENS: ENV.fetch("CCI_CONSUL_TOKENS", nil) })
+      { message: "area-a-secret global-secret", token: "area-a-secret" })
     %w[area-a-secret area-b-secret global-secret].each { |secret| assert_not_includes result, secret }
     assert_includes result, "FILTERED"
   end

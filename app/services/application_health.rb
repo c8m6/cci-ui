@@ -38,7 +38,7 @@ class ApplicationHealth
         PuppetdbConnection.new.inventory("nodes[certname] { limit 1 }", verify_total: false)
       end
     end
-    probe(failures, "oidc") { check_oidc if ENV.fetch("AUTH_MODE", "oidc") == "oidc" }
+    probe(failures, "oidc") { check_oidc if CciConfiguration.current.dig("authentication", "mode") == "oidc" }
     failures
   end
 
@@ -52,7 +52,7 @@ class ApplicationHealth
 
   def check_oidc
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    issuer = ENV.fetch("OIDC_ISSUER")
+    issuer = CciConfiguration.current.dig("authentication", "oidc", "issuer")
     uri = oidc_uri(issuer)
     fields = { system: "keycloak", operation: "oidc_discovery_health", http_method: "GET",
                endpoint: safe_endpoint(uri) }

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Durable CSR workflow with one shared request and one or more publication areas.
+# Durable single-area requests; historical target assignments remain stored.
 class CertificateRequest < ApplicationRecord
   has_many :csr_certificates, dependent: :restrict_with_exception
   scope :visible_to, lambda { |identity|

@@ -1,4 +1,3 @@
-# Isolated, disposable test services; no production secrets or legacy mounts.
 name: cci-ui-ci
 services:
   db:
@@ -8,15 +7,27 @@ services:
       POSTGRES_PASSWORD: certui-test
       POSTGRES_DB: certui_test
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "certui", "-d", "certui_test"]
+      test:
+      - CMD
+      - pg_isready
+      - -U
+      - certui
+      - -d
+      - certui_test
       interval: 2s
       timeout: 5s
       retries: 30
   consul:
     image: hashicorp/consul:1.22
-    command: ["agent", "-dev", "-client=0.0.0.0"]
+    command:
+    - agent
+    - -dev
+    - -client=0.0.0.0
     healthcheck:
-      test: ["CMD", "consul", "members"]
+      test:
+      - CMD
+      - consul
+      - members
       interval: 2s
       timeout: 5s
       retries: 30
@@ -24,13 +35,7 @@ services:
     image: ${TEST_IMAGE:-cci-ui:ci}
     environment:
       RAILS_ENV: test
-      AUTH_MODE: local
-      DATABASE_URL: postgresql://certui:certui-test@db/certui_test
-      TEST_DATABASE_URL: postgresql://certui:certui-test@db/certui_test
-      CONSUL_URL: http://consul:8500
-      CCI_CONSUL_TOKENS: '{}'
-      CCI_AREAS: '{"zone_a":"Zone A","zone_b":"Zone B"}'
-      CCI_LEGACY_PATHS: '{}'
+      CCI_CONFIG_FILE: /app/test/container.yml
     depends_on:
       db:
         condition: service_healthy

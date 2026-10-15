@@ -31,7 +31,7 @@ class RolloutStatusTest < ActiveSupport::TestCase
     assert_equal "delete", event.details["status"]
     assert_equal newer.fingerprint, event.details["certificates"].first["fingerprint"]
     assert_not_includes event.details.to_json, "PRIVATE KEY"
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace)
     assert_equal "delete",
       reader.read_certificate(area: original.area, certid: original.certid, field: "metadata")["status"]
     assert_equal public_data["pem"], reader.read_certificate(area: original.area, certid: original.certid)
@@ -47,7 +47,7 @@ class RolloutStatusTest < ActiveSupport::TestCase
     ConsulStore.client.transaction([ConsulConnection.set(path, entry, index: snapshot[:index])])
     CatalogIndexer.refresh_consul
     assert_equal "active", record.reload.rollout_status
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace)
     assert_equal "active",
       reader.read_certificate(area: record.area, certid: record.certid, field: "metadata")["status"]
     set_status(record, "delete")
@@ -96,6 +96,6 @@ class RolloutStatusTest < ActiveSupport::TestCase
       assert_equal "norollout", other.reload.rollout_status
     end
   ensure
-    AreaConfiguration.instance_variable_set(:@configuration, previous)
+    configure_legacy_paths(previous.fetch("legacy_paths"))
   end
 end

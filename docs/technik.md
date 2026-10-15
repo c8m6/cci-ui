@@ -79,7 +79,7 @@ transitive children, with distinct empty, pending and failed-synchronization sta
 Certificate metadata contains neither private keys nor import passwords. Import
 previews contain public certificates and separately encrypted keys. A preview
 is consumed once under a database lock; the indexer removes expired previews.
-Each preview is bound to its login session. Permissions for all selected areas
+Each preview is bound to its login session. The selected area and its write permission
 are checked again before saving. Before preview and commit, a fresh disk scan
 rejects any upload containing certificate DER already in any configured legacy inventory,
 independent of certid and destination area. The whole batch is rejected before
@@ -102,7 +102,7 @@ ranking and typo correction are not currently implemented.
 
 ## Consul data contract
 
-Default prefix: `cci`. `<area>` is a stable ID from `CCI_AREAS`.
+Default prefix: `cci`. `<area>` is a stable ID from `areas`.
 
 | KV path below the prefix | Value |
 | --- | --- |
@@ -138,19 +138,17 @@ Archiving sets `archived: true` and `status: delete` while retaining material.
 
 ## Area configuration
 
-`AreaConfiguration` parses `CCI_AREAS` and `CCI_LEGACY_PATHS` JSON objects from
-the environment at process startup. There is no application configuration file
-or filesystem lookup. `CCI_AREAS` is required and maps stable IDs to display
-names. `CCI_LEGACY_PATHS` defaults to `{}` and maps any subset of those IDs to
-absolute local directories, read separately by web and indexer. Invalid JSON,
-unknown area references and relative paths reject startup. The configuration is
-cached per process, so environment changes require recreating both services.
+`CciConfiguration` safely loads and validates one immutable YAML snapshot at
+startup. Existing area, key, expiry, OIDC, reconciliation and integration
+resolvers read this snapshot. `areas` contains display names, encryption keys,
+optional filesystem paths and Consul overrides. Global Consul settings are
+merged per area, consistently across all consumers. No ENV fallbacks remain.
+See [YAML configuration](configuration.md) for types, defaults and secrets.
 
-`CCI_AREA_KEYS` supplies encryption keys as a JSON object. Per-area `<ID>_KEY`
-variables remain a fallback; explicit map entries take precedence. Shared
-`AreaSecrets` parsing is used by Rails, the standalone writer and Puppet. The
-Compose templates forward the maps, so adding an area needs no configuration
-mount or service-definition change. See [environment configuration](environment.md).
+New imports and CSR creation/publication select exactly one area. Identical
+certificate DER may exist independently in different areas. Existing historical
+multi-area CSR records remain stored and accessible under their original
+all-target permissions, but cannot be published again.
 
 Roles are generated from each ID and the suffixes `reader`, `writer`,
 `key_exporter`, `auditor` and independent `csr`. UI labels and local test identities use the
@@ -163,8 +161,7 @@ are retained.
 ## Encryption and permissions
 
 Private keys are encrypted with AES-256-GCM. Each area requires its own
-Base64-encoded, 32-byte secret in `CCI_AREA_KEYS` or the fallback
-`<UPPERCASE_AREA_ID>_KEY` variable. The authenticated
+Base64-encoded, 32-byte secret in `areas.<id>.encryption_key`. The authenticated
 additional data is `cci:<area>:<certid>/<version>`, preventing successful decryption
 when areas or versions are swapped. Key material and source passwords are
 filtered from request logs. Exports use `Cache-Control: no-store`; private PEM
@@ -190,9 +187,9 @@ unauthorized record causes the entire export to fail.
 
 Keycloak is connected through OIDC Authorization Code with PKCE. The library
 validates the ID token. Roles are read from `groups`, `realm_access.roles` and
-client roles, and can be translated through `OIDC_ROLE_MAP`. These claims must
+client roles, and can be translated through `authentication.oidc.role_map`. These claims must
 be available to the Keycloak client. The OIDC subject remains the stable user
-UID for audit and write attribution. `OIDC_DISPLAY_NAME_CLAIM` selects the
+UID for audit and write attribution. `authentication.oidc.display_name_claim` selects the
 standard claim shown in the UI without changing that identity. Sessions last
 one hour; role and display-name changes take effect when a new session is
 established. Immediate role revocation and Keycloak backchannel logout are not
@@ -200,7 +197,7 @@ yet implemented. Local mode uses test identities generated from configuration
 and is prohibited in production.
 
 The optional `GET /integrations/zabbix` endpoint uses a stateless API controller
-and its own environment-configured bearer token, independently of Keycloak.
+and its own YAML-configured bearer token, independently of Keycloak.
 It reads an allowlist of public catalogue fields across configured areas and
 never loads private material or creates a session. Renewal mode is derived from
 writer provenance, preserving user identities. Monitoring defaults to Consul only,
@@ -284,7 +281,7 @@ Legacy files are accessed through the root configured for their area. The web
 service needs write access for confirmed deletion, while the indexer stays read-only. Symlinks outside
 that directory are rejected. Multiple certificates in one PEM file receive
 separate search records using the file path and block index. A certificate may
-therefore appear more than once. `CCI_LEGACY_PATHS` determines directory-to-area
+therefore appear more than once. `areas.<id>.filesystem.legacy_path` determines directory-to-area
 assignment. The catalog key includes area, source, relative file/block ID and
 fingerprint, so replacing a file creates a new identity and marks the previous
 bound entry missing for guarded reconciliation. Matching filenames in different

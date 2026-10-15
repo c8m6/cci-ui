@@ -4,20 +4,20 @@ require "test_helper"
 
 class HostInventoryPagesTest < ActionDispatch::IntegrationTest
   setup do
-    @enabled = ENV.fetch("PUPPETDB_ENABLED", nil)
-    @algorithm = ENV.fetch("PUPPETDB_FINGERPRINT_ALGORITHM", nil)
+    @enabled = settings["puppetdb"]["enabled"]
+    @algorithm = settings["puppetdb"]["inventory"]["fingerprint_algorithm"]
     @record = store(issue.first)
     @record.update!(puppetdb_hosts: %w[web.example.test other.example.test], puppetdb_checked_at: Time.current,
       puppetdb_paths: { "web.example.test" => ["/etc/tls/public.pem"] })
-    ENV["PUPPETDB_ENABLED"] = "true"
+    settings["puppetdb"]["enabled"] = true
     post local_login_path, params: { identity: "zone_a_reader" }
     @connection = PuppetdbConnection.method(:new)
     PuppetdbConnection.define_singleton_method(:new) { raise "Host pages must not query PuppetDB" }
   end
 
   teardown do
-    ENV["PUPPETDB_ENABLED"] = @enabled
-    ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = @algorithm
+    settings["puppetdb"]["enabled"] = @enabled
+    settings["puppetdb"]["inventory"]["fingerprint_algorithm"] = @algorithm
     PuppetdbConnection.define_singleton_method(:new, @connection)
   end
 
@@ -33,7 +33,7 @@ class HostInventoryPagesTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     get hosts_path(area: "zone_b")
     assert_not_includes response.body, "secret.example.test"
-    ENV["PUPPETDB_ENABLED"] = "false"
+    settings["puppetdb"]["enabled"] = false
     get root_path
     assert_select "a[href=?]", hosts_path, count: 0
     get hosts_path
@@ -74,7 +74,7 @@ class HostInventoryPagesTest < ActionDispatch::IntegrationTest
     get host_path(PuppetdbHosts.identifier("host00.example.test"))
     assert_includes response.body, I18n.t("hosts.stale_note")
     @record.update!(puppetdb_error_at: nil, sha1_fingerprint: nil)
-    ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = "sha1"
+    settings["puppetdb"]["inventory"]["fingerprint_algorithm"] = "sha1"
     get hosts_path(sync: "stale")
     assert_select "tbody tr", count: 30
     @record.update!(puppetdb_hosts: [], puppetdb_paths: {})

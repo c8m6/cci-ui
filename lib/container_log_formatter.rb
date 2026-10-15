@@ -99,15 +99,7 @@ class ContainerLogFormatter < Logger::Formatter
   end
 
   def secrets
-    values = ENV.filter_map do |name, value|
-      value if name.match?(/(?:TOKEN|SECRET|PASSWORD|_KEY)\z/) && !value.empty?
-    end
-    values.concat(JSON.parse(ENV.fetch("CCI_AREA_KEYS", "{}")).values) if ENV["CCI_AREA_KEYS"].to_s.start_with?("{")
-    tokens = JSON.parse(ENV.fetch("CCI_CONSUL_TOKENS", "{}"))
-    values = values.select { |value| value.is_a?(String) && value.size >= 4 }
-    values.concat(tokens.values.select { |value| value.is_a?(String) && !value.empty? }) if tokens.is_a?(Hash)
-    values.sort_by { |value| -value.size }
-  rescue JSON::ParserError
-    values
+    configuration = CciConfiguration.instance_variable_get(:@current) if defined?(CciConfiguration)
+    Array(configuration&.secrets).sort_by { |value| -value.size }
   end
 end

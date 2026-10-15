@@ -1,24 +1,16 @@
 # frozen_string_literal: true
 
-# Fail-closed environment configuration for the monitoring endpoint.
+require_relative "cci_configuration"
+
+# Fail-closed access to startup-validated monitoring settings.
 module ZabbixConfiguration
-  def self.enabled?
-    ENV.fetch("CCI_ZABBIX_INTEGRATION_ENABLED", "false").casecmp?("true")
-  end
+  def self.enabled? = CciConfiguration.current.dig("integrations", "zabbix", "enabled")
+  def self.token = CciConfiguration.current.dig("integrations", "zabbix", "token")
 
   def self.sources
-    value = ENV.fetch("CCI_ZABBIX_CERTIFICATE_SOURCES", "consul")
-    return %w[consul filesystem] if value == "both"
-    return [value] if %w[consul filesystem].include?(value)
-
-    raise ArgumentError, "CCI_ZABBIX_CERTIFICATE_SOURCES must be consul, filesystem or both"
+    value = CciConfiguration.current.dig("integrations", "zabbix", "certificate_sources")
+    value == "both" ? %w[consul filesystem] : [value]
   end
 
-  def self.token
-    ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN", "")
-  end
-
-  def self.available?
-    enabled? && token.present?
-  end
+  def self.available? = enabled? && token.present?
 end

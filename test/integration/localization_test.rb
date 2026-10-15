@@ -71,8 +71,8 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     cert, key = issue
     record = store(cert, key: key)
     record.update!(puppetdb_hosts: ["host.example.test"], puppetdb_checked_at: Time.current)
-    previous = ENV.fetch("PUPPETDB_ENABLED", nil)
-    ENV["PUPPETDB_ENABLED"] = "true"
+    previous = settings["puppetdb"]["enabled"]
+    settings["puppetdb"]["enabled"] = true
     post locale_path, params: { locale: "en" }
     post local_login_path, params: { identity: "zone_a_exporter" }
     get certificate_path(record)
@@ -99,7 +99,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_equal true, ConsulStore.get(record.area, record.source_id).fetch("has_key")
   ensure
     PuppetdbConnection.define_singleton_method(:new, previous_connection)
-    ENV["PUPPETDB_ENABLED"] = previous
+    settings["puppetdb"]["enabled"] = previous
   end
 
   test "import preview switches language without recreating or consuming the draft" do

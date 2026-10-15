@@ -2,6 +2,8 @@
 
 require_relative "boot"
 require "rails"
+require_relative "../lib/cci_configuration"
+CciConfiguration.current
 require_relative "../lib/operational_log"
 require_relative "../lib/request_log_context"
 require "active_record/railtie"
@@ -34,7 +36,7 @@ module Certui
     %w[ActiveRecord::ConnectionNotEstablished ActiveRecord::ConnectionTimeoutError ActiveRecord::NoDatabaseError].each do |error|
       config.action_dispatch.rescue_responses[error] = :service_unavailable
     end
-    config.x.show_error_details = %w[true 1].include?(ENV.fetch("CCI_SHOW_ERROR_DETAILS", "false").downcase)
+    config.x.show_error_details = CciConfiguration.current.dig("server", "show_error_details")
     config.exceptions_app = lambda do |env|
       # Invalid JSON/query parameters must not fail again in the error renderer.
       clean_env = env.merge("action_dispatch.request.parameters" => {},

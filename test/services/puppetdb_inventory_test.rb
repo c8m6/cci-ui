@@ -4,9 +4,9 @@ require "test_helper"
 
 class PuppetdbInventoryTest < ActiveSupport::TestCase
   setup do
-    @environment = { "PUPPETDB_ENABLED" => "true", "PUPPETDB_FACT_NAME" => "certificates" }
+    @environment = { "enabled" => true, "inventory.fact_name" => "certificates" }
     @record = store(issue.first)
-    @configuration = PuppetdbConfiguration.new(@environment)
+    @configuration = PuppetdbConfiguration.new(puppetdb_settings(@environment))
   end
 
   def row(host, value)
@@ -16,35 +16,34 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
   def refresh(rows, environment: @environment)
     connection = Object.new
     connection.define_singleton_method(:inventory) { |_query| rows }
-    PuppetdbInventory.refresh(environment: environment, connection: connection)
+    PuppetdbInventory.refresh(configuration: puppetdb_settings(environment), connection: connection)
   end
 
   test "disabled feature never queries PuppetDB or changes cached data" do
     @record.update!(puppetdb_hosts: ["old.example.test"], puppetdb_checked_at: 1.hour.ago)
     connection = Object.new
     connection.define_singleton_method(:inventory) { |_| raise "Unexpected PuppetDB request" }
-    PuppetdbInventory.refresh(environment: { "PUPPETDB_ENABLED" => "false", "PUPPETDB_URL" => "invalid" },
+    PuppetdbInventory.refresh(configuration: puppetdb_settings("enabled" => false, "url" => "invalid"),
       connection: connection)
     assert_equal ["old.example.test"], @record.reload.puppetdb_hosts
     assert_not PuppetdbConfiguration.enabled?({})
-    assert PuppetdbConfiguration.enabled?({ "PUPPETDB_ENABLED" => "1" })
-    assert_raises(PuppetdbConnection::Error) { PuppetdbConfiguration.enabled?({ "PUPPETDB_ENABLED" => "typo" }) }
+    assert PuppetdbConfiguration.enabled?("enabled" => true)
   end
 
   test "default query uses the configured anonymous fact name and custom query is passed unchanged" do
     assert_equal 'inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }',
       @configuration.query
-    environment = @environment.merge("PUPPETDB_FACT_NAME" => "example_certificates",
-      "PUPPETDB_QUERY" => 'inventory[certname,facts] { certname = "web.example.test" }')
+    environment = @environment.merge("inventory.fact_name" => "example_certificates",
+      "inventory.query" => 'inventory[certname,facts] { certname = "web.example.test" }')
     connection = Object.new
     received = []
     connection.define_singleton_method(:inventory) do |query|
       received << query
       []
     end
-    PuppetdbInventory.refresh(environment: environment, connection: connection)
-    assert_equal [environment.fetch("PUPPETDB_QUERY")], received
-    generated = PuppetdbConfiguration.new(environment.except("PUPPETDB_QUERY"))
+    PuppetdbInventory.refresh(configuration: puppetdb_settings(environment), connection: connection)
+    assert_equal [environment.fetch("inventory.query")], received
+    generated = PuppetdbConfiguration.new(puppetdb_settings(environment.except("inventory.query")))
     assert_includes generated.query, 'name = "example_certificates"'
   end
 
@@ -53,7 +52,7 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     assert_equal Digest::SHA1.hexdigest(cert.to_der), @record.sha1_fingerprint
     original_identity = @record.fingerprint
     other = store(issue(serial: 2).first)
-    environment = @environment.merge("PUPPETDB_FINGERPRINT_ALGORITHM" => "SHA-1")
+    environment = @environment.merge("inventory.fingerprint_algorithm" => "SHA-1")
     grouped = @record.sha1_fingerprint.upcase.scan(/../).join(":")
     refresh([row("sha1.example.test", [{ "fingerprint" => "SHA1 Fingerprint=#{grouped}" }])], environment: environment)
     assert_equal ["sha1.example.test"], @record.reload.puppetdb_hosts
@@ -64,7 +63,7 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     end
     assert_equal ["sha1.example.test"], @record.reload.puppetdb_hosts
     assert_raises(PuppetdbConnection::Error) do
-      PuppetdbConfiguration.new("PUPPETDB_FINGERPRINT_ALGORITHM" => "md5")
+      PuppetdbConfiguration.new(puppetdb_settings("inventory.fingerprint_algorithm" => "md5"))
     end
   end
 
@@ -72,12 +71,12 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     refresh([row("known.example.test", @record.fingerprint)])
     @record.reload.update!(sha1_fingerprint: nil)
     checked_at = @record.puppetdb_checked_at
-    refresh([], environment: @environment.merge("PUPPETDB_FINGERPRINT_ALGORITHM" => "sha1"))
+    refresh([], environment: @environment.merge("inventory.fingerprint_algorithm" => "sha1"))
     assert_equal ["known.example.test"], @record.reload.puppetdb_hosts
     assert_equal checked_at, @record.puppetdb_checked_at
     CatalogIndexer.refresh_consul
     assert @record.reload.sha1_fingerprint
-    refresh([], environment: @environment.merge("PUPPETDB_FINGERPRINT_ALGORITHM" => "sha1"))
+    refresh([], environment: @environment.merge("inventory.fingerprint_algorithm" => "sha1"))
     assert_empty @record.reload.puppetdb_hosts
   end
 
@@ -160,15 +159,15 @@ class PuppetdbInventoryTest < ActiveSupport::TestCase
     refresh([row("old.example.test", @record.fingerprint)])
     connection = Object.new
     connection.define_singleton_method(:inventory) { |_| raise PuppetdbConnection::Error, "Unavailable" }
-    assert_raises(PuppetdbConnection::Error) { PuppetdbInventory.refresh(environment: @environment, connection: connection) }
+    assert_raises(PuppetdbConnection::Error) { PuppetdbInventory.refresh(configuration: puppetdb_settings(@environment), connection: connection) }
     assert_equal ["old.example.test"], @record.reload.puppetdb_hosts
     assert_equal "active", @record.rollout_status
     assert_not @record.archived
   end
 
   test "fact name and fingerprint field can be configured without examining unrelated facts" do
-    configuration = PuppetdbConfiguration.new("PUPPETDB_FACT_NAME" => "example_inventory",
-      "PUPPETDB_FINGERPRINT_FIELD" => "sha256")
+    configuration = PuppetdbConfiguration.new(puppetdb_settings("inventory.fact_name" => "example_inventory",
+      "inventory.fingerprint_field" => "sha256"))
     rows = [{ "certname" => "web.example.test",
               "facts" => { "example_inventory" => { "cert.pem" => { "sha256" => @record.fingerprint } },
                            "certificates" => nil } }]

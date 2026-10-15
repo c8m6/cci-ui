@@ -29,7 +29,7 @@ identities and PuppetDB host associations. Detailed views are documented under
   versions, inspect certificate chains, and export PEM, DER, PKCS#12/PFX or JKS.
   Bulk and chain exports are available where applicable.
 - **Certificate requests:** create RSA or EC CSRs, retain encrypted request
-  keys, and publish matching issued certificates to Consul. Certificate issuance
+  keys, and publish matching issued certificates to one Consul area. Certificate issuance
   by a CA remains an external step.
 - **Infrastructure integration:** Puppet readers and Hiera output for
   certificate distribution, optional searchable PuppetDB host pages, and an always-active
@@ -41,7 +41,7 @@ identities and PuppetDB host associations. Detailed views are documented under
   Reader, Writer, Key Exporter, CSR and Auditor roles, encrypted keys for imports and certificate requests,
   and audit records for UI changes and exports.
 - **Operations:** container deployment, health checks, configurable expiry
-  warnings, optional area-specific Consul ACL tokens, a Zabbix 7.4 monitoring template, and German/English interfaces with
+  warnings, area-specific Consul clusters and ACL tokens, a Zabbix 7.4 monitoring template, and German/English interfaces with
   light and dark themes.
 
 For automated ACME issuance and renewal using this storage contract, see
@@ -55,20 +55,22 @@ processing; see [Puppet integration](docs/puppet.md).
 ## Quick start
 
 For local evaluation, install Docker Engine with Compose 2.24 or newer and Ruby
-for the secret setup helper. Allow approximately 2 GiB of RAM and a free local
+for the secret setup helper, and the Linux `setfacl` command (package `acl`)
+for granting the container user read access to the protected YAML file. Allow approximately 2 GiB of RAM and a free local
 port 3000.
 
 ```console
 git clone https://github.com/c8m6/cci-ui.git
 cd cci-ui
 ruby bin/setup-local
+setfacl -m u:10001:r config.yml
 docker compose -f compose.yml up --build -d --wait
 ```
 
 Open [http://localhost:3000](http://localhost:3000) and select a local test
 identity. Compose starts the application, indexer, PostgreSQL and Consul with
 example areas **Zone A** and **Zone B**. The initial inventory is empty unless
-you import certificates or add files under `data/`. Keep the generated `.env`
+you import certificates or add files under `data/`. Keep the generated `config.yml`
 secrets so stored private keys remain readable. The helper preserves existing
 configuration.
 
@@ -85,7 +87,7 @@ required configuration, image startup, backups and upgrades.
 | Topic | Guide |
 | --- | --- |
 | Installation and operations | [Local and production setup, Keycloak, backups and health checks](docs/installation.md) |
-| Configuration | [Environment variables](docs/environment.md) · [Inline production Compose example](docs/compose-full.md) |
+| Configuration | [YAML configuration](docs/configuration.md) · [Production Compose with external services](docs/compose-full.md) |
 | Certificates and permissions | [Architecture, roles, storage and audit logs](docs/technik.md) · [Filesystem deletion and recovery](docs/legacy-deletion.md) |
 | Certificate requests and CAs | [CSR workflow and key management](docs/csr.md) · [CA inventory and Hiera export](docs/ca-inventory.md) |
 | Consul clients | [Schema, version selection and Ruby import/read examples](docs/consul-schema.md) |

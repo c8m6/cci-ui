@@ -1,0 +1,29 @@
+# Synthetic production-boot smoke configuration; never deploy these credentials.
+areas:
+  zone_a:
+    encryption_key: cnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnI=
+    name: Zone A
+  zone_b:
+    encryption_key: c3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3M=
+    name: Zone B
+authentication:
+  mode: oidc
+  oidc:
+    issuer: https://keycloak.example.test/realms/cci
+    client_id: cci-ui
+    client_secret: synthetic-only
+    redirect_uri: https://localhost/auth/keycloak/callback
+consul:
+  url: http://cci-ruby4-consul:8500
+database:
+  host: cci-ruby4-postgres
+  name: certui_test
+  password: certui-test
+  username: certui
+version: 1
+server:
+  host: localhost
+  allowed_hosts:
+  - localhost
+  - 127.0.0.1
+  secret_key_base: synthetic-only-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

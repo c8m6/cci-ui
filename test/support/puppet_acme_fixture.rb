@@ -27,7 +27,7 @@ module PuppetAcmeFixture
   # Independent envelope producer using the module's documented byte lengths and AAD.
   def puppet_envelope(pem, certid)
     cipher = OpenSSL::Cipher.new("aes-256-gcm").encrypt
-    cipher.key = Base64.strict_decode64(ENV.fetch("ZONE_A_KEY"))
+    cipher.key = Base64.strict_decode64(settings["areas"]["zone_a"]["encryption_key"])
     iv = OpenSSL::Random.random_bytes(12)
     cipher.iv = iv
     cipher.auth_data = "cci:zone_a:#{certid}/1"

@@ -1,27 +1,40 @@
 # frozen_string_literal: true
 
 ENV["RAILS_ENV"] = "test"
-ENV["AUTH_MODE"] = "local"
+ENV["CCI_CONFIG_FILE"] ||= File.expand_path("config.yml", __dir__)
 require "securerandom"
 require "tmpdir"
 require "fileutils"
 require "json"
 TEST_LEGACY_ROOT = Dir.mktmpdir("cci-test-legacy-")
-ENV["CCI_AREAS"] = JSON.generate("zone_a" => "Zone A", "zone_b" => "Zone B")
-ENV["CCI_LEGACY_PATHS"] = JSON.generate("zone_a" => TEST_LEGACY_ROOT)
-ENV["CCI_AREA_KEYS"] = "{}"
-ENV["PUPPETDB_ENABLED"] = "false"
-ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = "sha256"
-ENV["CONSUL_PREFIX"] = "cci-test/#{SecureRandom.hex(8)}"
+require_relative "../lib/cci_configuration"
+CciConfiguration.current
+TEST_CONFIGURATION = Marshal.load(Marshal.dump(CciConfiguration.current))
+TEST_CONFIGURATION.fetch("areas").fetch("zone_a")["filesystem"] = { "legacy_path" => TEST_LEGACY_ROOT }
+TEST_CONFIGURATION.fetch("consul")["prefix"] = "cci-test/#{SecureRandom.hex(8)}"
+CciConfiguration.instance_variable_set(:@current, Marshal.load(Marshal.dump(TEST_CONFIGURATION)))
 require_relative "../config/environment"
 require "rails/test_help"
 ActiveRecord::Migration.maintain_test_schema!
 
 module CertificateFixtures
+  def settings = CciConfiguration.current.instance_variable_get(:@data)
+
   def configure_legacy_paths(paths)
-    AreaConfiguration.instance_variable_set(:@configuration,
-      AreaConfiguration.load_env("CCI_AREAS" => JSON.generate(AreaConfiguration.configuration.fetch("areas")),
-        "CCI_LEGACY_PATHS" => JSON.generate(paths)))
+    settings.fetch("areas").each do |id, area|
+      area.delete("filesystem")
+      area["filesystem"] = { "legacy_path" => paths.fetch(id) } if paths.key?(id)
+    end
+  end
+
+  def puppetdb_settings(values)
+    result = Marshal.load(Marshal.dump(TEST_CONFIGURATION.fetch("puppetdb")))
+    values.each do |path, value|
+      keys = path.split(".")
+      target = keys[0...-1].inject(result) { |node, key| node[key] ||= {} }
+      target[keys.last] = value
+    end
+    result
   end
 
   def issue(name: "portal.example.test", issuer: nil, issuer_key: nil, serial: 1, ca: false, expired: false)
@@ -67,8 +80,7 @@ module ActiveSupport
     include CertificateFixtures
 
     setup do
-      ENV["ZONE_A_KEY"] = Base64.strict_encode64("r" * 32)
-      ENV["ZONE_B_KEY"] = Base64.strict_encode64("s" * 32)
+      CciConfiguration.instance_variable_set(:@current, Marshal.load(Marshal.dump(TEST_CONFIGURATION)))
       clear_consul
     end
   end

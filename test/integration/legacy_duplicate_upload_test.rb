@@ -13,7 +13,7 @@ class LegacyDuplicateUploadTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    AreaConfiguration.instance_variable_set(:@configuration, @previous_legacy)
+    configure_legacy_paths(@previous_legacy.fetch("legacy_paths"))
     FileUtils.remove_entry(@directory)
   end
 

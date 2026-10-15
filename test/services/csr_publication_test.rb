@@ -6,32 +6,36 @@ require_relative "../support/csr_fixtures"
 class CsrPublicationTest < ActiveSupport::TestCase
   include CsrFixtures
 
-  test "one CSR publishes atomically to every selected area" do
+  test "new CSR operations reject multiple areas before storing or writing material" do
     identity = Identity.new(name: "multi-area", roles: %w[zone_a_csr zone_b_csr])
-    request = CsrWorkflow.create(csr_input.merge("areas" => %w[zone_a zone_b]), identity: identity)
-    entry = CsrUpload.call(request, data: issued_for(request).to_pem, identity: identity)
-
-    assert_equal "published", CsrPublication.new(entry, identity: identity).call.state
-    assert_equal({ "zone_a" => 1, "zone_b" => 1 }, entry.reload.consul_versions)
-    assert ConsulStore.certid_snapshot("zone_a", "portal")
-    assert ConsulStore.certid_snapshot("zone_b", "portal")
-    assert_equal %w[zone_a zone_b],
-      AuditEvent.where(action: "csr_publish", actor: "multi-area").order(:area).pluck(:area)
+    assert_no_difference ["CertificateRequest.count", "AuditEvent.count"] do
+      assert_raises(Certificates::Error) do
+        CsrWorkflow.create(csr_input.merge("areas" => %w[zone_a zone_b]), identity: identity)
+      end
+    end
+    assert_nil ConsulStore.certid_snapshot("zone_a", "portal")
+    assert_nil ConsulStore.certid_snapshot("zone_b", "portal")
   end
 
-  test "a multi-area CAS conflict leaves every selected area unchanged" do
+  test "historical multi-area requests remain stored and cannot be published again" do
+    request = create_csr
+    entry = upload_csr(request)
+    request.update!(target_areas: %w[zone_a zone_b])
     identity = Identity.new(name: "multi-area", roles: %w[zone_a_csr zone_b_csr])
-    existing, = issue(name: "existing.example.test")
-    store(existing, area: "zone_b", certid: "portal")
-    request = CsrWorkflow.create(csr_input.merge("areas" => %w[zone_a zone_b]), identity: identity)
-    entry = CsrUpload.call(request, data: issued_for(request).to_pem, identity: identity)
-
-    result = CsrPublication.new(entry, identity: identity).call(
-      expected_indices: { "zone_a" => 0, "zone_b" => 0 }, confirm_overwrite: true
-    )
-    assert_equal "failed", result.state
+    assert_raises(Certificates::Error) { CsrPublication.new(entry, identity: identity).call }
+    assert_equal %w[zone_a zone_b], request.reload.areas
     assert_nil ConsulStore.certid_snapshot("zone_a", "portal")
-    assert_equal 1, JSON.parse(ConsulStore.certid_snapshot("zone_b", "portal").fetch(:value)).fetch("latest_version")
+    assert_nil ConsulStore.certid_snapshot("zone_b", "portal")
+  end
+
+  test "a persisted intent for another area is refused without publishing" do
+    request = create_csr
+    entry = upload_csr(request)
+    entry.update!(prepared: { "areas" => { "zone_b" => { "version" => 1, "operations" => [] } } })
+    assert_equal "failed", CsrPublication.new(entry, identity: csr_identity).call.state
+    assert_nil ConsulStore.certid_snapshot("zone_a", "portal")
+    assert_nil ConsulStore.certid_snapshot("zone_b", "portal")
+    assert_equal ["zone_b"], entry.reload.prepared.fetch("areas").keys
   end
 
   test "matching certificate publishes once and retains the encrypted revoke password" do

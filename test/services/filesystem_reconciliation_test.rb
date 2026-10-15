@@ -18,8 +18,8 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
   end
 
   teardown do
-    AreaConfiguration.instance_variable_set(:@configuration, @previous_configuration)
-    FilesystemReconciliationConfiguration.instance_variable_set(:@configuration, @previous_settings)
+    configure_legacy_paths(@previous_configuration.fetch("legacy_paths"))
+    settings["certificates"]["reconciliation"] = @previous_settings
     FileUtils.remove_entry(@directory)
   end
 
@@ -376,8 +376,7 @@ class FilesystemReconciliationTest < ActiveSupport::TestCase
   test "disabled reconciliation leaves missing counters intact" do
     remove_files
     scan
-    FilesystemReconciliationConfiguration.instance_variable_set(:@configuration,
-      @previous_settings.merge("enabled" => false))
+    settings["certificates"]["reconciliation"] = @previous_settings.merge("enabled" => false)
     2.times { scan }
     assert_equal 1, @records.first.reload.filesystem_missing_scans
   end

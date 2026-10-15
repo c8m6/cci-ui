@@ -75,16 +75,16 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     assert_equal 2, Certificate.count
   end
 
-  test "multi area preview confirms only existing area certid and preserves status" do
+  test "one area preview preserves status and leaves independent areas unchanged" do
     ConsulStore.set_status(@record.area, @record.source_id, status: "norollout", actor: "test",
       expected_certid_index: ConsulStore.status_snapshot(@record)[:index])
     post local_login_path, params: { identity: "all:writer" }
-    token = preview(areas: %w[zone_a zone_b])
+    token = preview(areas: ["zone_a"])
     assert_select ".preview-entry .flash-error", count: 1
     post imports_path, params: { token: token, confirm_overwrite: "1" }
     assert_redirected_to root_path
     assert_equal "norollout", Certificate.find_by!(area: "zone_a", active: true).rollout_status
-    assert_equal "active", Certificate.find_by!(area: "zone_b", active: true).rollout_status
+    assert_not Certificate.exists?(area: "zone_b")
   end
 
   test "writer changes status and readers can filter but cannot edit" do
@@ -148,6 +148,6 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       assert_equal content, File.read(path)
     end
   ensure
-    AreaConfiguration.instance_variable_set(:@configuration, previous)
+    configure_legacy_paths(previous.fetch("legacy_paths"))
   end
 end

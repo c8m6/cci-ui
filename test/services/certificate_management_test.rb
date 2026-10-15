@@ -55,7 +55,7 @@ class CertificateManagementTest < ActiveSupport::TestCase
     assert_equal 12, Base64.strict_decode64(generated.fetch("iv")).bytesize
     assert_equal 16, Base64.strict_decode64(generated.fetch("tag")).bytesize
     cipher = OpenSSL::Cipher.new("aes-256-gcm").decrypt
-    cipher.key = Base64.strict_decode64(ENV.fetch("ZONE_A_KEY"))
+    cipher.key = Base64.strict_decode64(settings["areas"]["zone_a"]["encryption_key"])
     cipher.iv = Base64.strict_decode64(generated.fetch("iv"))
     cipher.auth_tag = Base64.strict_decode64(generated.fetch("tag"))
     cipher.auth_data = "cci:zone_a:automated/1"

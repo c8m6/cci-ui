@@ -115,15 +115,11 @@ The adapter requires Ruby standard libraries and OpenSSL, not Rails gems.
 The copied Ruby files are generated from `lib/`; edit the originals there
 and run `bin/package-puppet` again.
 
-Set the following in the compiler process environment:
-
-```text
-CCI_CONSUL_URL=https://consul.example.internal:8501
-CCI_CONSUL_PREFIX=cci
-CCI_ZONE_A_CONSUL_TOKEN=<ACL token for the example area zone_a>
-CCI_AREA_KEYS={"zone_a":"<Base64 secret; required only for private-key distribution>"}
-CONSUL_CA_FILE=/etc/ssl/certs/consul-ca.pem
-```
+Set `CCI_CONFIG_FILE=/etc/cci/config.yml` in the compiler process environment.
+Provide the same central YAML schema with protected area keys, Consul credentials
+and TLS paths visible to that compiler. The bundled client uses the effective
+per-area cluster and prefix without Rails or a second configuration resolver.
+Only Bootstrap and build metadata remain environment based.
 
 Supply tokens and secrets through your secret-management system, not plaintext
 Hiera or catalog parameters. Distributed private keys are marked `Sensitive`
@@ -209,7 +205,7 @@ test prefix and uses temporary target files. With local Puppet 8 and an isolated
 Consul instance, run:
 
 ```console
-CCI_CONSUL_URL=http://127.0.0.1:8500 ruby test/puppet_idempotence.rb
+CCI_CONFIG_FILE=test/config.yml ruby test/puppet_idempotence.rb
 ```
 
 Expected exit codes from the Puppet runs are `2` (initial change), `0`
@@ -222,14 +218,8 @@ removed afterward. Do not use a production Consul instance for this test.
 `area` is an ID from the application's area configuration. The module has no
 fixed area list. It accepts the same ID format: up to 48 lowercase letters,
 digits or underscores, starting with a letter. Each ID uses
-`CCI_<UPPERCASE_AREA_ID>_CONSUL_TOKEN` and, for private-key distribution,
-`CCI_AREA_KEYS` (or the per-area `<UPPERCASE_AREA_ID>_KEY` fallback). Consul
-ACLs enforce compiler access. Examples use
-`zone_a`; existing deployments retain their configured IDs.
-
-The bundled Ruby client's central token resolver also accepts
-`CCI_CONSUL_TOKENS` (see [area credentials](environment.md#area-scoped-consul-credentials)).
-Its area entry takes precedence over the bundled function's existing
-`CCI_<AREA>_CONSUL_TOKEN` fallback, followed by `CONSUL_TOKEN` and anonymous access.
-This concerns the bundled `cci` client; external implementations configure their
-own credentials independently.
+`areas.<id>.consul.token` and, for private-key distribution,
+`areas.<id>.encryption_key` from the compiler's protected YAML snapshot.
+Consul ACL failures never retry with a global or another area's token.
+The same per-area URL, prefix, CA and token inheritance applies to the bundled
+Puppet client, Rails and standalone helpers. See [YAML configuration](configuration.md).

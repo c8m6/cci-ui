@@ -14,15 +14,16 @@ class ConsulConnection
   class Conflict < Error; end
   class AclError < Error; end
 
-  def initialize(url: ENV.fetch("CONSUL_URL", "http://127.0.0.1:8500"), token: ENV.fetch("CONSUL_TOKEN", ""),
-                 area: nil, prefix: ENV.fetch("CONSUL_PREFIX", "cci"))
-    @base = URI(url)
+  def initialize(url: nil, token: nil, area: nil, prefix: nil, ca_file: nil)
+    settings = CciConfiguration.current.consul(area)
+    @base = URI(url || settings.fetch("url"))
     raise Error, "Consul requires an HTTP(S) URL without credentials." unless %w[http
       https].include?(@base.scheme) && @base.host && !@base.userinfo
 
     @area = area
-    @scope = "#{prefix}/#{area}/" if area
-    @token = area ? ConsulTokens.resolve(area, fallback: token) : token
+    @scope = "#{prefix || settings.fetch("prefix")}/#{area}/" if area
+    @token = token || settings.fetch("token")
+    @ca_file = ca_file || settings.fetch("ca_file")
   end
 
   def request(method, path, body: nil, missing: false)
@@ -33,7 +34,8 @@ class ConsulConnection
     http.open_timeout = 3
     http.read_timeout = 10
     http.write_timeout = 10
-    http.ca_file = ENV.fetch("CONSUL_CA_FILE", nil) unless ENV["CONSUL_CA_FILE"].to_s.empty?
+    http.max_retries = 0
+    http.ca_file = @ca_file unless @ca_file.empty?
     request = Net::HTTP.const_get(method.capitalize).new(uri)
     request["X-Consul-Token"] = @token unless @token.empty?
     request["Content-Type"] = "application/json"

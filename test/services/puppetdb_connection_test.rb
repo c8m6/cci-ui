@@ -4,6 +4,8 @@ require "test_helper"
 require "socket"
 
 class PuppetdbConnectionTest < ActiveSupport::TestCase
+  def connection(values) = PuppetdbConnection.new(configuration: puppetdb_settings(values))
+
   def with_server(body:, status: 200, headers: {}, tls: nil)
     socket = TCPServer.new("127.0.0.1", 0)
     listener = tls ? OpenSSL::SSL::SSLServer.new(socket, tls) : socket
@@ -41,7 +43,7 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
     query = 'inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }'
     rows = [{ "certname" => "web.example.test", "facts" => { "certificates" => [] } }]
     with_server(body: JSON.generate(rows), headers: { "X-Records" => "1" }) do |url, requests|
-      connection = PuppetdbConnection.new(environment: { "PUPPETDB_URL" => "#{url}/proxy/" })
+      connection = connection({ "url" => "#{url}/proxy/" })
       LogContext.with(request_id: "puppetdb-request") { assert_equal rows, connection.inventory(query) }
       line, headers, body = requests.pop
       assert_equal "POST /proxy/pdb/query/v4?include_total=true HTTP/1.1\r\n", line
@@ -55,7 +57,7 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
   test "limited probes can omit total verification" do
     rows = [{ "certname" => "web.example.test" }]
     with_server(body: JSON.generate(rows), headers: { "X-Records" => "27" }) do |url, requests|
-      connection = PuppetdbConnection.new(environment: { "PUPPETDB_URL" => url })
+      connection = connection({ "url" => url })
       assert_equal rows, connection.inventory("nodes[certname] { limit 1 }", verify_total: false)
       assert_equal "POST /pdb/query/v4 HTTP/1.1\r\n", requests.pop.first
     end
@@ -72,8 +74,8 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
       { body: "#{" " * 20}[]" }
     ].each do |response|
       with_server(**response) do |url, _|
-        connection = PuppetdbConnection.new(environment: { "PUPPETDB_URL" => url,
-                                                           "PUPPETDB_MAX_RESPONSE_BYTES" => "10" })
+        connection = connection({ "url" => url,
+                                                           "request.max_response_bytes" => "10" })
         error = assert_raises(PuppetdbConnection::Error) { connection.inventory("inventory {}") }
         assert_not_includes error.message, "private response detail"
       end
@@ -83,13 +85,13 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
   test "connection settings reject invalid URLs credentials over HTTP and invalid limits" do
     ["", "file:///tmp/secret", "https://user:password@example.test", "https://example.test?token=secret",
       "https://example.test#fragment"].each do |url|
-      error = assert_raises(PuppetdbConnection::Error) { PuppetdbConnection.new(environment: { "PUPPETDB_URL" => url }) }
+      error = assert_raises(PuppetdbConnection::Error) { connection({ "url" => url }) }
       assert_not_includes error.message, "password"
       assert_not_includes error.message, "secret"
     end
-    [{ "PUPPETDB_TOKEN" => "secret" }, { "PUPPETDB_CLIENT_CERT_FILE" => "/tmp/cert" },
-      { "PUPPETDB_TIMEOUT" => "0" }, { "PUPPETDB_MAX_RESPONSE_BYTES" => "bad" }].each do |settings|
-      assert_raises(PuppetdbConnection::Error) { PuppetdbConnection.new(environment: { "PUPPETDB_URL" => "http://example.test" }.merge(settings)) }
+    [{ "authentication.token" => "secret" }, { "tls.cert_file" => "/tmp/cert" },
+      { "request.timeout" => "0" }, { "request.max_response_bytes" => "bad" }].each do |settings|
+      assert_raises(PuppetdbConnection::Error) { connection({ "url" => "http://example.test" }.merge(settings)) }
     end
   end
 
@@ -113,16 +115,16 @@ class PuppetdbConnectionTest < ActiveSupport::TestCase
         "client.key" => client_key.private_to_pem }.each do |name, value|
         File.write(File.join(dir, name), value)
       end
-      settings = { "PUPPETDB_CA_FILE" => File.join(dir, "ca.pem"), "PUPPETDB_CLIENT_CERT_FILE" => File.join(dir, "client.pem"),
-                   "PUPPETDB_CLIENT_KEY_FILE" => File.join(dir, "client.key"), "PUPPETDB_TOKEN" => "test-token" }
+      settings = { "tls.ca_file" => File.join(dir, "ca.pem"), "tls.cert_file" => File.join(dir, "client.pem"),
+                   "tls.key_file" => File.join(dir, "client.key"), "authentication.token" => "test-token" }
       with_server(body: "[]", tls: context) do |url, requests|
         assert_equal [],
-          PuppetdbConnection.new(environment: settings.merge("PUPPETDB_URL" => url)).inventory("inventory {}")
+          connection(settings.merge("url" => url)).inventory("inventory {}")
         assert_equal "test-token", requests.pop[1]["x-authentication"]
       end
       with_server(body: "[]", tls: context) do |url, _|
         assert_raises(PuppetdbConnection::Error) do
-          PuppetdbConnection.new(environment: settings.except("PUPPETDB_CA_FILE").merge("PUPPETDB_URL" => url)).inventory("inventory {}")
+          connection(settings.except("tls.ca_file").merge("url" => url)).inventory("inventory {}")
         end
       end
     end

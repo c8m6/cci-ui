@@ -25,12 +25,12 @@ class CsrWorkflowTest < ActiveSupport::TestCase
   end
 
   test "defaults are configurable and explicit input overrides them" do
-    original = ENV.fetch("CSR_DEFAULT_ORGANIZATION", nil)
-    ENV["CSR_DEFAULT_ORGANIZATION"] = "Configured org"
+    original = settings["csr"]["defaults"]["organization"]
+    settings["csr"]["defaults"]["organization"] = "Configured org"
     assert_equal "Configured org", create_csr.subject_fields["organization"]
     assert_equal "Custom org", create_csr(organization: "Custom org").subject_fields["organization"]
   ensure
-    ENV["CSR_DEFAULT_ORGANIZATION"] = original
+    settings["csr"]["defaults"]["organization"] = original
   end
 
   test "names normalize and deduplicate while invalid SANs and subjects fail closed" do
@@ -47,9 +47,9 @@ class CsrWorkflowTest < ActiveSupport::TestCase
 
   test "missing malformed and changed encryption keys never produce plaintext persistence" do
     request = create_csr
-    original = ENV.fetch("ZONE_A_KEY")
+    original = settings["areas"]["zone_a"]["encryption_key"]
     [nil, "invalid", Base64.strict_encode64("x" * 32)].each do |key|
-      ENV["ZONE_A_KEY"] = key
+      settings["areas"]["zone_a"]["encryption_key"] = key
       assert_raises(Certificates::Error) { CsrSecrets.decrypt(request, "revoke") }
       next if key&.length == original.length
 
@@ -58,7 +58,7 @@ class CsrWorkflowTest < ActiveSupport::TestCase
       end
     end
   ensure
-    ENV["ZONE_A_KEY"] = original
+    settings["areas"]["zone_a"]["encryption_key"] = original
   end
 
   test "roles and explicit disclosure confirmation are required" do

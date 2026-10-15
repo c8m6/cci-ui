@@ -4,8 +4,8 @@ require "test_helper"
 
 class PuppetdbHostsTest < ActionDispatch::IntegrationTest
   setup do
-    @previous_enabled = ENV.fetch("PUPPETDB_ENABLED", nil)
-    @previous_algorithm = ENV.fetch("PUPPETDB_FINGERPRINT_ALGORITHM", nil)
+    @previous_enabled = settings["puppetdb"]["enabled"]
+    @previous_algorithm = settings["puppetdb"]["inventory"]["fingerprint_algorithm"]
     @previous_connection = PuppetdbConnection.method(:new)
     connection = Object.new
     connection.define_singleton_method(:inventory) { |_query| [] }
@@ -16,18 +16,18 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
 
   teardown do
     PuppetdbConnection.define_singleton_method(:new, @previous_connection)
-    ENV["PUPPETDB_ENABLED"] = @previous_enabled
-    ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = @previous_algorithm
+    settings["puppetdb"]["enabled"] = @previous_enabled
+    settings["puppetdb"]["inventory"]["fingerprint_algorithm"] = @previous_algorithm
   end
 
   test "host counts and detail lists are optional and use stored inventory" do
     @record.update!(puppetdb_hosts: %w[app01.example.test app02.example.test], puppetdb_checked_at: Time.current)
-    ENV["PUPPETDB_ENABLED"] = "false"
+    settings["puppetdb"]["enabled"] = false
     get root_path
     assert_select "th", text: "Hosts", count: 0
     get certificate_path(@record)
     assert_select "#puppetdb-hosts", count: 0
-    ENV["PUPPETDB_ENABLED"] = "true"
+    settings["puppetdb"]["enabled"] = true
     get root_path
     assert_select "th", text: "Hosts", count: 1
     assert_select ".puppetdb-host-count a", text: "2"
@@ -39,7 +39,7 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
   end
 
   test "unknown empty and failed queries remain distinguishable" do
-    ENV["PUPPETDB_ENABLED"] = "true"
+    settings["puppetdb"]["enabled"] = true
     get root_path
     assert_select ".puppetdb-host-count", text: "–"
     get certificate_path(@record)
@@ -59,7 +59,7 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
   end
 
   test "archived records show escaped hostnames while foreign certificate details stay inaccessible" do
-    ENV["PUPPETDB_ENABLED"] = "true"
+    settings["puppetdb"]["enabled"] = true
     host = "<script>alert(1)</script>"
     @record.update!(archived: true, rollout_status: "delete", puppetdb_hosts: [host], puppetdb_checked_at: Time.current)
     get certificate_path(@record)
@@ -71,8 +71,8 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
   end
 
   test "missing configured digest is shown as unknown rather than a confirmed zero hosts" do
-    ENV["PUPPETDB_ENABLED"] = "true"
-    ENV["PUPPETDB_FINGERPRINT_ALGORITHM"] = "sha1"
+    settings["puppetdb"]["enabled"] = true
+    settings["puppetdb"]["inventory"]["fingerprint_algorithm"] = "sha1"
     @record.update!(sha1_fingerprint: nil)
     get root_path
     assert_select ".puppetdb-host-count a", count: 0

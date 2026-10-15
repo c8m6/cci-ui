@@ -48,7 +48,7 @@ class CertificateProvenanceTest < ActiveSupport::TestCase
     assert_nil record.created_by
     assert_equal "Unbekannt (keine Client-Angabe)", record.origin_label
     assert_equal "Dateibestand", Certificate.new(source: "filesystem").origin_label
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace)
     assert_equal data["pem"], reader.read_certificate(area: record.area, certid: record.certid)
   end
 
@@ -75,8 +75,8 @@ class CertificateProvenanceTest < ActiveSupport::TestCase
     assert_equal "service-account", record.created_by
     assert_equal ["Example"], record.tags
     assert CertificateMaterial.load(record, private_key: true)[:certificate].check_private_key(key)
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      keys: { "zone_a" => settings["areas"]["zone_a"]["encryption_key"] })
     assert_equal "puppet",
       reader.read_certificate(area: "zone_a", certid: "ruby-example", field: "metadata")["client"]
     assert cert.check_private_key(OpenSSL::PKey.read(reader.read_certificate(area: "zone_a", certid: "ruby-example",

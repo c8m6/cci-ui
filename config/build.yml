@@ -1,0 +1,18 @@
+# Synthetic asset compilation configuration, without live service access.
+areas:
+  zone_a:
+    encryption_key: cnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnI=
+    name: Zone A
+  zone_b:
+    encryption_key: c3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3M=
+    name: Zone B
+authentication:
+  mode: local
+consul:
+  url: http://127.0.0.1:8500
+database:
+  host: 127.0.0.1
+  name: cci_build
+  password: certui-test
+  username: certui
+version: 1

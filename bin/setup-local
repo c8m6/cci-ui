@@ -3,35 +3,27 @@
 
 require "securerandom"
 require "base64"
-require "json"
-require "shellwords"
-require_relative "../lib/area_configuration"
+require "yaml"
 
 abort "Usage: ruby bin/setup-local [--stdout]" unless ARGV.empty? || ARGV == ["--stdout"]
-path = File.expand_path("../.env", __dir__)
+path = File.expand_path("../config.yml", __dir__)
 if ARGV.empty? && File.exist?(path)
-  puts ".env already exists and will be preserved."
+  puts "config.yml already exists and will be preserved."
   exit
 end
-configuration = AreaConfiguration.load_env({
-  "CCI_AREAS" => ENV.fetch("CCI_AREAS",
-    '{"zone_a":"Zone A","zone_b":"Zone B"}'),
-  "CCI_LEGACY_PATHS" => ENV.fetch("CCI_LEGACY_PATHS",
-    ENV.key?("CCI_AREAS") ? "{}" : '{"zone_a":"/legacy"}')
-})
 settings = {
-  "AUTH_MODE" => "local",
-  "CCI_AREAS" => JSON.generate(configuration.fetch("areas")),
-  "CCI_LEGACY_PATHS" => JSON.generate(configuration.fetch("legacy_paths")),
-  "CCI_AREA_KEYS" => JSON.generate(configuration.fetch("areas").keys.to_h do |area|
-    [area, Base64.strict_encode64(SecureRandom.random_bytes(32))]
-  end)
+  "version" => 1,
+  "authentication" => { "mode" => "local" },
+  "server" => { "secret_key_base" => SecureRandom.hex(64) },
+  "database" => { "host" => "db", "name" => "certui_development", "username" => "certui", "password" => "certui" },
+  "consul" => { "url" => "http://consul:8500" },
+  "areas" => { "zone_a" => { "name" => "Zone A", "filesystem" => { "legacy_path" => "/legacy" } },
+               "zone_b" => { "name" => "Zone B" } }
 }
+settings["areas"].each_value { |area| area["encryption_key"] = Base64.strict_encode64(SecureRandom.random_bytes(32)) }
 if ARGV == ["--stdout"]
-  settings.each { |key, value| puts "export #{key}=#{Shellwords.escape(value)}" }
+  puts YAML.dump(settings)
 else
-  File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
-    settings.each { |key, value| file.puts "#{key}='#{value.gsub("'") { "\\'" }}'" }
-  end
-  puts "Created local .env with separate area keys."
+  File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(YAML.dump(settings)) }
+  puts "Created local config.yml. Preserve its keys; existing ENV configuration must be migrated manually."
 end

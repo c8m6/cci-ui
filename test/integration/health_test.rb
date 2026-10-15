@@ -4,14 +4,14 @@ require "test_helper"
 
 class HealthTest < ActionDispatch::IntegrationTest
   setup do
-    @original_health_token = ENV.fetch("CCI_HEALTH_TOKEN", nil)
-    ENV["CCI_HEALTH_TOKEN"] = "synthetic-health-token-for-tests"
+    @original_health_token = settings["server"]["health_token"]
+    settings["server"]["health_token"] = "synthetic-health-token-for-tests"
     @original_cache = HealthController.cache
     HealthController.instance_variable_set(:@cache, HealthCheckCache.new)
   end
 
   teardown do
-    ENV["CCI_HEALTH_TOKEN"] = @original_health_token
+    settings["server"]["health_token"] = @original_health_token
     HealthController.instance_variable_set(:@cache, @original_cache)
   end
 
@@ -57,24 +57,24 @@ class HealthTest < ActionDispatch::IntegrationTest
     original = ApplicationHealth.method(:check)
     ApplicationHealth.define_singleton_method(:check) { raise "Dependency check must not run" }
 
-    ENV.delete("CCI_HEALTH_TOKEN")
+    settings["server"]["health_token"] = ""
     get "/health", headers: { "Authorization" => "Bearer synthetic-health-token-for-tests" }
     assert_response :service_unavailable
     assert_equal "no-store", response.headers["Cache-Control"]
     assert_empty response.body
 
-    ENV["CCI_HEALTH_TOKEN"] = " "
+    settings["server"]["health_token"] = " "
     get "/health", headers: authorization
     assert_response :service_unavailable
 
-    ENV["CCI_HEALTH_TOKEN"] = "synthetic-health-token-for-tests"
-    [nil, "Bearer", "Basic invalid", "Bearer wrong", "Bearer #{ENV.fetch("CCI_HEALTH_TOKEN")} extra"].each do |header|
+    settings["server"]["health_token"] = "synthetic-health-token-for-tests"
+    [nil, "Bearer", "Basic invalid", "Bearer wrong", "Bearer #{settings["server"]["health_token"]} extra"].each do |header|
       get "/health", headers: { "Authorization" => header }.compact
       assert_response :unauthorized
       assert_equal "Bearer", response.headers["WWW-Authenticate"]
       assert_equal "no-store", response.headers["Cache-Control"]
       assert_empty response.body
-      refute_includes response.body, ENV.fetch("CCI_HEALTH_TOKEN")
+      refute_includes response.body, settings["server"]["health_token"]
     end
   ensure
     ApplicationHealth.define_singleton_method(:check, original) if original
@@ -118,18 +118,17 @@ class HealthTest < ActionDispatch::IntegrationTest
     get "/ready"
     assert_response :ok
   ensure
-    AreaConfiguration.instance_variable_set(:@configuration, original)
+    configure_legacy_paths(original.fetch("legacy_paths"))
   end
 
   test "optional services are checked only when enabled" do
-    previous = ENV.to_h.slice("PUPPETDB_ENABLED", "PUPPETDB_URL", "AUTH_MODE", "OIDC_ISSUER")
-    ENV["PUPPETDB_ENABLED"] = "false"
-    ENV["PUPPETDB_URL"] = "invalid"
-    ENV["AUTH_MODE"] = "local"
-    ENV["OIDC_ISSUER"] = "invalid"
+    settings["puppetdb"]["enabled"] = false
+    settings["puppetdb"]["url"] = "invalid"
+    settings["authentication"]["mode"] = "local"
+    settings["authentication"]["oidc"]["issuer"] = "invalid"
     assert_empty ApplicationHealth.check
-    ENV["PUPPETDB_ENABLED"] = "true"
-    ENV["AUTH_MODE"] = "oidc"
+    settings["puppetdb"]["enabled"] = true
+    settings["authentication"]["mode"] = "oidc"
     failures = ApplicationHealth.check
     assert failures.key?("puppetdb")
     assert failures.key?("oidc")
@@ -137,10 +136,6 @@ class HealthTest < ActionDispatch::IntegrationTest
     assert_response :ok
     get login_path
     assert_response :ok
-  ensure
-    %w[PUPPETDB_ENABLED PUPPETDB_URL AUTH_MODE OIDC_ISSUER].each do |key|
-      previous.key?(key) ? ENV[key] = previous[key] : ENV.delete(key)
-    end
   end
 
   test "database and Consul failures are collected independently" do
@@ -161,6 +156,6 @@ class HealthTest < ActionDispatch::IntegrationTest
   private
 
   def authorization
-    { "Authorization" => "Bearer #{ENV.fetch("CCI_HEALTH_TOKEN")}" }
+    { "Authorization" => "Bearer #{settings["server"]["health_token"]}" }
   end
 end

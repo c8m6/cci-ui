@@ -24,22 +24,20 @@ flowchart TD
 ## Enable the endpoint
 
 Generate a high-entropy token with `openssl rand -hex 32`. Store the result in
-secret management and inject it into the **web** process:
+secret management and reference it in the shared YAML configuration:
 
-```dotenv
-CCI_ZABBIX_INTEGRATION_ENABLED=true
-CCI_ZABBIX_INTEGRATION_TOKEN=<generated token>
-CCI_ZABBIX_CERTIFICATE_SOURCES=consul
+```yaml
+integrations:
+  zabbix:
+    enabled: true
+    token:
+      file: /run/secrets/zabbix-token
+    certificate_sources: consul
 ```
 
-The default is `CCI_ZABBIX_INTEGRATION_ENABLED=false` and an empty token.
-Only `true` (case insensitive) enables the integration. Missing or whitespace-only
-tokens leave the endpoint unavailable and produce a configuration error at boot,
-without printing the token. Restart/recreate web containers after configuration
-changes. The supplied development and production Compose files forward these
-variables. Their shared environment also passes them to other Rails processes,
-which do not need the integration token. The inline full Compose example keeps
-these settings on the web service.
+The default is disabled with an empty token. Enabling without a nonempty token
+stops startup. Web, indexer and migration tasks validate the same configuration;
+mount referenced files read-only in every consumer. Restart after changes.
 
 Use HTTPS in production. Allow the Zabbix server or assigned proxy to reach CCI.
 Preserve the `Authorization` header through reverse proxies, and exclude this
@@ -116,7 +114,7 @@ for the default 20% guard, source association and controlled mass cleanup.
 
 ### Sources and duplicate certificates
 
-`CCI_ZABBIX_CERTIFICATE_SOURCES` selects existing catalogue records for monitoring:
+`integrations.zabbix.certificate_sources` selects existing catalogue records for monitoring:
 
 | Value | Scope |
 | --- | --- |
@@ -184,7 +182,7 @@ required. This mapping does not prove that renewal automation is working.
 | Macro | Value |
 | --- | --- |
 | `{$CCI.URL}` | CCI base URL, e.g. `https://cci.example.com`, without a trailing slash |
-| `{$CCI.ZABBIX.TOKEN}` | Same token as `CCI_ZABBIX_INTEGRATION_TOKEN`, type **Secret text** (`SECRET_TEXT` in YAML) |
+| `{$CCI.ZABBIX.TOKEN}` | Same token as `integrations.zabbix.token`, type **Secret text** (`SECRET_TEXT` in YAML) |
 | `{$CCI.CERT.MIN.COUNT}` | Optional minimum expected inventory size, default `0` |
 
 The template ships no token. Zabbix server/proxy TLS trust must include the CCI

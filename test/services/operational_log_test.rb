@@ -30,8 +30,8 @@ class OperationalLogTest < ActiveSupport::TestCase
   end
 
   test "exceptions include structured causes and redact configured credentials" do
-    previous = ENV.fetch("OIDC_CLIENT_SECRET", nil)
-    ENV["OIDC_CLIENT_SECRET"] = "secret-token-value"
+    previous = settings["authentication"]["oidc"]["client_secret"]
+    settings["authentication"]["oidc"]["client_secret"] = "secret-token-value"
     error = begin
       begin
         raise OpenSSL::SSL::SSLError, "certificate verify failed secret-token-value"
@@ -51,7 +51,7 @@ class OperationalLogTest < ActiveSupport::TestCase
     assert_not_includes event.to_json, "secret-token-value"
     assert event["stacktrace"].is_a?(Array)
   ensure
-    previous ? ENV["OIDC_CLIENT_SECRET"] = previous : ENV.delete("OIDC_CLIENT_SECRET")
+    settings["authentication"]["oidc"]["client_secret"] = previous || nil
   end
 
   test "database writes do not emit SQL or generic model events" do
@@ -232,8 +232,8 @@ class OperationalLogTest < ActiveSupport::TestCase
   end
 
   test "formatter removes credentials PEM data OIDC queries and JWTs" do
-    previous = ENV.fetch("OIDC_CLIENT_SECRET", nil)
-    ENV["OIDC_CLIENT_SECRET"] = "test-secret-value"
+    previous = settings["authentication"]["oidc"]["client_secret"]
+    settings["authentication"]["oidc"]["client_secret"] = "test-secret-value"
     formatter = ContainerLogFormatter.new
     message = "test-secret-value https://keycloak.test/auth?code=private-code&state=private-state " \
               "eyJheader.payload.signature -----BEGIN PRIVATE KEY-----\nprivate-key-data\n-----END PRIVATE KEY-----"
@@ -244,7 +244,7 @@ class OperationalLogTest < ActiveSupport::TestCase
       assert_not_includes output, value
     end
   ensure
-    previous ? ENV["OIDC_CLIENT_SECRET"] = previous : ENV.delete("OIDC_CLIENT_SECRET")
+    settings["authentication"]["oidc"]["client_secret"] = previous || nil
   end
 
   test "framework exception strings become structured JSON errors" do
@@ -259,8 +259,8 @@ class OperationalLogTest < ActiveSupport::TestCase
   end
 
   test "Puma stdout and stderr use the application JSON schema" do
-    previous = ENV.fetch("LOG_LEVEL", nil)
-    ENV["LOG_LEVEL"] = "DEBUG"
+    previous = settings["server"]["log_level"]
+    settings["server"]["log_level"] = "DEBUG"
     output = StringIO.new
     PumaJsonOutput.new(output, level: "INFO").write("Puma started\n")
     PumaJsonOutput.new(output, level: "ERROR").write("listener failed\n")
@@ -271,12 +271,12 @@ class OperationalLogTest < ActiveSupport::TestCase
     assert_equal "PumaError", error["error_type"]
     assert_equal "listener failed", error["error_message"]
 
-    ENV["LOG_LEVEL"] = "ERROR"
+    settings["server"]["log_level"] = "ERROR"
     suppressed = StringIO.new
     assert_equal 0, PumaJsonOutput.new(suppressed, level: "INFO").write("hidden")
     assert_empty suppressed.string
   ensure
-    previous ? ENV["LOG_LEVEL"] = previous : ENV.delete("LOG_LEVEL")
+    settings["server"]["log_level"] = previous || "info"
   end
 
   test "invalid LOG_LEVEL falls back to INFO" do

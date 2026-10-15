@@ -980,3 +980,5 @@ main.full-width { max-width: none; }
 .host-table { table-layout: fixed; }
 .host-table th:first-child, .host-table td:first-child { width: 45%; }
 .host-table th:nth-child(2) { width: 18%; }
+
+.csr-form .area-choices .check-label { flex-direction: row; }

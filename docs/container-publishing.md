@@ -162,8 +162,8 @@ workflow. Event and tag filter behavior is described in the
 Select an existing tag from [GitHub Releases](https://github.com/c8m6/cci-ui/releases)
 and the [Docker Hub tag list](https://hub.docker.com/r/c8m6/cci-ui/tags). Replace
 `<release tag>` below with that exact tag. The release may be marked as a prerelease.
-Set the image alongside the existing production environment variables, either
-through the deployment environment or an optional environment file:
+Set the image alongside the protected production YAML configuration, either
+through a Compose infrastructure variable:
 
 ```dotenv
 CCI_IMAGE=c8m6/cci-ui:<release tag>

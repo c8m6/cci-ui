@@ -4,30 +4,22 @@ require "test_helper"
 
 class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
   setup do
-    @saved_environment = ENV.to_h.slice("CCI_ZABBIX_INTEGRATION_ENABLED", "CCI_ZABBIX_INTEGRATION_TOKEN", "CCI_ZABBIX_CERTIFICATE_SOURCES",
-      "AUTH_MODE")
-    ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = "true"
-    ENV["CCI_ZABBIX_INTEGRATION_TOKEN"] = "synthetic-monitoring-token-for-tests"
-    ENV["AUTH_MODE"] = "oidc"
-    ENV.delete("CCI_ZABBIX_CERTIFICATE_SOURCES")
-  end
-
-  teardown do
-    %w[CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN CCI_ZABBIX_CERTIFICATE_SOURCES AUTH_MODE].each do |name|
-      ENV[name] = @saved_environment[name]
-    end
+    settings["integrations"]["zabbix"]["enabled"] = true
+    settings["integrations"]["zabbix"]["token"] = "synthetic-monitoring-token-for-tests"
+    settings["authentication"]["mode"] = "oidc"
+    settings["integrations"]["zabbix"]["certificate_sources"] = "consul"
   end
 
   test "disabled or missing token configuration never exposes inventory" do
-    [nil, "false", "invalid", "1"].each do |flag|
-      ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = flag
+    [false].each do |flag|
+      settings["integrations"]["zabbix"]["enabled"] = flag
       get "/integrations/zabbix", headers: authorization
       assert_response :not_found
       assert_empty response.body
     end
-    ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = "true"
+    settings["integrations"]["zabbix"]["enabled"] = true
     [nil, "", " "].each do |token|
-      ENV["CCI_ZABBIX_INTEGRATION_TOKEN"] = token
+      settings["integrations"]["zabbix"]["token"] = token
       get "/integrations/zabbix"
       assert_response :not_found
     end
@@ -35,18 +27,18 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
 
   test "only a well formed header bearer token authenticates" do
     [nil, "Bearer", "Basic abc", "Bearer incorrect", "Bearer x", "Bearer #{"x" * 200}",
-      "Bearer #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")},other",
-      "Bearer  #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")}",
-      "Bearer #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")} extra"].each do |header|
+      "Bearer #{settings["integrations"]["zabbix"]["token"]},other",
+      "Bearer  #{settings["integrations"]["zabbix"]["token"]}",
+      "Bearer #{settings["integrations"]["zabbix"]["token"]} extra"].each do |header|
       get "/integrations/zabbix", headers: { "Authorization" => header }.compact
       assert_response :unauthorized
       assert_equal "Bearer", response.headers["WWW-Authenticate"]
       assert_empty response.body
       assert_nil response.headers["Set-Cookie"]
     end
-    get "/integrations/zabbix", params: { token: ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN") }
+    get "/integrations/zabbix", params: { token: settings["integrations"]["zabbix"]["token"] }
     assert_response :unauthorized
-    get "/integrations/zabbix", headers: { "Authorization" => "bearer #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")}" }
+    get "/integrations/zabbix", headers: { "Authorization" => "bearer #{settings["integrations"]["zabbix"]["token"]}" }
     assert_response :success
   end
 
@@ -72,7 +64,7 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
         "serial_number" => manual.serial, "valid_from" => cert.not_before.to_i, "valid_until" => cert.not_after.to_i,
         "renewal" => "manual" }, body.fetch("certificates").first)
       refute_includes response.body, key.private_to_pem
-      refute_includes response.body, ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")
+      refute_includes response.body, settings["integrations"]["zabbix"]["token"]
       refute_match(/private|password|secret|pem|csr|created_by|client|tags/, response.body)
       CatalogIndexer.new.consul
       get "/integrations/zabbix", headers: authorization
@@ -109,24 +101,17 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
     consul = store(issue.first)
     disk = CatalogIndexer.new.upsert(issue(serial: 2).first, area: "zone_a", source: "filesystem",
       source_id: "synthetic.pem#0", tags: [])
-    { nil => [consul.id], "consul" => [consul.id], "filesystem" => [disk.id],
+    { "consul" => [consul.id], "filesystem" => [disk.id],
       "both" => [consul.id, disk.id] }.each do |value, ids|
-      ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = value
+      settings["integrations"]["zabbix"]["certificate_sources"] = value
       get "/integrations/zabbix", headers: authorization
       assert_response :success
       assert_equal(ids, response.parsed_body.fetch("certificates").map { |entry| entry.fetch("id") })
     end
-    ["", "invalid", "CONSUL", "../legacy"].each do |value|
-      ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = value
-      assert_raises(ArgumentError) { ZabbixConfiguration.sources }
-      get "/integrations/zabbix", headers: authorization
-      assert_response :service_unavailable
-      assert_empty response.body
-    end
   end
 
   test "both deduplicates DER fingerprints across sources and areas with deterministic Consul precedence" do
-    ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = "both"
+    settings["integrations"]["zabbix"]["certificate_sources"] = "both"
     cert = issue.first
     disk = CatalogIndexer.new.upsert(cert, area: "zone_a", source: "filesystem", source_id: "first.pem#0", tags: [])
     consul = store(cert, client: "puppet")
@@ -163,7 +148,7 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
   end
 
   test "central filtering redacts the configured token even from exception text" do
-    token = ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")
+    token = settings["integrations"]["zabbix"]["token"]
     formatted = ContainerLogFormatter.new.call("ERROR", Time.current, nil,
       { message: "Failed with #{token}", authorization: "Bearer #{token}" })
     refute_includes formatted, token
@@ -177,7 +162,7 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
     original = CertificateMonitoring.method(:snapshot)
     previous_details = Rails.application.config.x.show_error_details
     Rails.application.config.x.show_error_details = true
-    token = ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")
+    token = settings["integrations"]["zabbix"]["token"]
     CertificateMonitoring.define_singleton_method(:snapshot) { raise "Synthetic failure #{token}" }
     get "/integrations/zabbix", headers: authorization
     assert_response :service_unavailable
@@ -192,6 +177,6 @@ class ZabbixIntegrationTest < ActionDispatch::IntegrationTest
   private
 
   def authorization
-    { "Authorization" => "Bearer #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")}" }
+    { "Authorization" => "Bearer #{settings["integrations"]["zabbix"]["token"]}" }
   end
 end

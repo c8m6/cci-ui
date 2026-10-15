@@ -5,13 +5,13 @@ require "cci_writer"
 # Coordinates certificate mutations, CAS checks and durable PostgreSQL audit records.
 class ConsulStore
   ROLLOUT_STATUSES = %w[active norollout delete].freeze
-  def self.namespace = ENV.fetch("CONSUL_PREFIX", "cci")
-  def self.client(area = nil) = ConsulConnection.new(area: area, prefix: namespace)
+  def self.namespace(area = nil) = CciConfiguration.current.consul(area).fetch("prefix")
+  def self.client(area = nil) = ConsulConnection.new(area: area)
 
   def self.prefix(area)
     raise Certificates::Error, I18n.t("errors.app.unknown_area") unless AreaConfiguration.ids.include?(area)
 
-    "#{namespace}/#{area}"
+    "#{namespace(area)}/#{area}"
   end
 
   def self.validate_certid!(certid)
@@ -74,7 +74,7 @@ class ConsulStore
     end
 
     prefix(area)
-    writer = CciWriter.new(connection: self.client(area), prefix: namespace)
+    writer = CciWriter.new(connection: self.client(area), prefix: namespace(area))
     prepared = writer.prepare(area: area, certid: certid, cert: cert, key: key, tags: tags,
       client: client, actor: actor, expected_index: expected_certid_index)
     id = "#{certid}/#{prepared.fetch(:version)}"

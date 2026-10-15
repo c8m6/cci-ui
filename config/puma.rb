@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
-threads_count = ENV.fetch("RAILS_MAX_THREADS", 5).to_i
+require_relative "../lib/cci_configuration"
+
+threads_count = CciConfiguration.current.dig("server", "threads")
 threads threads_count, threads_count
-port ENV.fetch("PORT", 3000)
+port CciConfiguration.current.dig("server", "port")
 environment ENV.fetch("RAILS_ENV", "development")
 plugin :tmp_restart
 quiet

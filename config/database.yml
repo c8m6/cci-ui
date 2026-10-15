@@ -1,14 +1,24 @@
+<% database = CciConfiguration.current.fetch("database") %>
 default: &default
   adapter: postgresql
   encoding: unicode
+  pool: <%= CciConfiguration.current.dig("server", "threads") %>
+  host: <%= database.fetch("host").to_json %>
+  port: <%= database.fetch("port") %>
+  database: <%= database.fetch("name").to_json %>
+  username: <%= database.fetch("username").to_json %>
+  password: <%= database.fetch("password").to_json %>
+<% %w[sslmode sslrootcert sslcert sslkey].each do |key| %>
+<% if database[key] %>
+  <%= key %>: <%= database[key].to_json %>
+<% end %>
+<% end %>
   connect_timeout: 3
   checkout_timeout: 3
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
-  url: <%= ENV.fetch("DATABASE_URL", "postgresql://certui:certui@127.0.0.1:55432/certui_development") %>
+
 development:
   <<: *default
 test:
   <<: *default
-  url: <%= ENV.fetch("TEST_DATABASE_URL", "postgresql://certui:certui@127.0.0.1:55432/certui_test") %>
 production:
   <<: *default

@@ -7,8 +7,8 @@ class WorkflowTest < ActionDispatch::IntegrationTest
 
   setup do
     clear_consul
-    ENV["ZONE_A_KEY"] = Base64.strict_encode64("r" * 32)
-    ENV["ZONE_B_KEY"] = Base64.strict_encode64("s" * 32)
+    settings["areas"]["zone_a"]["encryption_key"] = Base64.strict_encode64("r" * 32)
+    settings["areas"]["zone_b"]["encryption_key"] = Base64.strict_encode64("s" * 32)
     @cert, @key = issue
     @record = store(@cert, key: @key)
     @hidden = store(issue(name: "hidden.zone_b.test").first, area: "zone_b")
@@ -111,24 +111,20 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     assert_equal 2, Certificate.count
   end
 
-  test "upload to both areas requires both writer roles" do
-    login("zone_a_writer")
+  test "imports reject multiple target areas even with all writer roles" do
+    login("all:writer")
     post imports_path, params: { areas: %w[zone_a zone_b], pem: @cert.to_pem, certid: "both" }
     assert_response :see_other
     assert_equal 0, ImportDraft.count
-    login("all:writer")
-    post imports_path, params: { areas: %w[zone_a zone_b], pem: @cert.to_pem + @key.private_to_pem, certid: "both" }
-    assert_response :success
-    token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
-    post imports_path, params: { token: token }
-    assert_redirected_to root_path
-    assert_equal %w[zone_a zone_b], Certificate.where(certid: "both").order(:area).pluck(:area)
-    zone_a = Certificate.find_by!(certid: "both", area: "zone_a")
-    zone_b = Certificate.find_by!(certid: "both", area: "zone_b")
-    assert_equal "both/1", zone_a.source_id
-    assert_equal "both/1", zone_b.source_id
-    assert_not_equal zone_a.id, zone_b.id
-    assert CertificateMaterial.load(zone_b, private_key: true)[:certificate].check_private_key(@key)
+    assert_not Certificate.exists?(certid: "both")
+    %w[zone_a zone_b].each do |area|
+      post imports_path, params: { areas: [area], pem: @cert.to_pem + @key.private_to_pem, certid: "independent" }
+      assert_response :success
+      token = Nokogiri::HTML(response.body).at_css('input[name="token"]')["value"]
+      post imports_path, params: { token: token }
+      assert_redirected_to root_path
+    end
+    assert_equal %w[zone_a zone_b], Certificate.where(certid: "independent").order(:area).pluck(:area)
   end
 
   test "reader sees actual CertID identity and linked chain but no export controls or raw PEM" do
