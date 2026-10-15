@@ -23,12 +23,12 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
   test "host counts and detail lists are optional and use stored inventory" do
     @record.update!(puppetdb_hosts: %w[app01.example.test app02.example.test], puppetdb_checked_at: Time.current)
     settings["puppetdb"]["enabled"] = false
-    get root_path
+    get certificates_path
     assert_select "th", text: "Hosts", count: 0
     get certificate_path(@record)
     assert_select "#puppetdb-hosts", count: 0
     settings["puppetdb"]["enabled"] = true
-    get root_path
+    get certificates_path
     assert_select "th", text: "Hosts", count: 1
     assert_select ".puppetdb-host-count a", text: "2"
     get certificate_path(@record)
@@ -40,17 +40,17 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
 
   test "unknown empty and failed queries remain distinguishable" do
     settings["puppetdb"]["enabled"] = true
-    get root_path
+    get certificates_path
     assert_select ".puppetdb-host-count", text: "–"
     get certificate_path(@record)
     assert_includes response.body, "noch keine erfolgreiche PuppetDB-Abfrage"
     @record.update!(puppetdb_checked_at: Time.current)
-    get root_path
+    get certificates_path
     assert_select ".puppetdb-host-count a", text: "0"
     get certificate_path(@record)
     assert_includes response.body, "auf keinem Host gemeldet"
     @record.update!(puppetdb_hosts: ["cached.example.test"], puppetdb_error_at: Time.current)
-    get root_path
+    get certificates_path
     assert_select ".puppetdb-host-count a", text: "1"
     assert_includes response.body, "Abfrage fehlgeschlagen"
     get certificate_path(@record)
@@ -74,7 +74,7 @@ class PuppetdbHostsTest < ActionDispatch::IntegrationTest
     settings["puppetdb"]["enabled"] = true
     settings["puppetdb"]["inventory"]["fingerprint_algorithm"] = "sha1"
     @record.update!(sha1_fingerprint: nil)
-    get root_path
+    get certificates_path
     assert_select ".puppetdb-host-count a", count: 0
     assert_includes response.body, "Fingerprint fehlt"
     get certificate_path(@record)

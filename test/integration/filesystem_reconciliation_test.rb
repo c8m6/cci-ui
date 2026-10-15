@@ -44,7 +44,7 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
     assert_empty inventory.issues
     assert_not_includes monitored_ids, @record.id
     assert_equal 9, monitored_ids.size
-    get root_path
+    get certificates_path
     assert_response :success
     assert_select "a[href=?]", certificate_path(@record), count: 0
     get certificate_path(@record)

@@ -1,6 +1,7 @@
 ---
 en:
   ui:
+    my_cci_roles: My CCI roles
     copy: "Copy"
     copied: "Copied"
     copy_failed: "Copy unavailable. Select and copy the full value manually."
@@ -613,3 +614,23 @@ en:
     count:
       one: "1 host"
       other: "%{count} hosts"
+
+  dashboard:
+    title: Dashboard
+    scope: All retained certificate entries in your readable areas, including history and archives. Valid includes certificates expiring soon.
+    metrics:
+      total: Certificates total
+      valid: Valid certificates
+      expiring: Expiring soon
+      expired: Expired certificates
+      hosts: Hosts
+      open_csrs: Open CSRs
+    areas: Areas
+    attention: Next certificate expirations
+    empty: No readable certificates.
+    freshness: Data freshness
+    freshness_note: Last successful local CA inventory refresh, following certificate indexing. This is not a live service status. Stale means older than three index intervals.
+    unknown: No successful refresh recorded
+    failed: Refresh failed
+    stale: Refresh outdated
+    puppetdb_failed: PuppetDB refresh errors in %{count} readable areas.

@@ -40,7 +40,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
   test "Ruby errors are logged with details hidden and do not redirect to login" do
     post local_login_path, params: { identity: "zone_a_reader" }
     with_search_failure do
-      get root_path, headers: { "Accept-Language" => "en" }
+      get certificates_path, headers: { "Accept-Language" => "en" }
     end
     assert_error_page :internal_server_error, "en", "An internal error occurred"
     assert_select "nav", count: 1
@@ -58,7 +58,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     post local_login_path, params: { identity: "zone_a_reader" }
     post locale_path, params: { locale: "en" }
     with_search_failure do
-      get root_path, headers: { "Accept-Language" => "de-DE" }
+      get certificates_path, headers: { "Accept-Language" => "de-DE" }
     end
     assert_error_page :internal_server_error, "en", "An internal error occurred"
     assert_select ".error-details pre", text: /NameError/
@@ -72,7 +72,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
     post local_login_path, params: { identity: "zone_a_reader" }
     original = Certificate.method(:visible_to)
     Certificate.define_singleton_method(:visible_to) { |_identity| raise ActiveRecord::ConnectionNotEstablished, "database offline" }
-    get root_path, headers: { "Accept-Language" => "de-DE" }
+    get certificates_path, headers: { "Accept-Language" => "de-DE" }
     assert_error_page :service_unavailable, "de", "Dienst nicht verfügbar"
     assert_not_includes response.body, "database offline"
     assert_includes @log_output.string, "database offline"
@@ -119,7 +119,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
   test "errors during Turbo frame searches request the complete error layout" do
     post local_login_path, params: { identity: "zone_a_reader" }
     with_search_failure do
-      get root_path, headers: { "Accept-Language" => "en", "Turbo-Frame" => "results" }
+      get certificates_path, headers: { "Accept-Language" => "en", "Turbo-Frame" => "results" }
     end
     assert_error_page :internal_server_error, "en", "An internal error occurred"
     assert_select 'meta[name="turbo-visit-control"][content="reload"]'
@@ -144,7 +144,7 @@ class ErrorPagesTest < ActionDispatch::IntegrationTest
   test "HEAD Ruby errors log diagnostics without sending a body even when enabled" do
     Rails.application.config.x.show_error_details = true
     post local_login_path, params: { identity: "zone_a_reader" }
-    with_search_failure { head root_path }
+    with_search_failure { head certificates_path }
     assert_response :internal_server_error
     assert_empty response.body
     assert_includes @log_output.string, "sensitive diagnostic"

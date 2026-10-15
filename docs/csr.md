@@ -1,6 +1,6 @@
 # CSR workflow and operations
 
-The **CSR erstellen** menu uses the independent `<area>_csr` role. Writer,
+The **CSR** menu uses the independent `<area>_csr` role. Writer,
 Reader, Key Exporter and Auditor roles do not imply CSR access. Assign CSR roles
 for each desired area through the existing OIDC role mapping. Local development
 also provides `<area>_csr` and `all:csr` identities. CSR-only users land on this

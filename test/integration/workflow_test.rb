@@ -19,10 +19,10 @@ class WorkflowTest < ActionDispatch::IntegrationTest
   end
 
   test "login search details export and area isolation" do
-    get root_path
+    get certificates_path
     assert_redirected_to login_path
     login("zone_a_reader")
-    get root_path
+    get certificates_path
     assert_response :success
     assert_includes response.body, "portal.example.test"
     assert_not_includes response.body, "hidden.zone_b.test"
@@ -140,7 +140,7 @@ class WorkflowTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "cci::certificates"
     assert_not_includes response.body, "Zertifikat herunterladen"
     assert_not_includes response.body, "BEGIN CERTIFICATE"
-    get root_path
+    get certificates_path
     assert_includes response.body, "Puppet-CertID"
     assert_not_includes response.body, "Auswahl exportieren"
   end

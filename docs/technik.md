@@ -57,7 +57,7 @@ Fingerprints in certificate details, version rows and host details are complete,
 monospace and wrap on narrow screens. Copy buttons copy the exact complete value;
 if browser clipboard permission is unavailable, select the value manually.
 Consul identity YAML contains only the actual `certid` and `area`, including for
-old versions and archives. Filesystem identity keeps `issuer` and `subject`
+old versions and archives. Identity YAML and the Subject/Issuer values use bounded horizontal scrolling instead of wrapping; fingerprints retain their existing wrapping behavior. Filesystem identity keeps `issuer` and `subject`
 (including the existing `.tag` convention), with no invented CertID. Puppet/Hiera
 integration exports retain their existing format.
 
@@ -394,3 +394,30 @@ neutral management information and host navigation. The capture script refreshes
 certificate/CA details, overview, host list/details and audit screenshots using
 only synthetic data. Remove the disposable stack with
 `docker compose -f script/screenshots/compose.yml down --volumes`.
+
+## Dashboard and navigation
+
+The logo opens `/`, an independent dashboard without a sidebar navigation entry.
+The navigation order is **Certificates**, **Hosts**, **Import**, **CSR**,
+**Audit logs**, with existing permission and PuppetDB feature gates. The German
+certificate entry is **Zertifikate**. `/certificates` keeps its area filter.
+**My CCI roles** / **Meine CCI-Rollen** is a collapsed native details menu,
+showing unique actual role names grouped and sorted by area display name.
+
+The dashboard counts all retained readable certificate entries, including
+versions and archives. Valid counts use the existing validity search definition
+and include expiring entries. Future entries are in the total but not valid;
+the warning window is `certificates.expiry_warning_days`. Distinct cached hosts
+appear only when PuppetDB is enabled. Open CSR counts require the user's CSR
+permissions and exclude deleted requests and requests with issued certificates.
+The area table uses readable areas only. Up to five oldest expiry dates,
+including already expired certificates, link to authorized details.
+
+Freshness uses the existing successful CA inventory `checked_at`, produced after
+certificate indexing. Its error marker identifies failed passes; more than three
+index intervals means outdated. Missing timestamps remain unknown. PuppetDB
+error markers are reported only for readable areas. No dashboard request queries
+Consul/PuppetDB or starts a background job. An empty inventory is not proof of
+live source availability.
+
+![Dashboard with synthetic data](screenshots/dashboard.png)

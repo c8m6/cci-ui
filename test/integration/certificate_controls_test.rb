@@ -94,9 +94,9 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
     patch certificate_path(@record), params: { rollout_status: "delete", certid_index: index }
     assert_redirected_to certificate_path(@record)
     assert_equal "delete", @record.reload.rollout_status
-    get root_path, params: { rollout_status: "delete", status: "valid", q: "portal" }
+    get certificates_path, params: { rollout_status: "delete", status: "valid", q: "portal" }
     assert_select "tbody tr", count: 1
-    get root_path, params: { rollout_status: "active" }
+    get certificates_path, params: { rollout_status: "active" }
     assert_select "tbody tr", count: 0
     patch certificate_path(@record), params: { rollout_status: "active", certid_index: index }
     assert_response :see_other
@@ -139,9 +139,9 @@ class CertificateControlsTest < ActionDispatch::IntegrationTest
       assert_response :see_other
       assert_equal "active", record.reload.rollout_status
       assert_equal content, File.read(path)
-      get root_path, params: { rollout_status: "norollout", source: "filesystem" }
+      get certificates_path, params: { rollout_status: "norollout", source: "filesystem" }
       assert_select "tbody tr", count: 0
-      get root_path, params: { rollout_status: "active", source: "filesystem" }
+      get certificates_path, params: { rollout_status: "active", source: "filesystem" }
       assert_select "tbody tr", count: 0
       patch certificate_path(record)
       assert_response :see_other

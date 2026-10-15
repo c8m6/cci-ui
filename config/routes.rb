@@ -5,7 +5,7 @@ Rails.application.routes.draw do
   get "/up", to: "rails/health#show", as: :rails_health_check
   get "/ready", to: "health#ready"
   get "/health", to: "health#show"
-  root "certificates#index"
+  root "dashboard#index"
   post "/locale", to: "locales#update", as: :locale
   get "/login", to: "sessions#new", as: :login
   post "/local-login", to: "sessions#local", as: :local_login

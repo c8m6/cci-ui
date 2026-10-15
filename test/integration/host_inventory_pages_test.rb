@@ -34,7 +34,7 @@ class HostInventoryPagesTest < ActionDispatch::IntegrationTest
     get hosts_path(area: "zone_b")
     assert_not_includes response.body, "secret.example.test"
     settings["puppetdb"]["enabled"] = false
-    get root_path
+    get certificates_path
     assert_select "a[href=?]", hosts_path, count: 0
     get hosts_path
     assert_response :not_found
@@ -56,6 +56,22 @@ class HostInventoryPagesTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Archiviert"
     assert_includes response.body, "Alte Version"
     assert_select "a[href=?]", certificate_path(second)
+  end
+
+  test "substring search combines area and sync filters and preserves them through pagination" do
+    @record.update!(puppetdb_hosts: Array.new(32) { |index| format("api-%02d.example.test", index) }, puppetdb_error_at: Time.current)
+    get hosts_path(q: "API-", area: "zone_a", sync: "stale", page: 2)
+    assert_response :success
+    assert_select "tbody tr", count: 2
+    assert_select ".pagination a" do |links|
+      assert(links.any? do |link|
+        link["href"].include?("q=API-") && link["href"].include?("area=zone_a") && link["href"].include?("sync=stale")
+      end)
+    end
+    get hosts_path(q: "api-", area: "zone_b", sync: "stale")
+    assert_select "tbody tr", count: 0
+    get hosts_path(q: "api-", area: "zone_a", sync: "current")
+    assert_select "tbody tr", count: 0
   end
 
   test "search pagination and stale filters use cached observations including missing SHA1" do

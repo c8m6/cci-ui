@@ -28,7 +28,7 @@ class MultipleLegacySourcesIntegrationTest < ActionDispatch::IntegrationTest
 
   test "UI and exports enforce zone ownership with identical relative paths" do
     post local_login_path, params: { identity: "zone_a_reader" }
-    get root_path
+    get certificates_path
     assert_response :success
     assert_includes response.body, "zone_a.example.test"
     assert_not_includes response.body, "zone_b.example.test"

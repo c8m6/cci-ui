@@ -52,7 +52,7 @@ class AreaConfigurationTest < ActionDispatch::IntegrationTest
 
   test "configured names are used in all area selectors" do
     post local_login_path, params: { identity: "all:writer" }
-    get root_path
+    get certificates_path
     AreaConfiguration.ids.each do |area|
       assert_select "select[name=area] option[value=?]", area, text: AreaConfiguration.label(area)
     end

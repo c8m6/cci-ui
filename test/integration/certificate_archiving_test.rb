@@ -41,13 +41,13 @@ class CertificateArchivingFlowTest < ActionDispatch::IntegrationTest
     assert_response :see_other
     assert @record.reload.archived
     assert_equal "delete", @record.rollout_status
-    get root_path
+    get certificates_path
     assert_select "tbody tr", count: 0
     assert_select ".stat-card strong", text: "0", count: 3
-    get root_path, params: { q: "portal" }
+    get certificates_path, params: { q: "portal" }
     assert_select "tbody tr", count: 1
     assert_select ".badge", text: "Archiviert"
-    get root_path, params: { archived: "1" }
+    get certificates_path, params: { archived: "1" }
     assert_select "tbody tr", count: 1
     post local_login_path, params: { identity: "zone_a_auditor" }
     get audit_events_path, params: { event_action: "archive" }

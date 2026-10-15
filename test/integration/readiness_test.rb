@@ -64,7 +64,7 @@ class ReadinessTest < ActionDispatch::IntegrationTest
     ConsulStore.define_singleton_method(:client) { raise ConsulConnection::Error, "offline" }
     post local_login_path, params: { identity: "zone_a_writer" }
     assert_response :redirect
-    get root_path
+    get certificates_path
     assert_response :ok
     post local_login_path, params: { identity: "zone_a_auditor" }
     get audit_events_path

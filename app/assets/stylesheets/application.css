@@ -981,4 +981,17 @@ main.full-width { max-width: none; }
 .host-table th:first-child, .host-table td:first-child { width: 45%; }
 .host-table th:nth-child(2) { width: 18%; }
 
+.sidebar-roles { margin: 24px 12px; font-size: 12px; color: inherit; }
+.sidebar-roles summary { cursor: pointer; color: inherit; }
+.area-roles { margin-top: 14px; overflow-wrap: anywhere; }
+.area-roles ul { list-style: none; padding: 0; margin: 6px 0; font-family: monospace; line-height: 1.8; }
+.dashboard-stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.detail-grid > .detail-panel { min-width: 0; }
+.detail-panel .identity-value { min-width: 0; white-space: nowrap; overflow-x: auto; overflow-wrap: normal; }
+.certificate-identity { min-width: 0; max-width: 100%; }
+.certificate-identity pre { white-space: pre; overflow-wrap: normal; overflow-x: auto; max-width: 100%; }
+
+.dashboard-table th:first-child, .dashboard-table td:first-child { width: auto; min-width: 120px; }
+@media (max-width: 760px) { .sidebar nav { flex-wrap: wrap; } }
+
 .csr-form .area-choices .check-label { flex-direction: row; }

@@ -245,14 +245,24 @@ Use synthetic data in a separate development deployment. Copy existing area
 keys unchanged only when migrating an existing dataset; never connect disposable
 tests to production databases or certificate inventories.
 
-1. As an area's CSR user, create a synthetic CSR and delete it after confirming.
+1. Open `/` in German and English. Check totals, authorized area rows, five expiry
+   links and honest unknown/failed/outdated timestamps. Use the logo to return.
+2. Check navigation order and role gates. Enable PuppetDB in YAML only with a
+   local test endpoint. Expand **My CCI roles** / **Meine CCI-Rollen** and compare
+   actual role names. Check that the certificate area filter remains available.
+3. Search Hosts by part of a certname, combine Area and Synchronization filters,
+   and follow pagination. The results come from cached observations.
+4. Open a certificate with long Subject, Issuer and Hiera identity values at
+   desktop and narrow widths. Scroll within each identity block and copy the
+   complete value. The page itself must stay within the viewport.
+5. As an area's CSR user, create a synthetic CSR and delete it after confirming.
    Check that it disappears, its former direct URLs return 404, and the area's
    auditor sees **CSR deleted** / **CSR gelöscht**. Create another CSR, upload a
    matching synthetic certificate, and verify that deletion is no longer offered.
-2. Import into exactly one authorized area. Repeat independently in another
+6. Import into exactly one authorized area. Repeat independently in another
    area if needed; the first area's data must remain unchanged. A multi-area
    request must be refused.
-3. Restart after YAML edits. Confirm that a wrong type, unknown key, unknown role
+7. Restart after YAML edits. Confirm that a wrong type, unknown key, unknown role
    reference or missing secret file prevents startup without printing values.
    In a separate two-Consul test deployment, use different area URLs/prefixes and
    verify that writes and reads stay in the selected cluster.

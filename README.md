@@ -22,6 +22,10 @@ identities and PuppetDB host associations. Detailed views are documented under
 [certificate details](docs/technik.md#certificate-details),
 [CA inventory](docs/ca-inventory.md) and [audit logs](docs/technik.md#audit-logs).
 
+The application logo opens a permission-scoped dashboard backed by local data.
+The sidebar links to Certificates, optional Hosts, Import, CSR and Audit logs,
+and includes a collapsed view of the signed-in user's actual CCI roles.
+
 ## Features
 
 - **Certificate management:** search and filter certificates from Consul and

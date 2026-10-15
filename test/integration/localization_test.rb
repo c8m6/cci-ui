@@ -31,7 +31,7 @@ class LocalizationTest < ActionDispatch::IntegrationTest
     assert_language "en"
     assert_select ".language-menu button[value=en][aria-pressed=true]"
     post local_login_path, params: { identity: "zone_a_writer" }
-    get root_path, headers: { "Accept-Language" => "de" }
+    get certificates_path, headers: { "Accept-Language" => "de" }
     assert_language "en"
     assert_select "h1", text: "Certificates"
     delete logout_path

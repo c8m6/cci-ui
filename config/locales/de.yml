@@ -1,6 +1,7 @@
 ---
 de:
   ui:
+    my_cci_roles: Meine CCI-Rollen
     copy: "Kopieren"
     copied: "Kopiert"
     copy_failed: "Kopieren nicht verfügbar. Den vollständigen Wert bitte markieren und manuell kopieren."
@@ -616,3 +617,23 @@ de:
     count:
       one: "1 Host"
       other: "%{count} Hosts"
+
+  dashboard:
+    title: Dashboard
+    scope: Alle gespeicherten Zertifikatseinträge in lesbaren Areas einschließlich Historie und Archiv. Gültig umfasst bald ablaufende Zertifikate.
+    metrics:
+      total: Zertifikate gesamt
+      valid: Gültige Zertifikate
+      expiring: Bald ablaufend
+      expired: Abgelaufene Zertifikate
+      hosts: Hosts
+      open_csrs: Offene CSRs
+    areas: Areas
+    attention: Nächste Zertifikatsabläufe
+    empty: Keine lesbaren Zertifikate.
+    freshness: Datenaktualität
+    freshness_note: Letzte erfolgreiche lokale CA-Inventaraktualisierung nach der Zertifikatsindexierung. Kein Live-Dienststatus. Veraltet bedeutet älter als drei Indexintervalle.
+    unknown: Keine erfolgreiche Aktualisierung erfasst
+    failed: Aktualisierung fehlgeschlagen
+    stale: Aktualisierung veraltet
+    puppetdb_failed: PuppetDB-Aktualisierungsfehler in %{count} lesbaren Areas.
