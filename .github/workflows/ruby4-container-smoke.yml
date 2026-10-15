@@ -9,6 +9,9 @@ on:
       - bin/start
       - bin/puma
       - config/puma.rb
+      - config/build.yml
+      - test/production.yml
+      - config.example.yml
       - .github/workflows/ruby4-container-smoke.yml
   workflow_dispatch:
 
