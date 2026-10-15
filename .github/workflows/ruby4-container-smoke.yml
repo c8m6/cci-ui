@@ -47,7 +47,7 @@ jobs:
       - name: Prepare database with the production image
         run: |
           docker run --rm --network cci-ruby4-smoke \
-            -e RAILS_ENV=production -e AUTH_MODE=local \
+            -e RAILS_ENV=production -e AUTH_MODE=local -e ALLOWED_HOSTS=localhost,127.0.0.1 \
             -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
             -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
             -e CONSUL_URL=http://cci-ruby4-consul:8500 \
@@ -56,7 +56,7 @@ jobs:
       - name: Start production entrypoint and check HTTP readiness
         run: |
           docker run -d --name cci-ruby4-web --network cci-ruby4-smoke \
-            -e RAILS_ENV=production -e AUTH_MODE=local \
+            -e RAILS_ENV=production -e AUTH_MODE=local -e ALLOWED_HOSTS=localhost,127.0.0.1 \
             -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
             -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
             -e CONSUL_URL=http://cci-ruby4-consul:8500 \
