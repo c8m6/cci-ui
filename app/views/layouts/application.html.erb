@@ -31,7 +31,7 @@
         <% end %>
       </details>
     <% end %>
-    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small><div class="sidebar-version"><%= ApplicationBuild.version %></div></div>
+    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small><div class="sidebar-version"><span><%= ApplicationBuild.version %></span><%= link_to "https://github.com/c8m6/cci-ui", class: "sidebar-github", target: "_blank", rel: "noopener noreferrer" do %><%= icon("github") %> GitHub<% end %></div></div>
   </aside>
   <div class="workspace">
     <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "dashboard" => t("dashboard.title"), "hosts" => t("hosts.title"), "certificate_requests" => t("csr.title"), "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
