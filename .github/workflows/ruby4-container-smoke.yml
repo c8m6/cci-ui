@@ -1,0 +1,99 @@
+name: Ruby 4 container smoke
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - Gemfile
+      - Gemfile.lock
+      - bin/start
+      - bin/puma
+      - config/puma.rb
+      - .github/workflows/ruby4-container-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ruby4-container:
+    name: ruby4-container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build production image including assets
+        run: docker build --pull -t cci-ui:ruby4-smoke .
+      - name: Start isolated PostgreSQL and Consul dependencies
+        run: |
+          docker network create cci-ruby4-smoke
+          docker run -d --name cci-ruby4-postgres --network cci-ruby4-smoke \
+            -e POSTGRES_USER=certui -e POSTGRES_PASSWORD=certui-test \
+            -e POSTGRES_DB=certui_test \
+            --health-cmd='pg_isready -U certui -d certui_test' \
+            --health-interval=2s --health-retries=30 postgres:17-alpine
+          docker run -d --name cci-ruby4-consul --network cci-ruby4-smoke \
+            hashicorp/consul:1.22 agent -dev -client=0.0.0.0
+          for i in $(seq 1 40); do
+            if [ "$(docker inspect -f '{{.State.Health.Status}}' cci-ruby4-postgres)" = healthy ] && \
+               docker exec cci-ruby4-consul consul members >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker logs cci-ruby4-postgres
+          docker logs cci-ruby4-consul
+          exit 1
+      - name: Prepare database with the production image
+        run: |
+          docker run --rm --network cci-ruby4-smoke \
+            -e RAILS_ENV=production -e AUTH_MODE=oidc -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e OIDC_ISSUER=https://keycloak.example.test/realms/cci \
+            -e OIDC_CLIENT_ID=cci-ui -e OIDC_CLIENT_SECRET=ci-placeholder \
+            -e OIDC_REDIRECT_URI=https://localhost/auth/keycloak/callback \
+            -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
+            -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
+            -e CONSUL_URL=http://cci-ruby4-consul:8500 \
+            -e CCI_AREAS='{"zone_a":"Zone A"}' -e CCI_LEGACY_PATHS='{}' \
+            cci-ui:ruby4-smoke bundle exec rails db:prepare
+      - name: Start production entrypoint and check HTTP readiness
+        run: |
+          docker run -d --name cci-ruby4-web --network cci-ruby4-smoke \
+            -e RAILS_ENV=production -e AUTH_MODE=oidc -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e OIDC_ISSUER=https://keycloak.example.test/realms/cci \
+            -e OIDC_CLIENT_ID=cci-ui -e OIDC_CLIENT_SECRET=ci-placeholder \
+            -e OIDC_REDIRECT_URI=https://localhost/auth/keycloak/callback \
+            -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
+            -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
+            -e CONSUL_URL=http://cci-ruby4-consul:8500 \
+            -e CCI_AREAS='{"zone_a":"Zone A"}' -e CCI_LEGACY_PATHS='{}' \
+            cci-ui:ruby4-smoke
+          docker exec cci-ruby4-web ruby -rnet/http -e '
+            abort "Expected Ruby 4" unless RUBY_VERSION.start_with?("4.0.")
+            50.times do
+              begin
+                response = Net::HTTP.start("127.0.0.1", 3000, open_timeout: 2, read_timeout: 2) do |http|
+                  request = Net::HTTP::Get.new("/up")
+                  request["Host"] = "localhost"
+                  request["X-Forwarded-Proto"] = "https"
+                  http.request(request)
+                end
+                if response.code == "200"
+                  puts "Ruby #{RUBY_VERSION}: production Rails /up returned 200"
+                  exit 0
+                end
+              rescue IOError, SystemCallError, Timeout::Error
+              end
+              sleep 2
+            end
+            abort "Production HTTP startup failed"
+          '
+
+      - name: Inspect logs and clean up
+        if: always()
+        run: |
+          docker logs cci-ruby4-web 2>&1 || true
+          docker logs cci-ruby4-postgres 2>&1 || true
+          docker logs cci-ruby4-consul 2>&1 || true
+          docker rm -f cci-ruby4-web cci-ruby4-consul cci-ruby4-postgres 2>/dev/null || true
+          docker network rm cci-ruby4-smoke 2>/dev/null || true
