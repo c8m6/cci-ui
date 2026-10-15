@@ -995,3 +995,9 @@ main.full-width { max-width: none; }
 @media (max-width: 760px) { .sidebar nav { flex-wrap: wrap; } }
 
 .csr-form .area-choices .check-label { flex-direction: row; }
+
+/* Version and project link share the bottom row of the sidebar. */
+.sidebar-version { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sidebar-github { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: inherit; text-decoration: none; white-space: nowrap; }
+.sidebar-github .icon { width: 13px; height: 13px; }
+.sidebar-github:hover, .sidebar-github:focus-visible { color: #fff; text-decoration: underline; }
