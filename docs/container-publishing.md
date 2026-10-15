@@ -322,6 +322,42 @@ Risk acceptance requires an explicit maintainer decision. Reassess suppressions
 when code, dependencies, or deployment assumptions change. No persistent
 suppressions are introduced by this integration.
 
+### Bundled Ruby JSON implementation
+
+The official `ruby:4.0-slim` image checked on 2026-10-15 runs Ruby 4.0.7 but
+still includes the vulnerable default JSON 2.18.0. Installing the locked JSON
+3.0.2 makes normal application loads safe, but leaves the older implementation
+available through explicit activation or standard-library paths. See the
+[upstream advisory for CVE-2026-33210](https://github.com/ruby/json/security/advisories/GHSA-3m6g-2423-7cp3).
+
+After Bundler installs the locked gems, the Dockerfile removes the separate
+default JSON implementation: `json.rb` and the `json/` namespace in the Ruby
+library and native-extension directories, plus its default gemspec, gem
+directory, extension directory and cached gem where present. Ruby's `RbConfig`
+and RubyGems metadata determine these paths; no Ruby patch-version directory is
+hard-coded. The build first requires a patched, non-default JSON gem and refuses
+overlapping storage with that installed gem. It does not delete the complete
+default gemspec's file list, which can include build-only or unrelated files.
+The locked gem, its native extensions, other standard libraries and their
+license notices remain intact. No dependency version or scanner policy changes.
+
+Every image build runs `ruby test/container_json.rb` and
+`bundle exec ruby test/container_json.rb` in fresh processes. These checks
+require the installed patched JSON implementation, absence of the default
+Ruby/native namespace and unwanted JSON package artifacts, working native
+parser/generator extensions, Unicode round trips, literal percent-bearing
+duplicate-key errors and standard-library imports. Run the complete Rails image
+tests, production startup/readiness and the unchanged Trivy gate as described
+above; a successful default `require "json"` alone is insufficient evidence.
+
+For future Ruby/base-image updates, inspect the default JSON specification and
+actual library/native paths again. Prefer an official compatible base containing
+a fixed implementation when available, and reassess whether this cleanup is
+still needed. Repeat both plain and bundled checks, explicitly test that an old
+JSON version cannot be activated in a fresh Ruby process, inspect residual files,
+and scan the exact tested image. Unexpected layout or shared-storage changes must
+be investigated rather than bypassing the build checks.
+
 
 ### Initial baseline (2026-09-29)
 
