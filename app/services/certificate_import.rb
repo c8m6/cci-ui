@@ -17,7 +17,7 @@ class CertificateImport
     certs, keys = parse_upload(files, pem, password, certid)
 
     fingerprints = certs.map { |cert| Certificates::Codec.fingerprint(cert) }
-    validate_fingerprints!(fingerprints, areas: areas)
+    validate_fingerprints!(fingerprints)
     token = SecureRandom.hex(24)
     entries = areas.flat_map do |area|
       issuers = IssuerImport.new(area)
@@ -49,8 +49,7 @@ class CertificateImport
 
       data = JSON.parse(draft.payload)
       validate_draft(data, identity, confirm_overwrite)
-      validate_fingerprints!(data.fetch("entries").map { |entry| entry.fetch("fingerprint") }.uniq,
-        areas: data.fetch("areas"))
+      validate_fingerprints!(data.fetch("entries").map { |entry| entry.fetch("fingerprint") }.uniq)
       draft.destroy!
       data
     end
@@ -85,9 +84,8 @@ class CertificateImport
       expected_certid_index: entry.fetch("certid_index"))
   end
 
-  def self.validate_fingerprints!(fingerprints, areas:)
+  def self.validate_fingerprints!(fingerprints)
     LegacyStore.reject_duplicates!(fingerprints)
-    fingerprints.each { |fingerprint| CertificateAreaConfiguration.validate_fingerprint!(fingerprint, areas: areas) }
   end
 
   # Parse all inputs before rejecting unmatched keys or ambiguous CertID assignment.
@@ -134,6 +132,10 @@ class CertificateImport
     raise Certificates::Error, I18n.t("errors.app.write_areas") unless areas.all? { |area| identity.writer?(area) }
     unless data.fetch("entries").all? { |entry| entry["certid_index"].is_a?(Integer) && entry["certid_index"] >= 0 }
       raise Certificates::Error, I18n.t("errors.app.old_preview")
+    end
+
+    unless data.fetch("entries").all? { |entry| entry.fetch("area") == areas.first }
+      raise Certificates::Error, I18n.t("errors.app.choose_area")
     end
 
     replacing = data.fetch("entries").any? { |entry| entry.fetch("certid_index").positive? && !entry["reuse_version"] }

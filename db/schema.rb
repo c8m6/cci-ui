@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_15_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -58,9 +58,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_000100) do
     t.jsonb "subject_fields", default: {}, null: false
     t.jsonb "target_areas", default: [], null: false
     t.datetime "updated_at", null: false
+    t.datetime "deleted_at"
+    t.string "deleted_by"
     t.index ["area", "created_at"], name: "index_certificate_requests_on_area_and_created_at"
-    t.index ["target_areas"], name: "index_certificate_requests_on_target_areas", using: :gin
+    t.index ["deleted_at"], name: "index_certificate_requests_on_deleted_at"
     t.index ["secret_id"], name: "index_certificate_requests_on_secret_id", unique: true
+    t.index ["target_areas"], name: "index_certificate_requests_on_target_areas", using: :gin
   end
 
   create_table "certificates", force: :cascade do |t|
@@ -138,7 +141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_000100) do
     t.index ["certificate_request_id", "fingerprint"], name: "idx_on_certificate_request_id_fingerprint_19fcbe4096", unique: true
     t.index ["certificate_request_id"], name: "index_csr_certificates_on_certificate_request_id"
     t.check_constraint "state::text <> 'published'::text OR consul_version > 0 AND published_at IS NOT NULL", name: "csr_published_version"
-    t.check_constraint "state::text = ANY (ARRAY['awaiting_issuer'::character varying, 'pending'::character varying, 'publishing'::character varying, 'published'::character varying, 'failed'::character varying]::text[])", name: "csr_certificate_state"
+    t.check_constraint "state::text = ANY (ARRAY['awaiting_issuer'::character varying::text, 'pending'::character varying::text, 'publishing'::character varying::text, 'published'::character varying::text, 'failed'::character varying::text])", name: "csr_certificate_state"
   end
 
   create_table "import_drafts", force: :cascade do |t|

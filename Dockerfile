@@ -6,7 +6,7 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle install && bundle clean --force
 COPY . .
 RUN bundle exec rubocop --force-exclusion
-RUN AUTH_MODE=local CCI_AREAS='{"build":"Build"}' CCI_LEGACY_PATHS='{}' bundle exec rails assets:precompile
+RUN CCI_CONFIG_FILE=/app/config/build.yml bundle exec rails assets:precompile
 RUN useradd --create-home --uid 10001 certui && mkdir -p tmp log && chown -R certui:certui /app
 # Keep changing release metadata after the expensive build layers.
 ARG APP_VERSION=development

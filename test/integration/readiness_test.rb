@@ -57,25 +57,25 @@ class ReadinessTest < ActionDispatch::IntegrationTest
 
   test "Consul outage does not prevent login catalog or audit access" do
     original = ConsulStore.method(:client)
-    original_token = ENV.fetch("CCI_HEALTH_TOKEN", nil)
+    original_token = settings["server"]["health_token"]
     original_cache = HealthController.cache
     HealthController.instance_variable_set(:@cache, HealthCheckCache.new)
-    ENV["CCI_HEALTH_TOKEN"] = "synthetic-health-token-for-tests"
+    settings["server"]["health_token"] = "synthetic-health-token-for-tests"
     ConsulStore.define_singleton_method(:client) { raise ConsulConnection::Error, "offline" }
     post local_login_path, params: { identity: "zone_a_writer" }
     assert_response :redirect
-    get root_path
+    get certificates_path
     assert_response :ok
     post local_login_path, params: { identity: "zone_a_auditor" }
     get audit_events_path
     assert_response :ok
     get "/ready"
     assert_response :ok
-    get "/health", headers: { "Authorization" => "Bearer #{ENV.fetch("CCI_HEALTH_TOKEN")}" }
+    get "/health", headers: { "Authorization" => "Bearer #{settings["server"]["health_token"]}" }
     assert_response :service_unavailable
   ensure
     ConsulStore.define_singleton_method(:client, original) if original
-    ENV["CCI_HEALTH_TOKEN"] = original_token
+    settings["server"]["health_token"] = original_token
     HealthController.instance_variable_set(:@cache, original_cache)
   end
 end

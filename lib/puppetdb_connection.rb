@@ -4,6 +4,7 @@ require "net/http"
 require "uri"
 require "json"
 require "openssl"
+require_relative "cci_configuration"
 
 # Reads complete PuppetDB snapshots with TLS, size limits and record-count verification.
 class PuppetdbConnection
@@ -11,24 +12,24 @@ class PuppetdbConnection
 
   attr_reader :last_http_status
 
-  def initialize(environment: ENV)
-    @environment = environment
-    @uri = URI(environment.fetch("PUPPETDB_URL", ""))
+  def initialize(configuration: CciConfiguration.current.fetch("puppetdb"))
+    @configuration = configuration
+    @uri = URI(configuration.fetch("url", ""))
     unless %w[http https].include?(@uri.scheme) && @uri.host && !@uri.userinfo && !@uri.query && !@uri.fragment
-      raise Error, "PUPPETDB_URL must be an HTTP(S) base URL without credentials, query or fragment."
+      raise Error, "puppetdb.url must be an HTTP(S) base URL without credentials, query or fragment."
     end
 
     @uri.path = "#{@uri.path.sub(%r{/+\z}, "")}/pdb/query/v4"
     @uri.query = "include_total=true"
-    @timeout = positive_integer("PUPPETDB_TIMEOUT", 30)
-    @max_bytes = positive_integer("PUPPETDB_MAX_RESPONSE_BYTES", 50 * 1024 * 1024)
-    @token = environment.fetch("PUPPETDB_TOKEN", "")
-    @cert_file = environment.fetch("PUPPETDB_CLIENT_CERT_FILE", "")
-    @key_file = environment.fetch("PUPPETDB_CLIENT_KEY_FILE", "")
+    @timeout = positive_integer("timeout", 30)
+    @max_bytes = positive_integer("max_response_bytes", 50 * 1024 * 1024)
+    @token = configuration.dig("authentication", "token").to_s
+    @cert_file = configuration.dig("tls", "cert_file").to_s
+    @key_file = configuration.dig("tls", "key_file").to_s
     raise Error, "PuppetDB requires both a client certificate and its private key." if @cert_file.empty? != @key_file.empty?
     raise Error, "PuppetDB credentials require HTTPS." if @uri.scheme != "https" && (!@token.empty? || !@cert_file.empty?)
   rescue URI::InvalidURIError
-    raise Error, "PUPPETDB_URL is invalid."
+    raise Error, "puppetdb.url is invalid."
   end
 
   # Fetch the complete result in one request so changing factsets cannot move
@@ -97,7 +98,7 @@ class PuppetdbConnection
 
       total = response["X-Records"] if verify_total
       response.read_body do |chunk|
-        raise Error, "PuppetDB response exceeds PUPPETDB_MAX_RESPONSE_BYTES." if body.bytesize + chunk.bytesize > @max_bytes
+        raise Error, "PuppetDB response exceeds puppetdb.request.max_response_bytes." if body.bytesize + chunk.bytesize > @max_bytes
 
         body << chunk
       end
@@ -124,7 +125,7 @@ class PuppetdbConnection
   end
 
   def positive_integer(name, default)
-    value = Integer(@environment.fetch(name, default).to_s, 10)
+    value = Integer(@configuration.fetch("request", {}).fetch(name, default).to_s, 10)
     raise ArgumentError unless value.positive?
 
     value
@@ -143,7 +144,7 @@ class PuppetdbConnection
     if http.use_ssl?
       http.verify_mode = OpenSSL::SSL::VERIFY_PEER
       http.verify_hostname = true
-      ca_file = @environment.fetch("PUPPETDB_CA_FILE", "")
+      ca_file = @configuration.dig("tls", "ca_file").to_s
       http.ca_file = ca_file unless ca_file.empty?
       unless @cert_file.empty?
         http.cert = OpenSSL::X509::Certificate.new(File.binread(@cert_file))

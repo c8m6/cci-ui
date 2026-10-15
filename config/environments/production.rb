@@ -5,6 +5,6 @@ Rails.application.configure do
   config.eager_load = true
   config.force_ssl = true
   config.assume_ssl = true
-  config.secret_key_base = ENV.fetch("SECRET_KEY_BASE")
-  config.hosts = ENV.fetch("ALLOWED_HOSTS").split(",")
+  config.secret_key_base = CciConfiguration.current.dig("server", "secret_key_base")
+  config.hosts = CciConfiguration.current.dig("server", "allowed_hosts")
 end

@@ -35,6 +35,6 @@ services:
       - server
   fixture:
     image: ${TEST_IMAGE:-cci-ui:ci}
-    command: ["bundle", "exec", "puma", "-b", "tcp://0.0.0.0:3000", "/fixtures/inventory.ru"]
+    command: ["bundle", "exec", "puma", "-C", "-", "-b", "tcp://0.0.0.0:3000", "/fixtures/inventory.ru"]
     volumes:
       - ./inventory.ru:/fixtures/inventory.ru:ro

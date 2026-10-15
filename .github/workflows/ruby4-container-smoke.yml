@@ -9,6 +9,9 @@ on:
       - bin/start
       - bin/puma
       - config/puma.rb
+      - config/build.yml
+      - test/production.yml
+      - config.example.yml
       - .github/workflows/ruby4-container-smoke.yml
   workflow_dispatch:
 
@@ -47,26 +50,12 @@ jobs:
       - name: Prepare database with the production image
         run: |
           docker run --rm --network cci-ruby4-smoke \
-            -e RAILS_ENV=production -e AUTH_MODE=oidc -e ALLOWED_HOSTS=localhost,127.0.0.1 \
-            -e OIDC_ISSUER=https://keycloak.example.test/realms/cci \
-            -e OIDC_CLIENT_ID=cci-ui -e OIDC_CLIENT_SECRET=ci-placeholder \
-            -e OIDC_REDIRECT_URI=https://localhost/auth/keycloak/callback \
-            -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
-            -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
-            -e CONSUL_URL=http://cci-ruby4-consul:8500 \
-            -e CCI_AREAS='{"zone_a":"Zone A"}' -e CCI_LEGACY_PATHS='{}' \
+            -e RAILS_ENV=production -e CCI_CONFIG_FILE=/app/test/production.yml \
             cci-ui:ruby4-smoke bundle exec rails db:prepare
       - name: Start production entrypoint and check HTTP readiness
         run: |
           docker run -d --name cci-ruby4-web --network cci-ruby4-smoke \
-            -e RAILS_ENV=production -e AUTH_MODE=oidc -e ALLOWED_HOSTS=localhost,127.0.0.1 \
-            -e OIDC_ISSUER=https://keycloak.example.test/realms/cci \
-            -e OIDC_CLIENT_ID=cci-ui -e OIDC_CLIENT_SECRET=ci-placeholder \
-            -e OIDC_REDIRECT_URI=https://localhost/auth/keycloak/callback \
-            -e SECRET_KEY_BASE=ci-only-not-for-production-0123456789abcdef0123456789abcdef \
-            -e DATABASE_URL=postgresql://certui:certui-test@cci-ruby4-postgres:5432/certui_test \
-            -e CONSUL_URL=http://cci-ruby4-consul:8500 \
-            -e CCI_AREAS='{"zone_a":"Zone A"}' -e CCI_LEGACY_PATHS='{}' \
+            -e RAILS_ENV=production -e CCI_CONFIG_FILE=/app/test/production.yml \
             cci-ui:ruby4-smoke
           docker exec cci-ruby4-web ruby -rnet/http -e '
             abort "Expected Ruby 4" unless RUBY_VERSION.start_with?("4.0.")

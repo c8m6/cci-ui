@@ -1,0 +1,18 @@
+# Synthetic, disposable test configuration only.
+version: 1
+authentication:
+  mode: local
+database:
+  host: 127.0.0.1
+  name: certui_test
+  username: certui
+  password: certui-test
+consul:
+  url: http://127.0.0.1:8500
+areas:
+  zone_a:
+    name: Zone A
+    encryption_key: cnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnI=
+  zone_b:
+    name: Zone B
+    encryption_key: c3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3M=

@@ -82,7 +82,7 @@ class CertificateArchivingTest < ActiveSupport::TestCase
       assert Certificate.exists?(record.id)
     end
   ensure
-    AreaConfiguration.instance_variable_set(:@configuration, previous)
+    configure_legacy_paths(previous.fetch("legacy_paths"))
   end
 
   test "missing Consul versions and certids never delete catalog records or reset archived status" do

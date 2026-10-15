@@ -1,0 +1,105 @@
+# Replace secret references and example endpoints before deployment.
+version: 1
+server:
+  host: cci.example.test
+  port: 3000
+  allowed_hosts:
+  - cci.example.test
+  secret_key_base:
+    file: /run/secrets/rails-secret
+  show_error_details: false
+  log_level: info
+  threads: 5
+  health_token:
+    file: /run/secrets/health-token
+database:
+  host: db
+  port: 5432
+  name: cci
+  username: cci
+  password:
+    file: /run/secrets/database-password
+  sslmode: prefer
+  # sslrootcert: /run/tls/postgresql/ca.pem
+  # sslcert: /run/tls/postgresql/client.pem
+  # sslkey: /run/tls/postgresql/client.key
+authentication:
+  mode: oidc
+  oidc:
+    issuer: https://auth.example.test/realms/cci
+    client_id: cci-ui
+    client_secret:
+      file: /run/secrets/oidc-client-secret
+    redirect_uri: https://cci.example.test/auth/keycloak/callback
+    display_name_claim: preferred_username
+    role_map: {}
+consul:
+  url: https://consul.example.test:8501
+  prefix: cci
+  ca_file: /run/tls/consul/ca.pem
+  token:
+    file: /run/secrets/consul-token
+areas:
+  global:
+    name: Global
+    encryption_key:
+      file: /run/secrets/global-key
+    filesystem:
+      legacy_path: /legacy/global
+    consul:
+      token:
+        file: /run/secrets/global-consul-token
+  secure:
+    name: Secure
+    encryption_key:
+      file: /run/secrets/secure-key
+    consul:
+      url: https://secure-consul.example.test:8501
+      prefix: certificates
+      ca_file: /run/tls/secure-consul/ca.pem
+      token:
+        file: /run/secrets/secure-consul-token
+certificates:
+  expiry_warning_days: 10
+  reconciliation:
+    enabled: true
+    missing_after_scans: 2
+    max_delete_percent: 20
+csr:
+  defaults:
+    key_algorithm: RSA
+    key_size: 4096
+    digest: SHA512
+    country: DE
+    state: Berlin
+    locality: Berlin
+    organization: Example
+    organizational_unit: IT
+puppetdb:
+  enabled: false
+  url: https://puppetdb.example.test:8081
+  inventory:
+    fact_name: certificates
+    fingerprint_field: fingerprint
+    fingerprint_algorithm: sha256
+    query: ''
+  tls:
+    ca_file: ''
+    cert_file: ''
+    key_file: ''
+  authentication:
+    token: ''
+  request:
+    timeout: 30
+    max_response_bytes: 52428800
+integrations:
+  zabbix:
+    enabled: false
+    token: ''
+    certificate_sources: consul
+  writer:
+    client_id: puppet
+    actor: ""
+    key_password: ""
+indexer:
+  interval_seconds: 60

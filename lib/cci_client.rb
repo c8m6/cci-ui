@@ -15,7 +15,7 @@ class CciClient
   # This bounds signature checks for malformed or excessively long inventories.
   MAX_CHAIN_ISSUERS = 12
 
-  def initialize(url:, token: ENV.fetch("CONSUL_TOKEN", ""), keys: {}, prefix: "cci", connection: nil)
+  def initialize(url: nil, token: nil, keys: {}, prefix: nil, connection: nil)
     @connections = Hash.new do |hash, area|
       hash[area] = connection || ConsulConnection.new(url: url, token: token, area: area, prefix: prefix)
     end
@@ -24,6 +24,8 @@ class CciClient
     @cache = {}
     @candidates = {}
   end
+
+  def prefix_for(area) = @prefix || CciConfiguration.current.consul(area).fetch("prefix")
 
   # Read one field from a version pinned for this client instance. Omit version
   # to select the active version on first access, then reuse it for later fields.
@@ -55,7 +57,7 @@ class CciClient
   def build_chain(area, leaf)
     return [leaf] if leaf.subject == leaf.issuer && leaf.verify(leaf.public_key)
 
-    candidates = @candidates[area] ||= @connections[area].all("#{@prefix}/#{area}/certs/").map do |item|
+    candidates = @candidates[area] ||= @connections[area].all("#{prefix_for(area)}/#{area}/certs/").map do |item|
       OpenSSL::X509::Certificate.new(JSON.parse(item.fetch(:value)).fetch("pem"))
     end
     chain = [leaf]
@@ -80,7 +82,7 @@ class CciClient
   # Resolve the mutable pointer once, then read immutable version paths.
   def load_material(area, certid, version)
     connection = @connections[area]
-    base = "#{@prefix}/#{area}"
+    base = "#{prefix_for(area)}/#{area}"
     entry = JSON.parse((connection.get("#{base}/certids/#{certid}") || raise(Error, "CertID not found"))[:value])
     selected = version || entry.fetch("active_version")
     raise Error, "Invalid active version" unless selected.is_a?(Integer) && selected.positive?

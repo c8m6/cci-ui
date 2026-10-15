@@ -56,6 +56,14 @@ test('CSR form, isolated role and confirmed secret disclosure work in the browse
     assert.equal(await page.$eval('[data-csr-secret-target=value]', el => el.hasAttribute('value')), false);
     await page.goto('http://127.0.0.1:3001' + requestPath, { waitUntil: 'networkidle0' });
     assert(!(await page.content()).includes(secret));
+    await page.click('input[name=confirm_delete][type=checkbox]');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle0' }),
+      page.click('form[action="' + requestPath + '"] input[type=submit]'),
+    ]);
+    assert.equal(new URL(page.url()).pathname, '/certificate_requests');
+    const removed = await page.goto('http://127.0.0.1:3001' + requestPath);
+    assert.equal(removed.status(), 404);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

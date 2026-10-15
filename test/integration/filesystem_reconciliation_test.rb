@@ -5,11 +5,9 @@ require "test_helper"
 class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
   setup do
     @previous_configuration = AreaConfiguration.configuration
-    @previous_environment = ENV.to_h.slice("CCI_ZABBIX_INTEGRATION_ENABLED",
-      "CCI_ZABBIX_INTEGRATION_TOKEN", "CCI_ZABBIX_CERTIFICATE_SOURCES")
-    ENV["CCI_ZABBIX_INTEGRATION_ENABLED"] = "true"
-    ENV["CCI_ZABBIX_INTEGRATION_TOKEN"] = "synthetic-reconciliation-monitoring-token"
-    ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = "filesystem"
+    settings["integrations"]["zabbix"]["enabled"] = true
+    settings["integrations"]["zabbix"]["token"] = "synthetic-reconciliation-monitoring-token"
+    settings["integrations"]["zabbix"]["certificate_sources"] = "filesystem"
     @directory = Dir.mktmpdir("cci-reconciliation-integration-")
     configure_legacy_paths("zone_a" => @directory)
     @root, root_key = issue(name: "Reconciliation root", ca: true)
@@ -24,9 +22,7 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    AreaConfiguration.instance_variable_set(:@configuration, @previous_configuration)
-    %w[CCI_ZABBIX_INTEGRATION_ENABLED CCI_ZABBIX_INTEGRATION_TOKEN
-      CCI_ZABBIX_CERTIFICATE_SOURCES].each { |key| ENV[key] = @previous_environment[key] }
+    configure_legacy_paths(@previous_configuration.fetch("legacy_paths"))
     FileUtils.remove_entry(@directory)
   end
 
@@ -48,7 +44,7 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
     assert_empty inventory.issues
     assert_not_includes monitored_ids, @record.id
     assert_equal 9, monitored_ids.size
-    get root_path
+    get certificates_path
     assert_response :success
     assert_select "a[href=?]", certificate_path(@record), count: 0
     get certificate_path(@record)
@@ -76,7 +72,7 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
 
   test "deleting a filesystem CA preserves its Consul duplicate and rebuilds references to the retained ID" do
     consul = store(@root, certid: "retained-ca")
-    ENV["CCI_ZABBIX_CERTIFICATE_SOURCES"] = "both"
+    settings["integrations"]["zabbix"]["certificate_sources"] = "both"
     File.delete(File.join(@directory, "root.pem"))
     2.times { CatalogIndexer.new.filesystem }
     CatalogIndexer.run
@@ -93,7 +89,7 @@ class FilesystemReconciliationIntegrationTest < ActionDispatch::IntegrationTest
   private
 
   def monitored_ids
-    get "/integrations/zabbix", headers: { "Authorization" => "Bearer #{ENV.fetch("CCI_ZABBIX_INTEGRATION_TOKEN")}" }
+    get "/integrations/zabbix", headers: { "Authorization" => "Bearer #{settings["integrations"]["zabbix"]["token"]}" }
     assert_response :success
     response.parsed_body.fetch("certificates").pluck("id")
   end

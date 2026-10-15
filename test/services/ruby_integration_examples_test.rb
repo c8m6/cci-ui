@@ -33,8 +33,8 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     assert_match %r{/certids/external}, calls.first.last
     assert_equal ["put", "/v1/txn"], calls.last
     calls.clear
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      connection: connection, keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      connection: connection, keys: { "zone_a" => settings["areas"]["zone_a"]["encryption_key"] })
     assert_equal cert.to_pem, reader.read_certificate(area: "zone_a", certid: "external")
     assert cert.check_private_key(OpenSSL::PKey.read(reader.read_certificate(area: "zone_a", certid: "external",
       field: "private_key")))
@@ -50,8 +50,8 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
   test "renewal pinning rollback and monotonically increasing versions" do
     first_cert, first_key = issue
     first = publish(first_cert, key: first_key)
-    cached = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
+    cached = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      keys: { "zone_a" => settings["areas"]["zone_a"]["encryption_key"] })
     assert_equal first_cert.to_pem, cached.read_certificate(area: "zone_a", certid: "external")
     second_cert, second_key = issue(serial: 2)
     second = publish(second_cert, key: second_key)
@@ -64,8 +64,12 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     assert_equal 1, read.fetch("metadata").fetch("version")
     assert_equal 3, publish(first_cert)
     assert_equal 3, read.fetch("metadata").fetch("version")
-    output, error, status = Open3.capture3(RbConfig.ruby, Rails.root.join("examples/read_certificate.rb").to_s,
-      "zone_a", "external", "2")
+    output, error, status = Dir.mktmpdir do |dir|
+      path = File.join(dir, "config.yml")
+      File.write(path, YAML.dump(settings))
+      Open3.capture3({ "CCI_CONFIG_FILE" => path }, RbConfig.ruby,
+        Rails.root.join("examples/read_certificate.rb").to_s, "zone_a", "external", "2")
+    end
     assert status.success?, error
     assert_equal 2, JSON.parse(output).fetch("metadata").fetch("version")
   end
@@ -84,8 +88,8 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
       assert_not_includes entries.fetch("#{base}/keys/shared/1").to_json, "PRIVATE KEY"
     end
     assert_empty ConsulStore.client.all("#{ConsulStore.namespace}/areas/")
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      keys: { "zone_a" => ENV.fetch("ZONE_A_KEY"), "zone_b" => ENV.fetch("ZONE_B_KEY") })
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      keys: { "zone_a" => settings["areas"]["zone_a"]["encryption_key"], "zone_b" => settings["areas"]["zone_b"]["encryption_key"] })
     certificates.each do |area, cert|
       assert_equal cert.to_pem, reader.read_certificate(area: area, certid: "shared")
       assert cert.check_private_key(OpenSSL::PKey.read(reader.read_certificate(area: area, certid: "shared",
@@ -160,7 +164,7 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
       CertificateExample.add(area: "zone_a", certid: "ca-#{index}", cert: cert)
     end
     connection, calls = counting_connection
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace, connection: connection)
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace, connection: connection)
     assert_equal leaf.to_pem, reader.read_certificate(area: "zone_a", certid: "external")
     assert_equal 2, calls.size
     assert_equal [leaf, intermediate, root].map(&:to_pem).join,
@@ -176,8 +180,8 @@ class RubyIntegrationExamplesTest < ActiveSupport::TestCase
     cert, = issue
     publish(cert)
     connection, calls = counting_connection
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      connection: connection, keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      connection: connection, keys: { "zone_a" => settings["areas"]["zone_a"]["encryption_key"] })
     assert_equal cert.to_pem, reader.read_certificate(area: "zone_a", certid: "external")
     assert_equal 2, calls.size
     assert_raises(CciClient::Error) { reader.read_certificate(area: "zone_a", certid: "external", field: "private_key") }

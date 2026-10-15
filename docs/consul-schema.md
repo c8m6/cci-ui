@@ -23,7 +23,7 @@ CertID can exist independently in multiple areas.
 
 There are no separate chain, provenance, fingerprint or event keys. A CertID
 contains 1–120 characters from `a-z`, `A-Z`, `0-9`, `.`, `_`, `-`. An area matches
-`[a-z][a-z0-9_]{0,47}` and must be configured in `CCI_AREAS` to appear in the UI.
+`[a-z][a-z0-9_]{0,47}` and must be configured in `areas` to appear in the UI.
 A version is a positive JSON integer, starting at `1` for each area/CertID pair.
 Paths use its decimal representation without leading zeros.
 
@@ -127,7 +127,7 @@ fields. If no reliable actor is available, omit the fields rather than inventing
 a human identity. An actor is a nonblank string of at most 255 characters.
 
 The Ruby writer accepts `actor: "svc:puppet-prod"` and applies it to both fields
-on import. The command-line example accepts `CCI_ACTOR`. A machine import with
+on import. The Ruby writer accepts an explicit `actor` argument. A machine import with
 an actor therefore has `client: "puppet"` and `created_by: "svc:puppet-prod"` in
 the certificate version, and `client: "puppet"` and
 `updated_by: "svc:puppet-prod"` in the CertID metadata. Later updates leave the
@@ -148,7 +148,7 @@ a fresh 12-byte IV and a 16-byte authentication tag. AAD is exactly
 `cci:<area>:<certid>/<version>`, independent of a customized storage prefix.
 The envelope's `version: 1` identifies the encryption format, not the certificate
 version. A key must match its certificate. Configure shared secrets through
-`CCI_AREA_KEYS` or `<UPPERCASE_AREA_ID>_KEY`.
+`areas.<id>.encryption_key`.
 
 ## Request budget and concurrency
 
@@ -304,10 +304,7 @@ The helper uses only Ruby standard libraries:
 ```ruby
 require_relative "lib/cci_writer"
 
-writer = CciWriter.new(
-  connection: ConsulConnection.new(url: ENV.fetch("CONSUL_URL")),
-  prefix: ENV.fetch("CONSUL_PREFIX", "cci")
-)
+writer = CciWriter.new
 version = writer.save(
   area: "zone_a", certid: "portal.production",
   cert: OpenSSL::X509::Certificate.new(File.read("portal.pem")),
@@ -324,7 +321,7 @@ not take a chain. A `ConsulConnection::Conflict` requires a fresh attempt.
 Runnable example:
 
 ```console
-CCI_CLIENT_ID=puppet ruby examples/add_certificate.rb zone_a portal.production portal.pem portal.key
+CCI_CONFIG_FILE=/etc/cci/config.yml ruby examples/add_certificate.rb zone_a portal.production portal.pem portal.key
 ```
 
 Writing tokens need read/write access to the area's `certids/`, `certs/` and,
@@ -336,10 +333,7 @@ need no access to `keys/`.
 ```ruby
 require_relative "lib/cci_client"
 
-reader = CciClient.new(
-  url: ENV.fetch("CONSUL_URL"), token: ENV.fetch("CONSUL_TOKEN", ""),
-  keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") }, prefix: "cci"
-)
+reader = CciClient.new(keys: { "zone_a" => AreaSecrets.fetch("zone_a") })
 selection = { area: "zone_a", certid: "portal.production" }
 pem = reader.read_certificate(**selection)
 key = reader.read_certificate(**selection, field: "private_key")
@@ -366,10 +360,9 @@ helpers. Keep the UI, writers and readers on this same contract.
 
 ## Area-scoped transport credentials
 
-`CCI_CONSUL_TOKENS` optionally maps area IDs to ACL tokens; missing entries use
-`CONSUL_TOKEN`, then anonymous access. This is transport configuration, independent
-of area encryption keys and of the immutable storage schema and AAD. All standard
-client/writer paths resolve the token centrally. Area-scoped transactions cannot
-contain another area's keys. ACL denial or filtered results fail without fallback.
-See [configuration and ACL policy examples](environment.md#area-scoped-consul-credentials)
-and [multi-area CSR retry semantics](csr.md).
+Global `consul` settings are inherited and selectively overridden under
+`areas.<id>.consul`. URL, prefix, CA file and token are resolved together for
+all readers/writers. Encryption keys remain independent. Area-scoped
+transactions reject foreign keys; ACL denial or filtered responses fail without
+retrying another credential. Every new write operation targets one area.
+See [YAML inheritance and ACLs](configuration.md#area-identity-and-multiple-consul-clusters).

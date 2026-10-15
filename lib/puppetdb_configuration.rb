@@ -1,16 +1,11 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "cci_configuration"
 
-# Validates environment settings and builds a properly escaped default PQL query.
+# Interprets YAML inventory settings and builds a properly escaped default PQL query.
 class PuppetdbConfiguration
-  def self.enabled?(environment = ENV)
-    case environment.fetch("PUPPETDB_ENABLED", "false").strip.downcase
-    when "true", "1" then true
-    when "false", "0", "" then false
-    else raise PuppetdbConnection::Error, "PUPPETDB_ENABLED must be true or false."
-    end
-  end
+  def self.enabled?(configuration = CciConfiguration.current.fetch("puppetdb")) = configuration.fetch("enabled", false)
 
   attr_reader :fact_name, :query, :fingerprint_field, :fingerprint_algorithm
 
@@ -18,19 +13,20 @@ class PuppetdbConfiguration
   def fingerprint_length = fingerprint_algorithm == "sha1" ? 40 : 64
   def fingerprint_label = fingerprint_algorithm == "sha1" ? "SHA-1" : "SHA-256"
 
-  def initialize(environment = ENV)
-    @fingerprint_algorithm = environment.fetch("PUPPETDB_FINGERPRINT_ALGORITHM", "sha256").strip.downcase.delete("-")
+  def initialize(configuration = CciConfiguration.current.fetch("puppetdb"))
+    inventory = configuration.fetch("inventory", {})
+    @fingerprint_algorithm = inventory.fetch("fingerprint_algorithm", "sha256").strip.downcase.delete("-")
     unless %w[sha1 sha256].include?(@fingerprint_algorithm)
-      raise PuppetdbConnection::Error, "PUPPETDB_FINGERPRINT_ALGORITHM must be sha256 or sha1."
+      raise PuppetdbConnection::Error, "puppetdb.inventory.fingerprint_algorithm must be sha256 or sha1."
     end
 
-    @fact_name = environment.fetch("PUPPETDB_FACT_NAME", "certificates")
-    raise PuppetdbConnection::Error, "PUPPETDB_FACT_NAME must not be empty." if @fact_name.strip.empty?
+    @fact_name = inventory.fetch("fact_name", "certificates")
+    raise PuppetdbConnection::Error, "puppetdb.inventory.fact_name must not be empty." if @fact_name.strip.empty?
 
-    @fingerprint_field = environment.fetch("PUPPETDB_FINGERPRINT_FIELD", "fingerprint")
-    raise PuppetdbConnection::Error, "PUPPETDB_FINGERPRINT_FIELD must not be empty." if @fingerprint_field.strip.empty?
+    @fingerprint_field = inventory.fetch("fingerprint_field", "fingerprint")
+    raise PuppetdbConnection::Error, "puppetdb.inventory.fingerprint_field must not be empty." if @fingerprint_field.strip.empty?
 
-    @query = environment.fetch("PUPPETDB_QUERY", "")
+    @query = inventory.fetch("query", "")
     return unless @query.strip.empty?
 
     # PQL string literals need quotes and JSON escaping, including embedded

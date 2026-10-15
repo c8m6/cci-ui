@@ -87,7 +87,7 @@ class CertificatesTest < ActiveSupport::TestCase
       File.write(File.join(dir, "mixed.pem"), issue(serial: 9).first.to_pem)
       assert_raises(Certificates::Error) { CertificateMaterial.load(record) }
     ensure
-      AreaConfiguration.instance_variable_set(:@configuration, previous)
+      configure_legacy_paths(previous.fetch("legacy_paths"))
     end
   end
 
@@ -113,7 +113,7 @@ class CertificatesTest < ActiveSupport::TestCase
       assert_raises(Certificates::Error) { LegacyStore.safe_path("escape.pem") }
       assert_raises(Certificates::Error) { LegacyStore.safe_path("../../etc/passwd") }
     ensure
-      AreaConfiguration.instance_variable_set(:@configuration, previous)
+      configure_legacy_paths(previous.fetch("legacy_paths"))
     end
   end
 
@@ -164,8 +164,8 @@ class CertificatesTest < ActiveSupport::TestCase
   test "Puppet client pins version within compile and returns stable content" do
     cert, key = issue
     original = store(cert, key: key)
-    client = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace,
-      keys: { "zone_a" => ENV.fetch("ZONE_A_KEY") })
+    client = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace,
+      keys: { "zone_a" => settings["areas"]["zone_a"]["encryption_key"] })
     pem = client.read_certificate(area: "zone_a", certid: "test")
     assert_equal cert.to_pem, pem
     renewed, new_key = issue(serial: 99)
@@ -173,7 +173,7 @@ class CertificatesTest < ActiveSupport::TestCase
     assert_equal pem, client.read_certificate(area: "zone_a", certid: "test")
     assert cert.check_private_key(OpenSSL::PKey.read(client.read_certificate(area: "zone_a", certid: "test",
       field: "private_key")))
-    next_compile = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
+    next_compile = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace)
     assert_equal renewed.to_pem, next_compile.read_certificate(area: "zone_a", certid: "test")
     assert_equal original.fingerprint,
       client.read_certificate(area: "zone_a", certid: "test", field: "metadata")["fingerprint"]

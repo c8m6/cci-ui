@@ -40,6 +40,11 @@ const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer');
       await ready();
     };
     await login('all:writer');
+    await page.goto(base + '/', { waitUntil: 'networkidle0' });
+    await ready();
+    assert.equal(await page.$('nav a[href="/"]'), null);
+    assert.equal(await page.$eval('.sidebar-roles', node => node.open), false);
+    await capture('dashboard.png');
     if (process.env.CAPTURE_HOSTS_ONLY === '1') {
       await page.goto(base + '/hosts', { waitUntil: 'networkidle0' });
       await ready();

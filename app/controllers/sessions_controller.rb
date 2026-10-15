@@ -27,7 +27,7 @@ class SessionsController < ApplicationController
   def new; end
 
   def local
-    return render_error(:not_found) unless ENV["AUTH_MODE"] == "local" && !Rails.env.production?
+    return render_error(:not_found) unless CciConfiguration.current.dig("authentication", "mode") == "local" && !Rails.env.production?
 
     identity = self.class.local_identities[params[:identity]]
     return render_error(:unprocessable_content) unless identity
@@ -37,8 +37,8 @@ class SessionsController < ApplicationController
 
   def callback
     auth = request.env["omniauth.auth"]
-    result = OidcAuthorization.new(auth: auth, auth_mode: ENV.fetch("AUTH_MODE", "oidc"),
-      client_id: ENV.fetch("OIDC_CLIENT_ID", ""),
+    result = OidcAuthorization.new(auth: auth, auth_mode: CciConfiguration.current.dig("authentication", "mode"),
+      client_id: CciConfiguration.current.dig("authentication", "oidc", "client_id"),
       role_mapping: Rails.application.config.x.oidc_role_mapping || OidcConfiguration.load_role_mapping,
       display_name_claim: Rails.application.config.x.oidc_display_name_claim ||
         OidcConfiguration.display_name_claim).call
@@ -117,7 +117,7 @@ class SessionsController < ApplicationController
   end
 
   def keycloak_realm
-    URI(ENV.fetch("OIDC_ISSUER")).path.split("/").reject(&:empty?).last
+    URI(CciConfiguration.current.dig("authentication", "oidc", "issuer")).path.split("/").reject(&:empty?).last
   rescue URI::InvalidURIError
     nil
   end

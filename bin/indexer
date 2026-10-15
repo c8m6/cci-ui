@@ -26,5 +26,5 @@ loop do
     OperationalLog.failure(logger: "cci.indexer", message: "Index refresh failed", error: e,
       operation: "refresh_index", result: "failed")
   end
-  sleep Integer(ENV.fetch("INDEX_INTERVAL", "60"))
+  sleep CciConfiguration.current.dig("indexer", "interval_seconds")
 end

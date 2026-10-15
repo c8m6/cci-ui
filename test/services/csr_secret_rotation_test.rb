@@ -8,7 +8,7 @@ class CsrSecretRotationTest < ActiveSupport::TestCase
 
   test "rotation preserves both secrets and invalidates the previous key" do
     request = create_csr
-    old_key = ENV.fetch("ZONE_A_KEY")
+    old_key = settings["areas"]["zone_a"]["encryption_key"]
     new_key = Base64.strict_encode64("n" * 32)
     password = CsrSecrets.decrypt(request, "revoke")
     key = CsrSecrets.decrypt(request, "key")
@@ -28,7 +28,7 @@ class CsrSecretRotationTest < ActiveSupport::TestCase
     second.update!(encrypted_revoke_password: "invalid")
     assert_no_difference "AuditEvent.count" do
       assert_raises(Certificates::Error) do
-        CsrSecretRotation.call(area: "zone_a", old_key: ENV.fetch("ZONE_A_KEY"),
+        CsrSecretRotation.call(area: "zone_a", old_key: settings["areas"]["zone_a"]["encryption_key"],
           new_key: Base64.strict_encode64("n" * 32), actor: "operator")
       end
     end
@@ -40,7 +40,7 @@ class CsrSecretRotationTest < ActiveSupport::TestCase
     entry = upload_csr(request)
     entry.update!(prepared: { operations: [] }, state: "publishing")
     assert_raises(Certificates::Error) do
-      CsrSecretRotation.call(area: "zone_a", old_key: ENV.fetch("ZONE_A_KEY"),
+      CsrSecretRotation.call(area: "zone_a", old_key: settings["areas"]["zone_a"]["encryption_key"],
         new_key: Base64.strict_encode64("n" * 32), actor: "operator")
     end
     assert_raises(ArgumentError) do

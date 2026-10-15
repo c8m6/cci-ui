@@ -1,6 +1,6 @@
 # CSR workflow and operations
 
-The **CSR erstellen** menu uses the independent `<area>_csr` role. Writer,
+The **CSR** menu uses the independent `<area>_csr` role. Writer,
 Reader, Key Exporter and Auditor roles do not imply CSR access. Assign CSR roles
 for each desired area through the existing OIDC role mapping. Local development
 also provides `<area>_csr` and `all:csr` identities. CSR-only users land on this
@@ -43,7 +43,7 @@ script/screenshots/compose.yml down --volumes` afterward.
 ## Validation
 
 RSA supports 2048, 3072 and 4096 bits. EC supports P-256, P-384 and P-521.
-SHA256, SHA384 and SHA512 are accepted. See [environment defaults](environment.md#csr-defaults).
+SHA256, SHA384 and SHA512 are accepted. See [YAML defaults](configuration.md#parameter-reference).
 The request is generated with Ruby OpenSSL in memory, includes an `extReq` SAN
 extension, and is verified before storage. It has no `challengePassword`.
 
@@ -94,18 +94,15 @@ existing records. PostgreSQL failures are errors, never successful publication
 responses. Audit failure prevents revoke-password disclosure.
 
 Consul publication uses the existing `CciWriter` CAS transaction and integer
-versions under `<CONSUL_PREFIX>/<area>/certids/<certid>`,
+versions under `<effective-prefix>/<area>/certids/<certid>`,
 `certs/<certid>/<version>` and `keys/<certid>/<version>`. The client marker is
 `cci-ui-csr`, with the authenticated actor. Existing rollout/archive metadata is
 preserved. The private key uses the existing area-key encryption and version AAD.
-The revoke password is never sent to Consul. With only a global token, all
-selected areas retain the existing single atomic transaction. If any target area
-has a `CCI_CONSUL_TOKENS` override, each area is published atomically using its
-resolved token. A later area's failure can therefore leave earlier areas already
-published. Retry the same submission: exact immutable bytes identify completed
-areas, which are not written again. A conflicting writer in a remaining area
-requires fresh confirmation there. No automatic rollback deletes published data.
-The submission is marked published only after every target area is confirmed.
+The revoke password is never sent to Consul. Each new request belongs to exactly
+one area; its publication uses one atomic transaction in that area's effective
+Consul cluster. There is no cross-area replication. Historical requests with
+multiple targets and their audit/publication history remain stored and visible
+under the original permissions, but further publication is refused.
 
 PostgreSQL and Consul cannot share a transaction. Before sending, the application
 saves the exact encrypted Consul operations and a separate audit intent. A retry
@@ -141,9 +138,10 @@ returns 422 for JSON. HTML mutations redirect with a localized notice or error.
 | Method and path | Input and result |
 | --- | --- |
 | `GET /certificate_requests` | `{open: [...], issued: [...]}`, area-scoped public metadata |
-| `GET /certificate_requests/new` | HTML form with environment defaults |
+| `GET /certificate_requests/new` | HTML form with YAML defaults |
 | `POST /certificate_requests` | `csr` object, returns 201 with public request metadata |
 | `GET /certificate_requests/:id` | Public request and linked certificate metadata, `certid_index` and `consul_available` |
+| `DELETE /certificate_requests/:id` | `confirm_delete=1`; soft delete before any issued certificate, returns 204 for JSON |
 | `GET /certificate_requests/:id/download` | Audited PKCS#10 PEM download |
 | `POST /certificate_requests/:id/reveal` | `confirm_reveal=1`, returns `{revoke_password: "..."}` only after auditing |
 | `POST /certificate_requests/:id/upload` | `pem` text or multipart `file`, `confirm_replace=1` for replacement. Automatically attempts first publication after verification |
@@ -166,7 +164,7 @@ exception for the revoke password. Responses use private, no-store caching.
 ## Secret management and rotation
 
 Both private keys and revoke passwords use the existing external area key from
-`CCI_AREA_KEYS` or its established area fallback. Keys are Base64-encoded 32-byte
+`areas.<id>.encryption_key` in YAML. Keys are Base64-encoded 32-byte
 values. They are never stored in PostgreSQL. Each secret has a random AES-256-GCM
 IV, authentication tag and versioned ciphertext envelope. Authenticated context
 includes area, a stable random request identifier and secret purpose, preventing
@@ -176,7 +174,7 @@ normal HTML/JSON, audit metadata, or application-generated error messages.
 
 Back up PostgreSQL and the external key configuration through separate protected
 channels. Keep old keys for any backups they encrypt. Losing an area key loses
-access to its stored secrets. Merely replacing the environment key is not a
+access to its stored secrets. Merely replacing the configured key is not a
 rotation. No private-key export endpoint is added for CSR users.
 
 Rotation is an offline operator procedure, not a UI action:
@@ -187,26 +185,43 @@ Rotation is an offline operator procedure, not a UI action:
 2. Arrange the existing Consul key and import-draft rotation separately using
    their original authenticated contexts. The helper below rotates **only** CSR
    secrets. Do not restart with mixed old/new material.
-3. Supply old/new keys through protected ephemeral environment configuration,
-   not command-line arguments or shell history. In a maintenance Rails runner,
-   execute the following code. All CSR changes and audit records are atomic. A
-   bad key, decryption or audit failure rolls back the entire CSR step.
+3. Read old/new keys from protected files inside an offline maintenance runner
+   and call the existing helper with explicit values:
 
    ```ruby
    CsrSecretRotation.call(
-     area: ENV.fetch("ROTATE_AREA"),
-     old_key: ENV.fetch("ROTATE_OLD_KEY"),
-     new_key: ENV.fetch("ROTATE_NEW_KEY"),
-     actor: ENV.fetch("ROTATE_ACTOR")
+     area: "global",
+     old_key: File.binread("/run/secrets/old-area-key").strip,
+     new_key: File.binread("/run/secrets/new-area-key").strip,
+     actor: "maintenance-operator"
    )
    ```
 
-4. Update the external area-key configuration consistently for all readers and
-   writers, remove the ephemeral rotation variables, and restart. Verify a CSR
-   secret disclosure and an encrypted Consul key read under the new key. If any
-   step fails, keep services stopped and restore the coordinated backup.
+4. Update `areas.<id>.encryption_key` consistently for all readers and writers,
+   remove temporary key mounts, and restart. Verify a CSR disclosure and an
+   encrypted Consul key read. On failure keep services stopped and restore the
+   coordinated backup. All CSR changes and audit records are atomic.
 
 The helper refuses unresolved publication intents and discards completed intent
 copies containing old encrypted Consul values. Original completed certificate
 metadata and audit history remain. It does not rotate Consul, import drafts,
 backups or external clients, and must not be used as an online key switch.
+
+## Manual soft delete
+
+An area CSR user can delete a retained request only before any issued certificate
+has been uploaded. Pending, prepared or completed publication therefore also
+prevents deletion. The detail page offers **Delete CSR** / **CSR löschen** only
+in eligible states and requires explicit confirmation.
+
+The server rechecks the state under the same PostgreSQL row lock as upload.
+A concurrent upload and delete cannot both succeed. `deleted_at` and `deleted_by`
+record time and the existing authenticated UID; `csr_delete` is audited in the
+same transaction. The CSR, both encrypted secrets and existing audit history
+remain stored unchanged. There is no cleanup job, TTL or automatic deletion.
+
+Deleted requests disappear from both regular lists and dashboard counts.
+Direct show, download, upload, issuer, reveal, publication and repeated deletion
+URLs return 404. Service operations also reject stale/deleted request objects.
+A request that acquired an issued certificate after the delete form was opened
+is rejected with a localized explanation (422 for JSON).

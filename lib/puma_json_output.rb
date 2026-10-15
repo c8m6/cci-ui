@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "container_log_formatter"
+require_relative "cci_configuration"
 
 # Adapts Puma's stdout and stderr streams to the application JSON schema.
 class PumaJsonOutput
@@ -11,7 +12,7 @@ class PumaJsonOutput
     @io = io
     @level = level
     @severity = LEVELS.fetch(level)
-    @threshold = LEVELS.fetch(ENV.fetch("LOG_LEVEL", "INFO").upcase, Logger::INFO)
+    @threshold = LEVELS.fetch(CciConfiguration.current.dig("server", "log_level").upcase, Logger::INFO)
     @formatter = ContainerLogFormatter.new
   end
 

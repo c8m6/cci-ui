@@ -56,7 +56,7 @@ class LegacyDeletionTest < ActionDispatch::IntegrationTest
     assert_equal "active", @record.rollout_status
     CatalogIndexer.run
     assert_equal 2, Certificate.where.not(deleted_at: nil).count
-    get root_path, params: { q: "legacy", history: "1", archived: "1" }
+    get certificates_path, params: { q: "legacy", history: "1", archived: "1" }
     assert_select "tbody tr", count: 0
     get certificate_path(@record)
     assert_response :not_found

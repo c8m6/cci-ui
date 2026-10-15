@@ -23,7 +23,7 @@ class AuditEventsTest < ActionDispatch::IntegrationTest
       post local_login_path, params: { identity: role }
       get audit_events_path
       assert_response :forbidden
-      get root_path
+      get certificates_path
       assert_select "nav a[href=?]", audit_events_path, count: 0
     end
     post local_login_path, params: { identity: "zone_a_auditor" }

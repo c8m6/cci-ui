@@ -1,102 +1,27 @@
-# Complete inline Compose configuration
+# Production Compose with external services
 
-[compose.full.yml](../compose.full.yml) is a production template for existing
-PostgreSQL, Consul, Keycloak and PuppetDB services. It contains all application
-feature settings directly in YAML, without `env_file` or variable substitutions.
-The existing development and production templates are unchanged.
+[compose.full.yml](../compose.full.yml) retains web, indexer and one migration
+job using an existing PostgreSQL, Consul and OIDC deployment. All three load
+one read-only `config.yml` and the same secret/TLS directories. No application
+settings are embedded in Compose environment variables.
 
-CA inventory and PuppetDB inventory are enabled. CSR defaults, role mappings,
-area encryption keys, legacy directories, Consul TLS, PostgreSQL TLS and
-PuppetDB mutual TLS are included. Error details and the optional PuppetDB token
-are present but disabled/empty by default. CSR access is granted by the
-`<area>_csr` role, not by a separate feature switch.
+1. Copy the Compose file and [config.example.yml](../config.example.yml) to a
+   protected deployment directory, naming the latter `config.yml`.
+2. Set the immutable image, endpoint URLs, database settings, OIDC client and
+   stable areas. Preserve existing area keys and session secret.
+3. Provide secret files under `secrets/`, CA/client TLS files under `tls/`, and
+   change mounts for your actual legacy inventories. UID 10001 needs read access.
+4. Set the same logical configuration and paths for web, indexer and migrate.
+   An unused filesystem inventory requires neither a mapping nor a mount.
+5. Start with `docker compose -f compose.full.yml up -d --wait`. The migration
+   job must succeed before web and indexer start. The web service uses `/ready`.
 
-## Configure and start
+The web legacy mount is writable for confirmed filesystem deletion; the indexer
+mount is read-only. Configuration, TLS and secrets stay read-only for all
+services. Never copy real YAML or secrets into the image. Run only one indexer.
+Use an HTTPS reverse proxy and back up PostgreSQL, Consul, inventories and keys.
 
-1. Build the image with `docker build -t cci-ui:local .`, or change `x-image` to
-   your published immutable image tag.
-2. Copy the template outside the repository, for example to
-   `/srv/cci/compose.yml`, and edit that copy. Keep real credentials out of Git
-   and Docker build contexts. Restrict access to the deployment file.
-3. Replace every `REPLACE_*` value, example hostname, role mapping and mount
-   source. URL-encode the PostgreSQL password. Escape literal dollar signs in
-   Compose values as `$$`. Use existing area keys when data already exists.
-4. Supply the mounted CA/client files and legacy directories. The image runs as
-   UID 10001, which needs read access to TLS files and inventory, and write access
-   to legacy files for web deletion. Missing mount sources fail rather than
-   silently creating empty directories.
-5. Configure an HTTPS proxy or load balancer for `cci.example.test`. The example
-   publishes only `127.0.0.1:3000`, suitable for a proxy on the Docker host.
-   Adjust the binding for a remote load balancer.
-
-For a new deployment:
-
-```bash
-docker compose -f /srv/cci/compose.yml config --quiet
-docker compose -f /srv/cci/compose.yml up -d --wait
-```
-
-No environment file or exported application variables are needed. The template
-uses literal values only. Compose may still discover its own default `.env`;
-use `--env-file /dev/null` if you also want to disable that discovery.
-
-For later releases, make migration success a prerequisite for updating replicas:
-
-```bash
-docker compose -f /srv/cci/compose.yml run --rm --no-deps migrate &&
-  docker compose -f /srv/cci/compose.yml up -d --no-deps --wait web indexer
-```
-
-Prepare the selected image before running these commands. Use `/ready` for
-load-balancer readiness, `/up` for process liveness and `/health` for dependency
-diagnostics. Replace the web service's `CCI_HEALTH_TOKEN` placeholder with a
-high-entropy deployment secret. Monitoring must send it as
-`Authorization: Bearer <token>`, and reverse proxies must forward that header.
-See [HA deployment](installation.md#deploying-multiple-web-replicas).
-
-## Settings by service
-
-| Service | Configuration |
-| --- | --- |
-| Web | Rails boot, database, Consul write token, inventory, PuppetDB, encryption keys, UI roles, OIDC display name, health token, diagnostics, port, CSR defaults and optional Zabbix integration |
-| Indexer | Rails boot, database, Consul read token, inventory, PuppetDB and indexing interval |
-| Migration job | Rails boot and database only |
-
-The indexer deliberately receives no `CCI_AREA_KEYS`, individual area keys,
-`CSR_DEFAULT_*`, `OIDC_ROLE_MAP`, `OIDC_DISPLAY_NAME_CLAIM`,
-`CCI_SHOW_ERROR_DETAILS`, `CCI_ZABBIX_INTEGRATION_*`, `CCI_ZABBIX_CERTIFICATE_SOURCES` or `PORT`.
-It reads public certificate material and does not decrypt stored private keys.
-Its Consul token needs read access to all configured certid and certificate
-prefixes, including the transaction reads used by CA discovery. PostgreSQL
-access must allow catalog updates and expired import-draft cleanup.
-
-The indexer and migration job currently load the full production Rails
-application. Consequently `SECRET_KEY_BASE`, `ALLOWED_HOSTS`, `AUTH_MODE` and
-the four OIDC connection settings are required for boot even though these
-processes do not serve requests. The shared boot anchor documents this
-dependency explicitly. `RAILS_MAX_THREADS` also controls the database pool.
-`LOG_LEVEL` is shared so web, indexer and migration output use the same threshold.
-
-The Zabbix endpoint is disabled by default. Set the two
-`CCI_ZABBIX_INTEGRATION_*` values on web only when enabling
-[Zabbix monitoring](integrations/zabbix.md). `CCI_ZABBIX_CERTIFICATE_SOURCES`
-defaults to `consul`; choose `filesystem` or `both` to change monitoring scope.
-
-Legacy storage is mounted read/write for web and read-only for the indexer.
-TLS mounts are read-only. Web receives PuppetDB connection settings because
-`/health` probes PuppetDB, although normal pages use cached host mappings.
-Keep one indexer active across deployment hosts. This file supplies application
-services, not HA clusters for the external dependencies.
-
-For system-trusted Consul/PuppetDB certificates, empty the corresponding
-`*_CA_FILE` value and remove its mount if unused. For PostgreSQL, retain
-`sslmode=verify-full` and configure an appropriate trust source. For PuppetDB
-without mutual TLS, empty both client certificate/key settings together.
-Keep `PUPPETDB_TOKEN` empty unless your endpoint requires it. Set
-`CCI_LEGACY_PATHS` to `{}` and remove legacy mounts if no disk inventory exists.
-
-`CCI_FILESYSTEM_RECONCILIATION` is shared by web and indexer in the inventory
-environment block. Its empty JSON object selects the defaults: enabled cleanup,
-two successful absence confirmations and a 20% deletion limit per source.
-See [filesystem reconciliation](legacy-deletion.md#automatic-filesystem-reconciliation)
-before changing these settings or approving a legitimate mass deletion.
+For subsequent releases, run migration once with the new immutable image,
+then update replicas; see [deployment ordering](installation.md#deploying-multiple-web-replicas).
+See [YAML configuration](configuration.md) for the full schema, inheritance,
+multiple Consul clusters, PostgreSQL TLS and file-reference behavior.

@@ -2,16 +2,16 @@
 
 # Validates complete host inventories before replacing fingerprint-to-host associations.
 class PuppetdbInventory
-  def self.refresh(environment: ENV, connection: nil)
-    return unless PuppetdbConfiguration.enabled?(environment)
+  def self.refresh(configuration: CciConfiguration.current.fetch("puppetdb"), connection: nil)
+    return unless PuppetdbConfiguration.enabled?(configuration)
 
-    configuration = PuppetdbConfiguration.new(environment)
-    connection ||= PuppetdbConnection.new(environment: environment)
-    rows = connection.inventory(configuration.query)
-    inventory = new(configuration)
+    settings = PuppetdbConfiguration.new(configuration)
+    connection ||= PuppetdbConnection.new(configuration: configuration)
+    rows = connection.inventory(settings.query)
+    inventory = new(settings)
     hosts = inventory.hosts_by_fingerprint(rows)
     checked_at = Time.current
-    column = configuration.fingerprint_column
+    column = settings.fingerprint_column
     # Older retained entries may have no SHA-1 digest until their source is
     # readable again. Keep their previous observations instead of reporting 0.
     records = Certificate.retained.where(area: AreaConfiguration.ids).where.not(column => nil)
@@ -72,7 +72,7 @@ class PuppetdbInventory
       facts = row.fetch("facts")
       unless facts.key?(@configuration.fact_name)
         raise PuppetdbConnection::Error,
-          "The configured certificate fact is missing from the PuppetDB inventory. Check the query and PUPPETDB_FACT_NAME."
+          "The configured certificate fact is missing from the PuppetDB inventory. Check the query and puppetdb.inventory.fact_name."
       end
 
       fingerprints(facts.fetch(@configuration.fact_name)).each do |fingerprint, path|

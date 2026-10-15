@@ -9,7 +9,7 @@ class CaInventoriesTest < ActionDispatch::IntegrationTest
     assert_raises(ActionController::RoutingError) { Rails.application.routes.recognize_path("/ca_inventories") }
     get "/ca_inventories"
     assert_response :not_found
-    get root_path
+    get certificates_path
     assert_response :success
     assert_select "a[href='/ca_inventories']", count: 0
   end

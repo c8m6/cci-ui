@@ -8,15 +8,15 @@ or custom Puppet module.
 
 ## Query and configuration
 
-Set `PUPPETDB_ENABLED=true`, `PUPPETDB_URL` and your actual
-`PUPPETDB_FACT_NAME`. With the example fact name `certificates`, the default query
+Set `puppetdb.enabled: true`, `puppetdb.url` and your actual
+`puppetdb.inventory.fact_name`. With the example fact name `certificates`, the default query
 is:
 
 ```text
 inventory[certname,facts]{ certname in fact_contents[certname]{ name = "certificates" } }
 ```
 
-Override it through `PUPPETDB_QUERY` if needed. Results must contain `certname`
+Override it through `puppetdb.inventory.query` if needed. Results must contain `certname`
 and `facts`, including the configured certificate fact in every row. The query
 defines the host population being counted; use it to restrict environments or
 other deployment scopes. Do not use `limit` or `offset`: synchronization needs
@@ -29,15 +29,14 @@ CCI-UI sends the PQL string as JSON in a POST request to `/pdb/query/v4`.
 Puppet documents [PQL queries over HTTP](https://help.puppet.com/pdb/8/topics/tutorial-pql.htm),
 [TLS and token authentication](https://help.puppet.com/pdb/8/topics/curl.htm),
 and the [total result count header](https://help.puppet.com/pdb/8/topics/paging.htm).
-All environment settings, TLS mount examples and defaults are in
-[environment configuration](environment.md#optional-puppetdb-host-inventory).
+All YAML settings, TLS mount examples and defaults are in
+[YAML configuration](configuration.md#parameter-reference).
 
 ## Fact format and certificate identity
 
-Set `PUPPETDB_FINGERPRINT_ALGORITHM` to match the custom fact: `sha256`
+Set `puppetdb.inventory.fingerprint_algorithm` to match the custom fact: `sha256`
 (default, 64 hex characters) or `sha1` (40 hex characters), each over the
-certificate's DER encoding. Case and hyphens in the configured algorithm name
-are accepted. The catalog identity, archive scope and Consul keys continue using
+certificate's DER encoding. Use the exact lowercase YAML values `sha256` or `sha1`. The catalog identity, archive scope and Consul keys continue using
 SHA-256. SHA-1 is an optional compatibility value for inventory matching only.
 Text search by fingerprint continues to use SHA-256, even in SHA-1 host matching mode.
 CN, subject, issuer, filename and Puppet certid are not reliable identifiers of
@@ -72,7 +71,7 @@ An anonymized query result can look like this:
 The fingerprint above is illustrative. Upper/lowercase hexadecimal and
 colon-separated bytes are accepted, as are `SHA256 Fingerprint=` and `SHA256:`
 prefixes for SHA-256, or `SHA1 Fingerprint=` and `SHA1:` for SHA-1. The entry field name defaults to `fingerprint` and can be changed with
-`PUPPETDB_FINGERPRINT_FIELD`, for example to `sha256`.
+`puppetdb.inventory.fingerprint_field`, for example to `sha256`.
 
 The selected fact may be a single fingerprint string, a list of fingerprint
 strings or certificate objects, or a map keyed by file/name whose values have
@@ -138,7 +137,7 @@ no certificate material or external Puppet schema is migrated.
 ## Refresh and display behavior
 
 The scheduled indexer refreshes hosts once per indexing pass, after certificate
-indexing. The default `INDEX_INTERVAL` is 60 seconds between completed passes.
+indexing. The default `indexer.interval_seconds` is 60 seconds between completed passes.
 Interactive status changes, imports, searches and detail requests never query
 PuppetDB; they use cached database results. Archived entries also retain their
 host list, which can help track a pending Puppet deletion request.
@@ -170,7 +169,7 @@ certificate catalog entries. HTTP errors, timeouts, TLS failures, oversized
 responses, malformed facts and detectable truncation leave associations intact.
 Messages do not include credentials, query text or raw facts. Full results are
 fetched in one request to avoid inconsistent offset pages; increase
-`PUPPETDB_MAX_RESPONSE_BYTES` if the complete inventory exceeds its 50 MiB default.
+`puppetdb.request.max_response_bytes` if the complete inventory exceeds its 50 MiB default.
 The client connects directly to the configured URL, without environment HTTP
 proxies, redirects or automatic request retries. A later scheduled pass retries
 after a failure. Use the final reachable endpoint, including any reverse-proxy
@@ -180,5 +179,5 @@ These facts describe the latest inventory known to PuppetDB, not a live probe
 or proof that a service currently uses the certificate. A successful fetch does
 not make old node facts fresh, and the displayed timestamp is the query time,
 not the time each node inspected its files. Deactivated nodes and custom query
-filters may exclude hosts. When `PUPPETDB_ENABLED=false`, requests and UI elements
+filters may exclude hosts. When `puppetdb.enabled: false`, requests and UI elements
 are disabled while cached data remains available for a later re-enable.

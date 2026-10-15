@@ -78,15 +78,19 @@ they do not participate in the application lock.
 ## Automatic filesystem reconciliation
 
 The existing indexer reconciles manually removed or moved filesystem certificates
-after a complete scan of each configured `CCI_LEGACY_PATHS` source. This phase
+after a complete scan of each configured `areas.<id>.filesystem.legacy_path` source. This phase
 only changes PostgreSQL; it never writes to the inventory or changes Consul.
 The confirmed UI rename workflow above continues to retain `deleted_at`
 tombstones, which automatic reconciliation never deletes or reactivates.
 
-`CCI_FILESYSTEM_RECONCILIATION` uses the existing environment JSON configuration:
+`certificates.reconciliation` uses a native YAML mapping:
 
-```dotenv
-CCI_FILESYSTEM_RECONCILIATION='{"enabled":true,"missing_after_scans":2,"max_delete_percent":20}'
+```yaml
+certificates:
+  reconciliation:
+    enabled: true
+    missing_after_scans: 2
+    max_delete_percent: 20
 ```
 
 After the first complete scan without a previously observed certificate, its

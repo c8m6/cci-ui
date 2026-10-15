@@ -51,7 +51,7 @@ class CertificateReferenceMigrationTest < ActiveSupport::TestCase
       assert_equal "original-actor", record.created_by
       assert_equal "puppet", record.renewal_mode
     end
-    reader = CciClient.new(url: ENV.fetch("CONSUL_URL"), prefix: ConsulStore.namespace)
+    reader = CciClient.new(url: settings["consul"]["url"], prefix: ConsulStore.namespace)
     metadata = reader.read_certificate(area: record.area, certid: record.certid, field: "metadata")
     assert_equal "puppet", metadata.fetch("client")
     assert_equal "original-actor", metadata.fetch("created_by")

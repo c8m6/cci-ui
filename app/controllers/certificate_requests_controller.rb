@@ -55,8 +55,19 @@ class CertificateRequestsController < ApplicationController
     show_response
   end
 
+  def destroy
+    CsrWorkflow.delete(@csr, identity: current_identity, confirmed: params[:confirm_delete] == "1")
+    respond_to do |format|
+      format.html { redirect_to certificate_requests_path, notice: t("csr.deleted"), status: :see_other }
+      format.json { head :no_content }
+    end
+  end
+
   def download
-    CsrAudit.record!("csr_download", @csr, current_identity, outcome: "succeeded")
+    @csr.with_lock do
+      @csr.require_retained!
+      CsrAudit.record!("csr_download", @csr, current_identity, outcome: "succeeded")
+    end
     send_data @csr.csr_pem, filename: "#{@csr.certid}.csr.pem", type: "application/pkcs10"
   end
 

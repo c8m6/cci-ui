@@ -10,7 +10,7 @@ class HealthController < ActionController::Base
 
   def show
     response.headers["Cache-Control"] = "no-store"
-    expected = ENV.fetch("CCI_HEALTH_TOKEN", nil)
+    expected = CciConfiguration.current.dig("server", "health_token")
     return head :service_unavailable if expected.blank?
 
     unless IntegrationAuthentication.valid_bearer?(request.authorization, expected)

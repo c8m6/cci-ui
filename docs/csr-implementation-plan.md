@@ -1,3 +1,7 @@
+> Historical implementation record. Current single-area behavior and manual
+> soft deletion are documented in [CSR operations](csr.md); configuration uses
+> [YAML](configuration.md).
+
 # CSR implementation plan
 
 ## Existing architecture
@@ -11,7 +15,7 @@
   and version pointers in one CAS transaction. Existing versions are immutable.
 - Certificates::Vault implements versioned AES-256-GCM envelopes with a random IV,
   authentication tag and area/object-bound authenticated context. AreaSecrets
-  reads external Base64 keys from CCI_AREA_KEYS or the per-area fallback.
+  reads external Base64 keys from areas.<id>.encryption_key in YAML.
 - AuditEvent records mutation intent before external writes and the outcome
   afterward. Secret request parameters are filtered and private responses use
   no-store headers. Audit viewing has its own area-specific role.
@@ -33,7 +37,7 @@
 
 1. Add request and issued-certificate tables with foreign keys, uniqueness and
    status constraints. Keep replacement certificate history.
-2. Add centralized environment defaults, DNS/IP SAN validation, RSA/EC generation,
+2. Add centralized YAML defaults, DNS/IP SAN validation, RSA/EC generation,
    PKCS#10 signing and encrypted secret persistence.
 3. Add area-scoped service authorization, CSR navigation, forms, two inventories,
    downloads and separately confirmed, audited password disclosure.

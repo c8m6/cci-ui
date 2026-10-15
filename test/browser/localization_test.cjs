@@ -25,6 +25,9 @@ test('language switching retains live search filters and POST-rendered previews'
       page.click('form[action="/local-login"] input[type=submit]'),
     ]);
 
+    await page.click('nav a[href="/certificates"]');
+    await page.waitForSelector('input[name=q]');
+
     // Exercise the real debounced Turbo search rather than navigating to a
     // prebuilt URL, which would also refresh the language form on the server.
     await page.type('input[name=q]', 'locale-browser-no-match');

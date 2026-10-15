@@ -1,24 +1,27 @@
 # frozen_string_literal: true
 
 require "English"
-ENV["CCI_AREAS"] = '{"zone_a":"Zone A","zone_b":"Zone B"}'
-ENV["CCI_LEGACY_PATHS"] = "{}"
-ENV["CCI_AREA_KEYS"] = "{}"
 require "openssl"
 require "json"
 require "base64"
 require "tmpdir"
+require "fileutils"
 require "securerandom"
 require "etc"
 require_relative "../lib/cci_writer"
 require_relative "../lib/certificates/error"
 require_relative "../lib/certificates/vault"
 begin
-  url = ENV.fetch("CCI_CONSUL_URL")
+  source = CciConfiguration.current
   prefix = "cci-idempotence/#{SecureRandom.hex(8)}"
-  connection = ConsulConnection.new(url: url)
-  ENV["ZONE_A_KEY"] = Base64.strict_encode64(SecureRandom.random_bytes(32))
-  ENV["CCI_CONSUL_PREFIX"] = prefix
+  snapshot = Marshal.load(Marshal.dump(source.instance_variable_get(:@data)))
+  snapshot["consul"]["prefix"] = prefix
+  snapshot["areas"].each_value { |area| area.delete("consul") }
+  config_dir = Dir.mktmpdir("cci-puppet-config-")
+  ENV["CCI_CONFIG_FILE"] = File.join(config_dir, "config.yml")
+  File.write(ENV.fetch("CCI_CONFIG_FILE"), YAML.dump(snapshot))
+  CciConfiguration.instance_variable_set(:@current, CciConfiguration.load_file(ENV.fetch("CCI_CONFIG_FILE")))
+  connection = ConsulConnection.new
   certkey = OpenSSL::PKey::RSA.new(2048)
   cert = OpenSSL::X509::Certificate.new
   cert.version = 2
@@ -63,5 +66,6 @@ begin
     puts "Puppet: first run changed (2), second unchanged (0), renewal changed (2). File mtime unchanged on second run."
   end
 ensure
+  FileUtils.remove_entry(config_dir) if config_dir
   connection&.request("delete", "#{connection.path("#{prefix}/")}?recurse") if prefix&.start_with?("cci-idempotence/")
 end

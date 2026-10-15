@@ -32,6 +32,6 @@ class LegacyUnicodeDetailsTest < ActionDispatch::IntegrationTest
       assert_not_includes snippet, "\uFFFD"
     end
   ensure
-    AreaConfiguration.instance_variable_set(:@configuration, previous)
+    configure_legacy_paths(previous.fetch("legacy_paths"))
   end
 end

@@ -11,3 +11,6 @@
 /public/assets/
 /todo.md
 /Fragen.md
+/config.yml
+/config.local.yml
+/secrets/

@@ -2,8 +2,6 @@
 
 # Owns local CSR creation and disclosure independently of Consul availability.
 class CsrWorkflow
-  MAX_TARGET_AREAS = 21
-
   def self.authorize!(identity, areas)
     CsrNames.fail!(:forbidden) unless Array(areas).all? { |area| identity.csr?(area) }
   end
@@ -11,7 +9,6 @@ class CsrWorkflow
   def self.create(input, identity:)
     input = input.stringify_keys
     areas = CertificateAreaConfiguration.validate_selection!(input["areas"].presence || [input.fetch("area", "")])
-    CsrNames.fail!(:target_count) if areas.size > MAX_TARGET_AREAS
     authorize!(identity, areas)
     ConsulStore.validate_certid!(input["certid"])
     areas.each { |area| Certificates::Vault.key(area) }
@@ -31,13 +28,27 @@ class CsrWorkflow
     request
   end
 
+  def self.delete(request, identity:, confirmed:)
+    authorize!(identity, request.areas)
+    request.with_lock do
+      CsrNames.fail!(:delete_confirmation) unless confirmed
+      CsrNames.fail!(:cannot_delete) unless request.deletable?
+
+      request.update!(deleted_at: Time.current, deleted_by: identity.uid)
+      CsrAudit.record!("csr_delete", request, identity, outcome: "succeeded")
+    end
+  end
+
   def self.reveal(request, identity:, confirmed:)
     authorize!(identity, request.areas)
     CsrNames.fail!(:confirmation) unless confirmed
 
-    password = CsrSecrets.decrypt(request, "revoke")
-    CsrAudit.record!("csr_reveal", request, identity, outcome: "succeeded")
-    password
+    request.with_lock do
+      request.require_retained!
+      password = CsrSecrets.decrypt(request, "revoke")
+      CsrAudit.record!("csr_reveal", request, identity, outcome: "succeeded")
+      password
+    end
   rescue Certificates::Error
     CsrAudit.record!("csr_reveal", request, identity, outcome: "rejected") if request.areas.all? { |area| identity.csr?(area) }
     raise

@@ -1,0 +1,24 @@
+# Disposable screenshot data only.
+areas:
+  zone_a:
+    encryption_key: cnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnI=
+    name: Zone A
+    filesystem:
+      legacy_path: /tmp/cci-screenshot-legacy
+  zone_b:
+    encryption_key: c3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3M=
+    name: Zone B
+authentication:
+  mode: local
+consul:
+  url: http://consul:8500
+  prefix: cci-screenshots/v1
+database:
+  host: db
+  name: screenshots
+  username: screenshots
+  password: screenshots
+version: 1
+puppetdb:
+  enabled: true
+  url: http://puppetdb:8080

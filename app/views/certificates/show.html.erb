@@ -19,7 +19,7 @@
     <dt><%= t("ui.version") %></dt><dd><%= @certificate.certificate_version %></dd>
     <dt><%= t("ui.imported_at") %></dt><dd><%= @certificate.imported_at ? l(@certificate.imported_at.in_time_zone, format: :long) : "–" %></dd>
   <% end %>
-  <dt><%= t("ui.subject") %></dt><dd><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd><%= @certificate.issuer %></dd>
+  <dt><%= t("ui.subject") %></dt><dd class="identity-value"><%= @certificate.subject %></dd><dt><%= t("ui.issuer") %></dt><dd class="identity-value"><%= @certificate.issuer %></dd>
   <dt><%= t("ui.validity") %></dt><dd><%= date_label(@certificate.not_before) %> – <%= date_label(@certificate.not_after) %></dd>
   <dt><%= t("ui.sans") %></dt><dd><% @certificate.sans.each do |san| %><span class="san"><%= san %></span><% end %><%= t("ui.none") if @certificate.sans.empty? %></dd>
   <dt><%= t("ui.serial_hex") %></dt><dd class="mono"><%= @certificate.serial %></dd><dt><%= t("ui.fingerprint") %></dt><dd><%= render "shared/fingerprint", value: @certificate.fingerprint %></dd>
@@ -78,7 +78,7 @@
   </section>
 <% end %>
 <% if @material %>
-<section class="panel detail-panel"><h2><%= t("ui.certificate_identity") %></h2><pre><%= @reference.to_yaml %></pre></section>
+<section class="panel detail-panel certificate-identity"><h2><%= t("ui.certificate_identity") %></h2><pre><%= @reference.to_yaml %></pre></section>
 <% if current_identity.export?(@certificate.area) %><details class="panel detail-panel"><summary><%= t("ui.public_pem") %></summary><pre><%= @material[:certificate].to_pem %></pre></details>
 
 <% end %>

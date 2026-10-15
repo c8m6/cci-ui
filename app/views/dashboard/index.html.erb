@@ -1,0 +1,31 @@
+<% content_for :title, t("dashboard.title") %>
+<div class="page-heading"><div><h1><%= t("dashboard.title") %></h1><p class="muted"><%= t("dashboard.scope") %></p></div></div>
+<section class="stats dashboard-stats" aria-label="<%= t('ui.inventory_summary') %>">
+  <% @stats.merge(open_csrs: @open_csrs).each do |key, value| %>
+    <div class="stat-card" data-stat="<%= key %>"><span><%= t("dashboard.metrics.#{key}") %></span><strong><%= number_with_delimiter(value) %></strong></div>
+  <% end %>
+</section>
+<section class="panel detail-panel">
+  <h2><%= t("dashboard.areas") %></h2>
+  <div class="table-scroll"><table class="dashboard-table"><thead><tr><th><%= t("ui.area") %></th><% %i[total expiring expired].each do |key| %><th><%= t("dashboard.metrics.#{key}") %></th><% end %><% if puppetdb_enabled? %><th><%= t("hosts.title") %></th><% end %></tr></thead>
+    <tbody><% @areas.each do |area| %><tr><td><%= link_to area_label(area), certificates_path(area: area) %></td><% @area_stats.fetch(area).slice(:total, :expiring, :expired, :hosts).each_value do |count| %><td><%= count %></td><% end %></tr><% end %></tbody>
+  </table></div>
+</section>
+<section class="panel detail-panel">
+  <h2><%= t("dashboard.attention") %></h2>
+  <% if @attention.empty? %><p class="muted"><%= t("dashboard.empty") %></p><% else %>
+    <div class="table-scroll"><table class="dashboard-table"><thead><tr><th><%= t("ui.name") %></th><th><%= t("ui.area") %></th><th><%= t("ui.valid_until") %></th></tr></thead><tbody>
+      <% @attention.each do |cert| %><tr><td><%= link_to cert.common_name, certificate_path(cert) %></td><td><%= area_label(cert.area) %></td><td><%= date_label(cert.not_after) %></td></tr><% end %>
+    </tbody></table></div>
+  <% end %>
+</section>
+<section class="panel detail-panel">
+  <h2><%= t("dashboard.freshness") %></h2><p class="muted small"><%= t("dashboard.freshness_note") %></p>
+  <% @areas.each do |area| %>
+    <% snapshot = @freshness[area] %>
+    <p><strong><%= area_label(area) %></strong>: <%= snapshot&.checked_at ? l(snapshot.checked_at, format: :long) : t("dashboard.unknown") %>
+      <% if snapshot&.error_at %><span class="badge danger"><%= t("dashboard.failed") %></span><% elsif snapshot&.checked_at && snapshot.checked_at < (CciConfiguration.current.dig("indexer", "interval_seconds") * 3).seconds.ago %><span class="badge warning"><%= t("dashboard.stale") %></span><% end %>
+    </p>
+  <% end %>
+  <% if @puppetdb_failures.to_i.positive? %><p class="flash flash-error"><%= t("dashboard.puppetdb_failed", count: @puppetdb_failures) %></p><% end %>
+</section>

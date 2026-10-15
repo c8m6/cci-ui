@@ -12,7 +12,7 @@ require "time"
 class CciWriter
   attr_reader :connection, :prefix
 
-  def initialize(connection: nil, prefix: "cci")
+  def initialize(connection: nil, prefix: nil)
     @connection = connection
     @prefix = prefix
   end
@@ -23,7 +23,7 @@ class CciWriter
               expected_index: nil)
     validate_input(area: area, certid: certid, client: client, actor: actor, tags: tags, cert: cert, key: key)
 
-    base = "#{prefix}/#{area}"
+    base = "#{prefix || CciConfiguration.current.consul(area).fetch("prefix")}/#{area}"
     path = "#{base}/certids/#{certid}"
     snapshot = connection_for(area).get(path)
     index = snapshot ? snapshot.fetch(:index) : 0

@@ -16,22 +16,26 @@
     <div class="sidebar-caption">Controlled Cryptographic Item</div>
     <% if current_identity %>
       <nav aria-label="<%= t('ui.main_navigation') %>">
-        <% if current_identity.auditor? %><%= link_to audit_events_path, class: "nav-item #{controller_name == 'audit_events' ? 'active' : ''}" do %><%= icon("shield") %> <%= t("ui.audit_logs") %><% end %><% end %>
-        <%= link_to root_path, class: "nav-item #{controller_name == 'certificates' ? 'active' : ''}" do %><%= icon("grid") %> <%= t("ui.overview") %><% end %>
+        <%= link_to certificates_path, class: "nav-item #{controller_name == 'certificates' ? 'active' : ''}" do %><%= icon("grid") %> <%= t("ui.certificates") %><% end %>
         <% if puppetdb_enabled? %><%= link_to hosts_path, class: "nav-item #{controller_name == 'hosts' ? 'active' : ''}" do %><%= icon("grid") %> <%= t("hosts.title") %><% end %><% end %>
-        <% if current_identity.any_csr? %><%= link_to certificate_requests_path, class: "nav-item #{controller_name == 'certificate_requests' ? 'active' : ''}" do %><%= icon("key") %> <%= t("csr.title") %><% end %><% end %>
-        <% if current_identity.any_writer? %><%= link_to new_import_path, class: "nav-item #{controller_name == 'imports' ? 'active' : ''}" do %><%= icon("upload") %> <%= t("ui.import_certificates") %><% end %><% end %>
+        <% if current_identity.any_writer? %><%= link_to new_import_path, class: "nav-item #{controller_name == 'imports' ? 'active' : ''}" do %><%= icon("upload") %> <%= t("ui.import") %><% end %><% end %>
+        <% if current_identity.any_csr? %><%= link_to certificate_requests_path, class: "nav-item #{controller_name == 'certificate_requests' ? 'active' : ''}" do %><%= icon("key") %> CSR<% end %><% end %>
+        <% if current_identity.auditor? %><%= link_to audit_events_path, class: "nav-item #{controller_name == 'audit_events' ? 'active' : ''}" do %><%= icon("shield") %> <%= t("ui.audit_logs") %><% end %><% end %>
       </nav>
-      <div class="sidebar-caption section-caption"><%= t("ui.my_areas") %></div>
-      <% current_identity.areas.each do |area| %>
-        <%= link_to certificates_path(area: area), class: "area-link" do %><span class="area-dot"></span><%= area_label(area) %><span class="role-label"><%= current_identity.writer?(area) ? t("ui.writer") : t("ui.reader") %></span><% end %>
-      <% end %>
+      <details class="sidebar-roles">
+        <summary><%= t("ui.my_cci_roles") %></summary>
+        <% AreaConfiguration.ids.sort_by { |area| [area_label(area).downcase, area] }.each do |area| %>
+          <% roles = current_identity.roles.select { |role| AreaConfiguration::ROLE_TYPES.any? { |type| role == "#{area}_#{type}" } }.uniq.sort %>
+          <% next if roles.empty? %>
+          <div class="area-roles"><strong><%= area_label(area) %></strong><ul><% roles.each do |role| %><li><%= role %></li><% end %></ul></div>
+        <% end %>
+      </details>
     <% end %>
-    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small><div class="sidebar-version"><%= ApplicationBuild.version %></div></div>
+    <div class="sidebar-bottom"><span class="system-dot"></span> <%= t("ui.sidebar_title") %><br><small><%= t("ui.sidebar_subtitle") %></small><div class="sidebar-version"><span><%= ApplicationBuild.version %></span><%= link_to "https://github.com/c8m6/cci-ui", class: "sidebar-github", target: "_blank", rel: "noopener noreferrer" do %><%= icon("github") %> GitHub<% end %></div></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "hosts" => t("hosts.title"), "certificate_requests" => t("csr.title"), "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
-      <% if ENV["AUTH_MODE"] == "local" %><span class="badge neutral"><%= t("ui.local_mode") %></span><% end %>
+    <header class="topbar"><span><%= t("ui.workspace") %> <span class="crumb">/</span> <%= { "dashboard" => t("dashboard.title"), "hosts" => t("hosts.title"), "certificate_requests" => t("csr.title"), "imports" => t("ui.import"), "audit_events" => t("ui.audit_logs") }.fetch(controller_name, t("ui.certificates")) %></span><div class="account"><button type="button" class="theme-toggle" data-action="theme#toggle" data-theme-target="button" aria-label="<%= t('ui.theme_dark') %>">◐</button>
+      <% if CciConfiguration.current.dig("authentication", "mode") == "local" %><span class="badge neutral"><%= t("ui.local_mode") %></span><% end %>
       <% if current_identity %><span class="account-name"><%= current_identity.display_name %></span><%= button_to t("ui.logout"), logout_path, method: :delete, class: "text-button" %><% end %>
       <details class="language-menu">
         <summary aria-label="<%= t('ui.language') %>" title="<%= t('ui.language') %>"><%= I18n.locale.to_s.upcase %><span aria-hidden="true">⌄</span></summary>

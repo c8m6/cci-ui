@@ -42,6 +42,26 @@ test('host navigation, real identity, complete clipboard values and neutral stat
         assert(fits, 'Full fingerprint must wrap at ' + width);
       }
     };
+    const longIdentity = '/CN=' + 'long-identity-value'.repeat(80);
+    await page.$$eval('.identity-value, .certificate-identity pre', (nodes, value) => {
+      nodes.forEach(node => { node.dataset.original = node.textContent; node.textContent = value; });
+    }, longIdentity);
+    for (const width of [1440, 600, 390, 320]) {
+      await page.setViewport({ width, height: 1100 });
+      const layout = await page.evaluate(() => ({
+        fits: document.documentElement.scrollWidth <= window.innerWidth + 1,
+        blocks: [...document.querySelectorAll('.identity-value, .certificate-identity pre')].map(node => ({
+          whiteSpace: getComputedStyle(node).whiteSpace,
+          scrolls: node.scrollWidth > node.clientWidth,
+          text: node.textContent,
+        })),
+      }));
+      assert(layout.fits, 'Identity must not widen page at ' + width);
+      assert(layout.blocks.every(block => ['pre', 'nowrap'].includes(block.whiteSpace) && block.scrolls && block.text === longIdentity));
+    }
+    await page.$$eval('.identity-value, .certificate-identity pre', nodes => {
+      nodes.forEach(node => { node.textContent = node.dataset.original; });
+    });
     await checkFingerprints();
     await page.setViewport({ width: 1440, height: 1100 });
     await page.goto(await page.$eval('nav a[href="/hosts"]', node => node.href), { waitUntil: 'networkidle0' });

@@ -1,20 +1,12 @@
 # frozen_string_literal: true
 
-require "json"
+require_relative "cci_configuration"
 
-# Framework-independent so UI, standalone writers and Puppet use the same keys.
+# Uses the existing Base64 area keys without changing envelope formats.
 class AreaSecrets
-  def self.fetch(area, environment = ENV)
-    raise ArgumentError, "Invalid area" unless area.is_a?(String) && area.match?(/\A[a-z][a-z0-9_]{0,47}\z/)
-
-    raw = environment["CCI_AREA_KEYS"]
-    keys = raw.nil? || raw.empty? ? {} : JSON.parse(raw)
-    unless keys.is_a?(Hash) && keys.all? { |id, key| id.match?(/\A[a-z][a-z0-9_]{0,47}\z/) && key.is_a?(String) }
-      raise ArgumentError, "CCI_AREA_KEYS must map area IDs to Base64 key strings"
-    end
-
-    keys.fetch(area) { environment.fetch("#{area.upcase}_KEY", "") }
-  rescue JSON::ParserError
-    raise ArgumentError, "CCI_AREA_KEYS must contain a valid JSON object"
+  def self.fetch(area)
+    CciConfiguration.current.fetch("areas").fetch(area).fetch("encryption_key").to_s
+  rescue KeyError
+    raise ArgumentError, "Unknown area."
   end
 end
