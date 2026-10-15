@@ -1,70 +1,58 @@
-name: Build, test and publish containers
+name: Manual container release
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (for example v1.5.0 or v1.5.0-rc.1)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Validate and build without creating a tag, release or pushing the image'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: docker-${{ github.event_name }}-${{ github.ref }}
+  group: manual-container-release
   cancel-in-progress: false
 
 jobs:
-  release_notes:
-    name: Generate GitHub release notes
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.event.release.tag_name }}
-          fetch-depth: 0
-      - name: Generate notes from Conventional Commits
-        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
-        with:
-          version: v2.13.1
-          config: cliff.toml
-          args: --current --strip all
-          github_token: ${{ github.token }}
-        env:
-          OUTPUT: release-notes.md
-      - name: Update published GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
-
   app:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write
       security-events: write
     env:
-      # Web and indexer share this one Dockerfile/image.
       TEST_IMAGE: cci-ui:ci
+      RELEASE_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Validate release tag, source and uniqueness
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.[1-9][0-9]*)?$ ]] ||
+            { echo 'Expected vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-{alpha,beta,rc}.N' >&2; exit 1; }
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA" ||
+            { echo 'Main changed since dispatch; start a new release from current main.' >&2; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$RELEASE_TAG" |
+            jq -e --arg ref "refs/tags/$RELEASE_TAG" 'all(.[]; .ref != $ref)' > /dev/null ||
+            { echo 'The release tag already exists.' >&2; exit 1; }
       - name: Resolve application build metadata
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           {
-            if [ "$GITHUB_EVENT_NAME" = "release" ]; then
-              test -n "$RELEASE_TAG"
-              echo "APP_VERSION=$RELEASE_TAG"
-            else
-              echo "APP_VERSION=development"
-            fi
+            echo "APP_VERSION=$RELEASE_TAG"
             echo "APP_REVISION=$(git rev-parse HEAD)"
             echo "APP_BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "APP_SOURCE=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
@@ -153,7 +141,7 @@ jobs:
         if: always()
         run: docker compose -f compose.ci.yml down --volumes
       - name: Check Docker Hub configuration
-        if: github.event_name == 'release' && github.event.action == 'published'
+        if: ${{ !inputs.dry_run }}
         env:
           DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
           DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
@@ -163,15 +151,50 @@ jobs:
           test -n "$DOCKERHUB_IMAGE" || { echo 'Set variable DOCKERHUB_IMAGE (namespace/repository)'; exit 1; }
           test -n "$DOCKERHUB_TOKEN" || { echo 'Set secret DOCKERHUB_TOKEN'; exit 1; }
       - name: Log in to Docker Hub
-        if: github.event_name == 'release' && github.event.action == 'published'
+        if: ${{ !inputs.dry_run }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Recheck main and create exact release tag
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA" ||
+            { echo 'Main changed during validation; refuse to publish.' >&2; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$RELEASE_TAG" |
+            jq -e --arg ref "refs/tags/$RELEASE_TAG" 'all(.[]; .ref != $ref)' > /dev/null ||
+            { echo 'The tag has been created concurrently.' >&2; exit 1; }
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA"
       - name: Publish tested application image
-        if: github.event_name == 'release' && github.event.action == 'published'
+        if: ${{ !inputs.dry_run }}
         env:
-          PUBLISH_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}:${{ github.event.release.tag_name }}
+          PUBLISH_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}:${{ inputs.tag }}
         run: |
           docker tag "$TEST_IMAGE" "$PUBLISH_IMAGE"
           docker push "$PUBLISH_IMAGE"
+      - name: Generate notes from Conventional Commits
+        if: ${{ !inputs.dry_run }}
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          version: v2.13.1
+          config: cliff.toml
+          args: --current --strip all
+          github_token: ${{ github.token }}
+        env:
+          OUTPUT: release-notes.md
+      - name: Publish GitHub release after Docker Hub push
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--verify-tag --target "$GITHUB_SHA" --title "$RELEASE_TAG" --notes-file release-notes.md)
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            flags+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" "${flags[@]}"
+      - name: Dry-run result
+        if: ${{ inputs.dry_run }}
+        run: echo "Release $RELEASE_TAG validated. Image built, scanned and integration-tested; no tag, release or Docker Hub push created."
