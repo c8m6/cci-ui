@@ -175,6 +175,9 @@ jobs:
         run: |
           docker tag "$TEST_IMAGE" "$PUBLISH_IMAGE"
           docker push "$PUBLISH_IMAGE"
+      - name: Fetch the newly created tag for release notes
+        if: ${{ !inputs.dry_run }}
+        run: git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
       - name: Generate notes from Conventional Commits
         if: ${{ !inputs.dry_run }}
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
