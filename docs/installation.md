@@ -245,10 +245,14 @@ Use synthetic data in a separate development deployment. Copy existing area
 keys unchanged only when migrating an existing dataset; never connect disposable
 tests to production databases or certificate inventories.
 
-1. Import into exactly one authorized area. Repeat independently in another
+1. As an area's CSR user, create a synthetic CSR and delete it after confirming.
+   Check that it disappears, its former direct URLs return 404, and the area's
+   auditor sees **CSR deleted** / **CSR gelöscht**. Create another CSR, upload a
+   matching synthetic certificate, and verify that deletion is no longer offered.
+2. Import into exactly one authorized area. Repeat independently in another
    area if needed; the first area's data must remain unchanged. A multi-area
    request must be refused.
-2. Restart after YAML edits. Confirm that a wrong type, unknown key, unknown role
+3. Restart after YAML edits. Confirm that a wrong type, unknown key, unknown role
    reference or missing secret file prevents startup without printing values.
    In a separate two-Consul test deployment, use different area URLs/prefixes and
    verify that writes and reads stay in the selected cluster.

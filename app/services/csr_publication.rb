@@ -9,6 +9,7 @@ class CsrPublication
   end
 
   def call(expected_index: 0, expected_indices: nil, confirm_overwrite: false)
+    @request.reload.require_retained!
     CertificateAreaConfiguration.validate_selection!(@request.areas)
     CsrWorkflow.authorize!(@identity, @request.areas)
     CatalogIndexer.synchronize do

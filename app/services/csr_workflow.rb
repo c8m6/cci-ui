@@ -28,13 +28,27 @@ class CsrWorkflow
     request
   end
 
+  def self.delete(request, identity:, confirmed:)
+    authorize!(identity, request.areas)
+    request.with_lock do
+      CsrNames.fail!(:delete_confirmation) unless confirmed
+      CsrNames.fail!(:cannot_delete) unless request.deletable?
+
+      request.update!(deleted_at: Time.current, deleted_by: identity.uid)
+      CsrAudit.record!("csr_delete", request, identity, outcome: "succeeded")
+    end
+  end
+
   def self.reveal(request, identity:, confirmed:)
     authorize!(identity, request.areas)
     CsrNames.fail!(:confirmation) unless confirmed
 
-    password = CsrSecrets.decrypt(request, "revoke")
-    CsrAudit.record!("csr_reveal", request, identity, outcome: "succeeded")
-    password
+    request.with_lock do
+      request.require_retained!
+      password = CsrSecrets.decrypt(request, "revoke")
+      CsrAudit.record!("csr_reveal", request, identity, outcome: "succeeded")
+      password
+    end
   rescue Certificates::Error
     CsrAudit.record!("csr_reveal", request, identity, outcome: "rejected") if request.areas.all? { |area| identity.csr?(area) }
     raise

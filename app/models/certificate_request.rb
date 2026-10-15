@@ -3,8 +3,9 @@
 # Durable single-area requests; historical target assignments remain stored.
 class CertificateRequest < ApplicationRecord
   has_many :csr_certificates, dependent: :restrict_with_exception
+  scope :retained, -> { where(deleted_at: nil) }
   scope :visible_to, lambda { |identity|
-    where("target_areas <@ ?::jsonb", identity.csr_areas.to_json)
+    retained.where("target_areas <@ ?::jsonb", identity.csr_areas.to_json)
   }
 
   before_validation do
@@ -15,6 +16,12 @@ class CertificateRequest < ApplicationRecord
     errors.add(:target_areas, :invalid) if normalized.empty? || normalized != target_areas ||
                                            (normalized - AreaConfiguration.ids).any? || normalized.first != area
   end
+
+  def require_retained!
+    CsrNames.fail!(:deleted) if deleted_at
+  end
+
+  def deletable? = deleted_at.nil? && !csr_certificates.exists?
 
   def latest_certificate = csr_certificates.order(id: :desc).first
   def secret_context(kind) = "csr:#{secret_id}:#{kind}"

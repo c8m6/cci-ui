@@ -29,7 +29,7 @@ identities and PuppetDB host associations. Detailed views are documented under
   versions, inspect certificate chains, and export PEM, DER, PKCS#12/PFX or JKS.
   Bulk and chain exports are available where applicable.
 - **Certificate requests:** create RSA or EC CSRs, retain encrypted request
-  keys, and publish matching issued certificates to one Consul area. Certificate issuance
+  keys, and publish matching issued certificates to one Consul area. Open requests can be manually soft deleted before an issued certificate is uploaded. Certificate issuance
   by a CA remains an external step.
 - **Infrastructure integration:** Puppet readers and Hiera output for
   certificate distribution, optional searchable PuppetDB host pages, and an always-active

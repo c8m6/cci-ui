@@ -58,3 +58,13 @@
     <p><%= form.submit t("csr.upload"), class: "button primary" %></p>
   <% end %>
 </section>
+
+<% if @csr.deletable? %>
+<section class="panel detail-panel">
+  <h2><%= t("csr.delete") %></h2><p><%= t("csr.delete_hint") %></p>
+  <%= form_with url: certificate_request_path(@csr), method: :delete do |form| %>
+    <label class="check-label"><%= form.check_box :confirm_delete, { required: true }, "1", "0" %> <%= t("csr.confirm_delete") %></label>
+    <p><%= form.submit t("csr.delete"), class: "button secondary" %></p>
+  <% end %>
+</section>
+<% end %>

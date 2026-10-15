@@ -11,6 +11,7 @@ class CsrUpload
 
     CatalogIndexer.synchronize do
       request.with_lock do
+        request.require_retained!
         fingerprint = Certificates::Codec.fingerprint(cert)
         validate_replacement!(request, replace, fingerprint)
 
@@ -47,6 +48,7 @@ class CsrUpload
 
   def self.update_issuers(request, entry, certs, identity)
     request.with_lock do
+      request.require_retained!
       entry.reload
       CsrNames.fail!(:stale) unless request.latest_certificate&.id == entry.id && entry.state != "published"
       CsrNames.fail!(:unresolved_publication) if entry.prepared.any?

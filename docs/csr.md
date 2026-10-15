@@ -141,6 +141,7 @@ returns 422 for JSON. HTML mutations redirect with a localized notice or error.
 | `GET /certificate_requests/new` | HTML form with YAML defaults |
 | `POST /certificate_requests` | `csr` object, returns 201 with public request metadata |
 | `GET /certificate_requests/:id` | Public request and linked certificate metadata, `certid_index` and `consul_available` |
+| `DELETE /certificate_requests/:id` | `confirm_delete=1`; soft delete before any issued certificate, returns 204 for JSON |
 | `GET /certificate_requests/:id/download` | Audited PKCS#10 PEM download |
 | `POST /certificate_requests/:id/reveal` | `confirm_reveal=1`, returns `{revoke_password: "..."}` only after auditing |
 | `POST /certificate_requests/:id/upload` | `pem` text or multipart `file`, `confirm_replace=1` for replacement. Automatically attempts first publication after verification |
@@ -205,3 +206,22 @@ The helper refuses unresolved publication intents and discards completed intent
 copies containing old encrypted Consul values. Original completed certificate
 metadata and audit history remain. It does not rotate Consul, import drafts,
 backups or external clients, and must not be used as an online key switch.
+
+## Manual soft delete
+
+An area CSR user can delete a retained request only before any issued certificate
+has been uploaded. Pending, prepared or completed publication therefore also
+prevents deletion. The detail page offers **Delete CSR** / **CSR löschen** only
+in eligible states and requires explicit confirmation.
+
+The server rechecks the state under the same PostgreSQL row lock as upload.
+A concurrent upload and delete cannot both succeed. `deleted_at` and `deleted_by`
+record time and the existing authenticated UID; `csr_delete` is audited in the
+same transaction. The CSR, both encrypted secrets and existing audit history
+remain stored unchanged. There is no cleanup job, TTL or automatic deletion.
+
+Deleted requests disappear from both regular lists and dashboard counts.
+Direct show, download, upload, issuer, reveal, publication and repeated deletion
+URLs return 404. Service operations also reject stale/deleted request objects.
+A request that acquired an issued certificate after the delete form was opened
+is rejected with a localized explanation (422 for JSON).

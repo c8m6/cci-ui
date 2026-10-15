@@ -458,6 +458,7 @@ en:
       other: "%{count} certificates saved. Some entries could not be saved."
   audit:
     actions:
+      csr_delete: "CSR deleted"
       csr_create: "CSR created"
       csr_upload: "CSR certificate submitted"
       csr_publish: "CSR Consul publication"
@@ -508,6 +509,10 @@ en:
     graph_pending: "No successful synchronization yet."
     graph_empty: "No subordinate certificates found."
   csr:
+    delete: Delete CSR
+    delete_hint: The request and encrypted secrets remain stored for audit. Deletion blocks all regular access.
+    confirm_delete: I confirm deletion of this CSR.
+    deleted: CSR deleted.
     title: "Create CSR"
     back: "Back to CSR requests"
     generate: "Create CSR"
@@ -565,6 +570,9 @@ en:
       published: "Published to Consul"
       failed: "Consul publication failed"
     errors:
+      deleted: This CSR has been deleted.
+      delete_confirmation: Confirm deletion first.
+      cannot_delete: This CSR cannot be deleted because it was deleted already or an issued certificate has been uploaded.
       forbidden: "The CSR role is required for this area."
       names: "Enter valid DNS names or IP addresses. At most 100 SAN entries are allowed."
       algorithm: "Select RSA (2048/3072/4096) or EC (256/384/521), with SHA256, SHA384 or SHA512."

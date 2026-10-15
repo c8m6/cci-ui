@@ -18,7 +18,7 @@ Rails.application.routes.draw do
     get :delete_legacy, on: :member
     delete :delete_legacy, on: :member, action: :destroy_legacy
   end
-  resources :certificate_requests, only: %i[index new create show] do
+  resources :certificate_requests, only: %i[index new create show destroy] do
     member do
       get :download
       post :reveal

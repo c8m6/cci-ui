@@ -1,5 +1,6 @@
-> Historical implementation record. Current single-area behavior is documented
-> in [CSR operations](csr.md); configuration uses [YAML](configuration.md).
+> Historical implementation record. Current single-area behavior and manual
+> soft deletion are documented in [CSR operations](csr.md); configuration uses
+> [YAML](configuration.md).
 
 # CSR implementation plan
 

@@ -461,6 +461,7 @@ de:
       other: "%{count} Zertifikate gespeichert. Einige Einträge konnten nicht gespeichert werden."
   audit:
     actions:
+      csr_delete: "CSR gelöscht"
       csr_create: "CSR erstellt"
       csr_upload: "CSR-Zertifikat hinterlegt"
       csr_publish: "CSR nach Consul veröffentlichen"
@@ -511,6 +512,10 @@ de:
     graph_pending: "Noch kein erfolgreicher Synchronisationslauf."
     graph_empty: "Keine untergeordneten Zertifikate gefunden."
   csr:
+    delete: CSR löschen
+    delete_hint: Der Antrag und verschlüsselte Daten bleiben zur Nachvollziehbarkeit gespeichert. Löschen sperrt alle regulären Zugriffe.
+    confirm_delete: Ich bestätige die Löschung dieses CSR.
+    deleted: CSR gelöscht.
     title: "CSR erstellen"
     back: "Zurück zu den CSRs"
     generate: "CSR erstellen"
@@ -568,6 +573,9 @@ de:
       published: "In Consul gespeichert"
       failed: "Consul-Speicherung fehlgeschlagen"
     errors:
+      deleted: Dieser CSR wurde gelöscht.
+      delete_confirmation: Bitte die Löschung bestätigen.
+      cannot_delete: Dieser CSR kann nicht gelöscht werden, weil er bereits gelöscht oder ein Endzertifikat hochgeladen wurde.
       forbidden: "Für diese Area wird die CSR-Rolle benötigt."
       names: "Bitte gültige DNS-Namen oder IP-Adressen eingeben. Maximal 100 SAN-Einträge sind erlaubt."
       algorithm: "Bitte RSA (2048/3072/4096) oder EC (256/384/521) mit SHA256, SHA384 oder SHA512 wählen."
