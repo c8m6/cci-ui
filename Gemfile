@@ -14,6 +14,8 @@ gem "stimulus-rails", "~> 1.3"
 gem "turbo-rails", "~> 2.0"
 # Rails >= 8.1.4 supports JSON 3 keyword options in ActiveSupport::JSON.decode.
 gem "json", ">= 2.9", "< 4"
+# Ruby 4 no longer bundles Fiddle with the interpreter; required by runtime dependencies.
+gem "fiddle", "~> 1.1"
 
 # Static analysis also runs when building the application image.
 gem "rubocop", "~> 1.92", require: false
