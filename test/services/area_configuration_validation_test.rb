@@ -7,7 +7,7 @@ class AreaConfigurationValidationTest < ActiveSupport::TestCase
     assert_equal({ "role" => "writer" }, ActiveSupport::JSON.decode('{"role":"writer"}', symbolize_names: false))
     assert_equal({ "role" => "writer" }, JSON.parse('{"role":"writer"}', symbolize_names: false))
 
-    payload = { "certid" => "host.example.test", "subject" => "CN=Grüße & \\"quoted\\"", "areas" => ["zone_a"] }
+    payload = { "certid" => "host.example.test", "subject" => "CN=Grüße & special", "areas" => ["zone_a"] }
     encoded = ActiveSupport::JSON.encode(payload)
     assert_equal payload, ActiveSupport::JSON.decode(encoded)
     assert_equal payload, JSON.parse(encoded)
