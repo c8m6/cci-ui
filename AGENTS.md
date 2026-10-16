@@ -16,9 +16,9 @@ These instructions apply permanently to all work in this repository unless a lat
 
 ## Licensing
 
-- Project-owned code and documentation are licensed under `AGPL-3.0-only`.
+- Project-owned code and documentation are licensed under `AGPL-3.0-or-later`.
 - New project-owned source code must remain compatible with
-  `AGPL-3.0-only`.
+  `AGPL-3.0-or-later`.
 - Do not introduce copied code, dependencies, assets, fonts, images, or other
   third-party material without checking its license and provenance.
 - Preserve all third-party copyright, attribution, and license notices.
