@@ -24,7 +24,7 @@ retaining the available report; it must not be interpreted as “everything is
 up to date.” Repeated manual runs for the same ref and scope replace older runs.
 
 The implementation uses [Renovate 44.143.0](https://github.com/renovatebot/renovate/releases/tag/44.143.0),
-an AGPL-3.0-only development tool, through its npm CLI in
+an AGPL-3.0-or-later development tool, through its npm CLI in
 [local lookup mode](https://docs.renovatebot.com/modules/platform/local/).
 Renovate is not added to the application image or Ruby dependencies. The local
 platform is experimental; the report renderer relies on that pinned version's
@@ -301,7 +301,7 @@ permits analyzing one's own software but restricts commercial redistribution.
 Brakeman is separate analysis tooling and is not loaded into CCI-UI. Do not assume
 its license permits bundling it in a redistributed product. bundler-audit is
 GPL-3.0-or-later and Trivy/the Trivy action are Apache-2.0. Neither changes the
-project's AGPL-3.0-only license. Preserve upstream notices and review licensing
+project's AGPL-3.0-or-later license. Preserve upstream notices and review licensing
 and known vulnerabilities whenever dependencies are added or updated.
 
 ### Review findings and suppressions
