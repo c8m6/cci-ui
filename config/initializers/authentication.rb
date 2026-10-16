@@ -8,6 +8,7 @@ if mode == "oidc"
   require Rails.root.join("lib/keycloak_logging")
   require Rails.root.join("lib/keycloak_http_logging")
   require Rails.root.join("lib/oidc_configuration")
+  require Rails.root.join("lib/oidc_json_decoder")
   Rails.application.config.x.oidc_role_mapping = OidcConfiguration.load_role_mapping
   Rails.application.config.x.oidc_display_name_claim = OidcConfiguration.display_name_claim
   OmniAuth::Strategies::OpenIDConnect.prepend(KeycloakLogging)
@@ -18,6 +19,8 @@ if mode == "oidc"
     http.options.timeout = 15
     # Wrap the JSON response parser so malformed provider responses can be
     # attributed to the concrete endpoint without logging their bodies.
+    http.builder.swap(Faraday::Response::Json, Faraday::Response::Json,
+      parser_options: { decoder: [OidcJsonDecoder, :parse] })
     http.builder.insert_before(Faraday::Response::Json, KeycloakHttpLogging)
   end
   issuer = CciConfiguration.current.dig("authentication", "oidc", "issuer")
