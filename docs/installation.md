@@ -157,6 +157,13 @@ replaced. Use `docker compose logs web indexer migrate`, and keep diagnostic
 output protected. Do not enable raw HTTP logging. Missing source mounts or TLS
 failures preserve previous inventory data and appear in structured logs.
 
+An OIDC discovery HTTP 200 followed by `Faraday::ParsingError` can indicate a
+JSON decoder compatibility error, even when the provider returns valid JSON.
+CCI-UI adapts the OIDC HTTP clients to JSON 3 keyword options. The regression
+tests cover discovery, token exchange, signing keys and user information through
+the configured clients. Updating this fix requires rebuilding the application
+image; changing the client secret or session key does not repair the decoder.
+
 The dashboard and host pages use local projections; timestamps describe recorded
 checks, not live readiness or current host deployments. See [UI behavior](technik.md)
 and [PuppetDB observations](puppetdb.md). See [filesystem recovery](legacy-deletion.md)
