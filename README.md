@@ -8,7 +8,7 @@ certificate requests, and export certificates and authorized private keys.
 [![Build & Tests](https://img.shields.io/github/actions/workflow/status/c8m6/cci-ui/ci.yml?branch=main&label=Build%20%26%20Tests)](https://github.com/c8m6/cci-ui/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/c8m6/cci-ui/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/c8m6/cci-ui/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/c8m6/cci-ui?include_prereleases&sort=date&label=Release)](https://github.com/c8m6/cci-ui/releases)
-[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue)](LICENSE)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue)](LICENSE)
 [![Docker: c8m6/cci-ui](https://img.shields.io/badge/Docker-c8m6%2Fcci--ui-blue)](https://hub.docker.com/r/c8m6/cci-ui)
 
 Built with Ruby on Rails, Hotwire, PostgreSQL and HashiCorp Consul, with German
@@ -119,13 +119,13 @@ scanner scope, blocking thresholds and reports.
 ## Contributing
 
 Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-setup, validation and the AGPL-3.0-only contribution requirements. Use the
+setup, validation and the AGPL-3.0-or-later contribution requirements. Use the
 private reporting route above for undisclosed security vulnerabilities.
 
 ## License
 
-CCI-UI is licensed under the **GNU Affero General Public License v3.0 only**.
-SPDX-License-Identifier: `AGPL-3.0-only`.
+CCI-UI is licensed under the **GNU Affero General Public License v3.0 or later**.
+SPDX-License-Identifier: `AGPL-3.0-or-later`.
 See [LICENSE](LICENSE) for the terms and [NOTICE](NOTICE) for project attribution.
 Copyright (C) 2026 Christian Meißner. Third-party dependencies and referenced
 services remain under their respective licenses.
