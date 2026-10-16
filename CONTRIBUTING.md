@@ -9,7 +9,7 @@ vulnerabilities through the private channel in [SECURITY.md](SECURITY.md).
 ## Licensing
 
 By submitting a contribution, you confirm that you have the right to submit it
-and intend it to be distributed as part of CCI-UI under `AGPL-3.0-only`. Do not
+and intend it to be distributed as part of CCI-UI under `AGPL-3.0-or-later`. Do not
 knowingly submit code, documentation, assets, or other material whose license is
 incompatible with the project.
 
