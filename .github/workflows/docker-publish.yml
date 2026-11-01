@@ -75,7 +75,7 @@ jobs:
       - name: Prepare security report directory
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mkdir -p tmp/security/sarif
-      - uses: ruby/setup-ruby@e81a8fa391b11a595c1b7ed84177cc0fe02faf83 # v1
+      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1
         id: ruby
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
@@ -128,7 +128,7 @@ jobs:
           retention-days: 14
       - name: Upload scanner SARIF to GitHub Security
         if: ${{ !cancelled() && hashFiles('tmp/security/sarif/*.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           sarif_file: tmp/security/sarif/
           category: cci-ui-security
@@ -152,7 +152,7 @@ jobs:
           test -n "$DOCKERHUB_TOKEN" || { echo 'Set secret DOCKERHUB_TOKEN'; exit 1; }
       - name: Log in to Docker Hub
         if: ${{ !inputs.dry_run }}
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
