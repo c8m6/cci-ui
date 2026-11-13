@@ -1,216 +1,73 @@
-# Project conventions
+# CCI-UI project conventions
 
-These instructions apply permanently to all work in this repository unless a later explicit instruction overrides them for a specific task.
+Read and apply the [shared engineering guidelines](https://github.com/c8m6/empeira/blob/aea7029f456c9b4b795b160f25c4bafec7fd7293/docs/engineering/AGENTS.md) alongside this
+file. This repository specifies CCI-UI's contracts and required checks. An
+explicit task instruction may override a convention for that task. For offline
+work, use the shared file from the linked revision in your local instructions.
 
-## General conventions
+## Documentation and licensing
 
-- Write all project documentation in English, including new documents, updates
-  to existing documentation, and comments in documentation examples.
-- Preserve exact UI labels and other literal values when documenting them.
-- Prefer existing project conventions, architecture, helpers, and abstractions
-  over introducing parallel mechanisms.
-- Avoid unnecessary duplication of configuration, business logic, version
-  information, or infrastructure mechanisms.
-- Keep changes focused and avoid unrelated refactoring unless it is required
-  for the requested change.
+Write project documentation and comments in documentation examples in English.
+Keep it consistent with the implemented UI, APIs, architecture, deployment,
+operation and development procedures. Update the existing document when one
+already covers the topic.
 
-## Licensing
-
-- Project-owned code and documentation are licensed under `AGPL-3.0-or-later`.
-- New project-owned source code must remain compatible with
-  `AGPL-3.0-or-later`.
-- Do not introduce copied code, dependencies, assets, fonts, images, or other
-  third-party material without checking its license and provenance.
-- Preserve all third-party copyright, attribution, and license notices.
-- Do not remove or weaken existing project licensing information.
-- Do not change the project license without an explicit instruction.
-- Review license compatibility when introducing a dependency or bundled
-  third-party asset. Review new dependencies for known security vulnerabilities.
-- If license compatibility or provenance is uncertain, report it instead of
-  assuming compatibility.
-
-## Documentation
-
-- Keep the project documentation up to date with every change.
-- Review the existing documentation for every task and update all affected
-  documentation as part of the same change.
-- Documentation must remain consistent with the actual implementation,
-  configuration, architecture, deployment, operation, APIs, user workflows,
-  and development procedures.
-- Prefer updating existing documentation over creating new documents when an
-  appropriate document already exists.
-- Do not leave documentation describing obsolete behavior, configuration, UI,
-  workflows, or architecture.
-- Documentation updates belong to the same logical commit as the change they
-  describe unless there is a clear reason to separate them.
+Project-owned code and documentation use `AGPL-3.0-or-later`. New code and
+bundled material must be compatible with that license. Changing the project
+license requires an explicit instruction.
 
 ### Screenshots
 
-- When a change visibly affects the user interface, review all documentation
-  screenshots that show the affected UI.
-- Update affected screenshots so they reflect the current user interface.
-- Do not leave outdated screenshots in the documentation.
-- Preserve the existing screenshot location, naming conventions, dimensions,
-  and documentation structure where practical.
-- Only update screenshots affected by the change; do not regenerate unrelated
-  screenshots unnecessarily.
+For visible UI changes, review every documentation screenshot showing the
+affected UI and refresh those that changed. Preserve their locations, names,
+dimensions and documentation structure where practical. Use the isolated
+capture workflow in [CONTRIBUTING.md](CONTRIBUTING.md#development-and-validation).
 
 ## Validation before completion
 
-Before completing changes:
+Follow the commands in [CONTRIBUTING.md](CONTRIBUTING.md#development-and-validation)
+and the blocking thresholds in [container publishing](docs/container-publishing.md#security-validation).
+Review documentation and affected screenshots as part of completion.
 
-- GitHub Actions usage is budget-constrained. Normal push and pull-request CI
-  runs direct Rails tests with PostgreSQL and Consul services, RuboCop, Brakeman,
-  and bundler-audit. It must not build or test the application image, run Trivy,
-  or upload full security reports. Do not add scheduled heavyweight workflows or
-  broad OS/Ruby matrices without an explicit release-critical requirement.
-- CodeQL uses a repository-controlled, budget-conscious Advanced Setup. It
-  analyzes Ruby automatically on pushes to `main` and manually on demand. Do
-  not add pull-request or scheduled CodeQL runs without an explicit security
-  requirement that justifies their additional Actions usage.
-- Automatic CI does not replace local or release validation. Before committing
-  meaningful application changes, run the relevant Rails tests, RuboCop,
-  Brakeman, and bundler-audit. Full image tests, Trivy, and PostgreSQL/Consul
-  container integration remain required before a release, and run locally,
-  manually, or in the release workflow. For changes affecting the image,
-  runtime, or deployment, run the relevant image build, Compose tests, and
-  Trivy scan locally as well.
+- Run the full CI Rails suite with isolated PostgreSQL and Consul data. Use
+  deterministic fixtures or synthetic certificates, CSRs and keys. Production
+  data, certificates, keys and credentials must stay out of tests.
+- Before committing meaningful application changes, run the relevant Rails tests,
+  RuboCop, Brakeman and bundler-audit with current advisories. Every image build
+  runs RuboCop with the `rubocop-rake` plugin before asset compilation. Fix
+  lint failures before continuing.
+- Image, runtime and deployment changes also require a local build, Compose
+  tests with PostgreSQL and Consul, and Trivy against the exact image. A release
+  requires full image and integration tests and Trivy locally, manually or in
+  the release workflow.
+- Resolve genuine findings introduced by the change. Classify baseline findings
+  and report unresolved dependency or image risks. A suppression for a false
+  positive or accepted risk requires evidence of applicability, a specific
+  reason, an owner and a review date. A green build alone cannot justify it.
+- Normal push and PR CI runs direct Rails tests, RuboCop, Brakeman and
+  bundler-audit. Image builds, image tests, Trivy and full report uploads stay
+  outside this budget. Heavy schedules or broad OS/Ruby matrices require an
+  explicit release-critical need. CodeQL Advanced Setup analyzes Ruby on
+  pushes to `main` and manual runs. PR or scheduled CodeQL requires a specific
+  security need that justifies the cost.
 
-- Run the full Rails test suite used by CI:
+### Development environments
 
-  ```bash
-  ruby bin/rails db:prepare test
-  ```
+After validation in a persistent local environment, run
+`docker compose -f compose.yml up --build -d --wait`, verify the application
+responds at `http://localhost:3000` and leave it running for manual testing.
+Investigate startup or health failures and fix those caused by the change.
 
-- For changes affecting the image, runtime, or deployment, run the tests against
-  the current application image with PostgreSQL and Consul.
-- Tests must use isolated test data and must not depend on production data,
-  production certificates, production private keys, production credentials,
-  or other production secrets.
-- When certificate-related test data is required, use deterministic test
-  fixtures or generate synthetic certificates, CSRs, keys, and related data
-  specifically for the test environment.
-- Fix failures caused by the current changes before reporting completion.
-- Do not commit changes that fail relevant tests unexpectedly.
-- Run RuboCop with the `rubocop-rake` plugin for every build.
-- The Dockerfile enforces RuboCop before asset compilation.
-- Fix lint failures before continuing.
-- Run Brakeman for Rails application security analysis and bundler-audit against
-  the locked Ruby dependencies with current advisory data. Run Trivy against
-  the exact built application image for image, runtime, deployment, and release
-  validation.
-- Security scans are part of the definition of done and must not be silently
-  skipped. Follow the commands and blocking thresholds in
-  `docs/container-publishing.md`.
-- Resolve genuine security findings introduced by the change before completion.
-  Classify baseline findings and report unresolved dependency or base-image risks.
-- Never suppress findings solely to make CI pass. Every persistent false-positive
-  or explicitly accepted risk suppression needs a specific documented reason,
-  applicability evidence, an owner, and a review date.
-- Verify that the project documentation reflects the completed change.
-- Verify that screenshots affected by visible UI changes have been updated.
-- Documentation and required screenshot updates are part of the definition of
-  done and must not be silently skipped.
-- Do not silently skip required tests, linting, security scans, documentation,
-  screenshot updates, or other validation steps.
-- If a required validation step cannot be executed because of an environment
-  limitation or unavailable dependency:
-  - clearly report which validation step could not be executed;
-  - explain the blocking dependency or environment limitation;
-  - do not report the change as fully validated;
-  - do not treat an unexecuted validation step as successful.
-
-### Persistent local development environments
-
-When running in a persistent local development environment, after completing
-changes and all required validation:
-
-- Rebuild and start the development containers with:
-
-  ```bash
-  docker compose -f compose.yml up --build -d --wait
-  ```
-
-- Verify that the application responds at:
-
-  ```text
-  http://localhost:3000
-  ```
-
-- Leave the development containers running so the current changes are
-  immediately available for manual testing.
-- If the application does not become healthy or does not respond at
-  `http://localhost:3000`, investigate and fix failures caused by the current
-  changes before reporting completion.
-
-### Ephemeral or cloud environments
-
-When running in an ephemeral environment, such as Codex Cloud:
-
-- The same test, linting, documentation, screenshot, and code-quality
-  requirements apply as in a persistent local development environment.
-- Start PostgreSQL, Consul, the application, containers, or other required
-  services when needed to execute tests or perform validation.
-- Do not keep development containers or services running solely for later
-  manual testing after the task has completed.
-- Stop or discard temporary services when they are no longer required.
-- The inability to leave development containers running after task completion
-  is not a validation failure.
-- Environment limitations are not a reason to silently omit required
-  validation.
-- Clearly report any required validation that could not be performed and the
-  reason why it could not be performed.
-- A task must not be reported as fully validated when a required validation
-  step was skipped, failed, or could not be executed.
+In ephemeral environments, apply the same checks. Start the services needed
+for validation and stop or discard them afterwards. Report incomplete checks
+and their blocking dependencies. Only claim full validation when all required
+checks ran successfully.
 
 ## Commit workflow
 
-Codex should create commits automatically after a requested change has been
-completed successfully, unless explicitly instructed not to commit.
-
-A separate instruction such as "commit this" is not required.
-
-Before creating commits:
-
-1. Review all modified, added, and deleted files.
-2. Check whether all changes belong to the same logical topic.
-3. Separate unrelated changes into different commits.
-4. Run the relevant tests and linting.
-5. Check that affected documentation and screenshots are up to date.
-6. Check for accidental or unrelated modifications.
-7. Do not commit changes when relevant tests fail unexpectedly.
-
-### Logical commits
-
-Each commit should represent one logically coherent change.
-
-Multiple technical changes may be included in one commit when they serve the
-same functional goal.
-
-For example, the following may belong to one logging-related change:
-
-- structured JSON logging
-- request correlation IDs
-- Keycloak authorization diagnostics
-- PuppetDB diagnostics
-- removal of unnecessary database log noise
-
-Unrelated topics should be committed separately.
-
-For example, do not combine all of the following into one commit without a
-clear functional dependency:
-
-- logging changes
-- CSR functionality
-- unrelated CSS changes
-- unrelated container changes
-
-A commit should ideally be:
-
-- understandable on its own
-- reviewable on its own
-- revertible on its own
-- useful when reading the Git history later
+Automatically commit successfully validated work unless instructed otherwise,
+and report the commits created. Unexpected failures in relevant tests block
+the commit. Include any affected screenshots in the documentation review.
 
 ## Conventional Commits
 
@@ -269,25 +126,7 @@ created.
 
 ## Pull request conventions
 
-A pull request should represent a larger but still logically coherent unit of
-work.
-
-A pull request may contain multiple logical commits.
-
-Example:
-
-```text
-PR: Improve application logging
-
-Commits:
-feat(logging): unify structured json logging
-feat(logging): add request correlation
-feat(keycloak): add authorization diagnostics
-feat(puppetdb): distinguish no data from no difference
-```
-
-Release notes describe the functional results represented by eligible
-Conventional Commit subjects, not every internal implementation commit.
+Group related logical commits into one reviewable pull request.
 
 ## Versioning
 
@@ -611,47 +450,3 @@ Debug logging may include non-sensitive interpreted information such as:
 - operation names
 
 Never log complete JWTs solely for debugging purposes.
-
-## Long-term applicability
-
-These conventions are permanent repository instructions.
-
-In particular:
-
-- Codex creates suitable commits after successfully completed tasks.
-- Unrelated changes are separated into different commits.
-- Conventional Commits are used.
-- Eligible Conventional Commit subjects are the source for public release
-  notes.
-- Commits should be individually understandable and revertible.
-- Relevant tests, linting, Brakeman, and bundler-audit are run before commits
-  are considered complete. Image/runtime/deployment changes and releases also
-  require full image testing and Trivy. Security validation is part of the
-  definition of done, including documented reasons for any accepted suppression.
-- Required validation must never be silently skipped.
-- Project documentation is reviewed and kept up to date with every change.
-- Documentation remains consistent with the actual implementation and
-  operation of the application.
-- Visible UI changes require affected documentation screenshots to be updated.
-- Documentation and required screenshot updates are part of the definition of
-  done.
-- Tests use isolated test data and do not depend on production data or secrets.
-- Certificate-related tests use deterministic fixtures or synthetic
-  certificates, CSRs, keys, and related test data.
-- In persistent local development environments, the development environment is
-  rebuilt, verified, and left running after completed changes.
-- In ephemeral or cloud environments, the same validation requirements apply,
-  but services do not need to remain running after task completion.
-- Tasks are not reported as fully validated when required validation was
-  skipped, failed, or could not be executed.
-- GitHub release tags are the single authoritative application version source.
-- Application versions are not maintained manually in parallel.
-- Release versions are injected into container builds.
-- The version is displayed subtly below the application title on the left.
-- Build version, revision, and build time remain technically traceable.
-- Release notes describe changes since the previous release.
-- Existing project structures and conventions are preferred over parallel
-  implementations.
-
-A later explicit instruction may override these conventions for a specific
-task.
