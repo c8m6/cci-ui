@@ -1,7 +1,7 @@
 FROM ruby:4.0-slim
 ENV BUNDLE_WITHOUT=development:test
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev zlib1g && rm -rf /var/lib/apt/lists/*
 COPY Gemfile Gemfile.lock ./
 RUN bundle install && bundle clean --force
 # Default gems also install Ruby/native files outside their gem directory.
