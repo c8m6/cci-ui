@@ -29,6 +29,13 @@ RUN ruby test/container_json.rb && bundle exec ruby test/container_json.rb
 RUN bundle exec rubocop --force-exclusion
 RUN CCI_CONFIG_FILE=/app/config/build.yml bundle exec rails assets:precompile
 RUN useradd --create-home --uid 10001 certui && mkdir -p tmp log && chown -R certui:certui /app
+# Refresh OS security updates in a late layer to preserve cached gems and assets.
+# The release workflow changes this argument on every attempt.
+ARG OS_PACKAGE_REFRESH=local
+RUN echo "Refreshing OS packages for ${OS_PACKAGE_REFRESH}" && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 # Keep changing release metadata after the expensive build layers.
 ARG APP_VERSION=development
 ARG APP_REVISION=unknown
