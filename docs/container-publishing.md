@@ -105,6 +105,14 @@ version, revision, build time, and OCI metadata after dependency installation,
 RuboCop, and asset compilation. Changing release metadata alone therefore reuses
 those expensive layers while still updating the final image metadata.
 
+Every manual release attempt passes its unique GitHub Actions run ID and attempt number
+as `OS_PACKAGE_REFRESH`. The final Docker image refreshes Debian package indexes and
+upgrades available OS packages in a separate late layer, avoiding cached APT security
+updates while retaining the expensive Bundler and asset build layers. Trivy continues
+to block publication when the resulting image contains fixable HIGH or CRITICAL issues.
+For local security validation, supply a new `OS_PACKAGE_REFRESH` build argument to
+force this step to execute instead of reusing its cached layer.
+
 Each published release creates only `DOCKERHUB_IMAGE:<release tag>`. No
 additional branch, SHA or `latest` aliases are generated. The release tag must
 also be a valid Docker tag; incompatible names (for example, names containing
@@ -273,7 +281,7 @@ bundle exec bundler-audit update
 bundle exec bundler-audit check --format json --output tmp/security/bundler-audit.json
 jq . tmp/security/bundler-audit.json
 
-docker build --pull -t cci-ui:ci .
+docker build --pull --build-arg OS_PACKAGE_REFRESH="$(date -u +%s)" -t cci-ui:ci .
 trivy image --timeout 30m --scanners vuln --pkg-types os,library --format json --output tmp/security/trivy.json cci-ui:ci
 trivy convert --format sarif --output tmp/security/sarif/trivy.sarif tmp/security/trivy.json
 trivy convert --format table tmp/security/trivy.json

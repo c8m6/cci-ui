@@ -70,6 +70,7 @@ jobs:
             APP_REVISION=${{ env.APP_REVISION }}
             APP_BUILD_TIME=${{ env.APP_BUILD_TIME }}
             APP_SOURCE=${{ env.APP_SOURCE }}
+            OS_PACKAGE_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
           cache-from: type=gha,scope=cci-ui
           cache-to: type=gha,mode=max,scope=cci-ui
       - name: Prepare security report directory
