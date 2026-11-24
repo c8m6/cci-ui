@@ -5,7 +5,8 @@ pushes and pull requests. The [codeql.yml](../.github/workflows/codeql.yml)
 workflow analyzes Ruby on `main` pushes and manual runs. The
 [docker-publish.yml](../.github/workflows/docker-publish.yml)
 workflow builds the shared image for **web and indexer** from the root Dockerfile
-only when manually dispatched from `main` (dry-run or release). PostgreSQL and Consul use their
+only after an explicit manual dispatch on `main` or creation of a dedicated
+`release-requests/` branch pointing to the current `main` commit. PostgreSQL and Consul use their
 official images and do not require a custom build.
 
 ## Manual dependency update report
@@ -79,7 +80,7 @@ does not upload anything locally.
 - Push to `main`: also run repository-managed CodeQL Advanced Setup for Ruby.
   CodeQL does not run on pull requests or a recurring schedule. It can also be
   started manually from **Actions → CodeQL → Run workflow**.
-- **Actions → Manual container release → Run workflow** on `main`: enter a new
+- **Actions → Container release → Run workflow** on `main`: enter a new
   version tag (`vMAJOR.MINOR.PATCH` or `-alpha.N`, `-beta.N`, `-rc.N`).
   `dry_run` defaults to **true**: build, scan and integration-test without
   creating a tag, release or publishing any image.
@@ -87,6 +88,15 @@ does not upload anything locally.
   same full gates run again; only after they pass does the workflow create
   the tag at the validated `main` SHA, push `DOCKERHUB_IMAGE:<tag>` to
   Docker Hub and publish the GitHub release with git-cliff notes.
+- An explicitly requested connector-driven run creates a new branch at the
+  **current `main` SHA**, using `release-requests/dry-run/<tag>/<nonce>` for
+  validation or `release-requests/publish/<tag>/<nonce>` for publication.
+  The nonce is 8–32 lowercase hexadecimal characters and makes retries unique.
+  Creating the branch triggers this same workflow through GitHub's `create`
+  event; the branch is never merged, checked out as independent release code,
+  or deployed. A publication request should follow a successful dry-run.
+  The workflow rejects non-branch events, invalid names, stale requests,
+  changed refs, invalid tags and pre-existing release tags.
 - Manually created tags and GitHub releases **do not** trigger container
   publication. Publishing happens only through this workflow.
 
@@ -94,7 +104,7 @@ There are no path exclusions, so documentation-only changes receive the normal
 lightweight checks. Feature-branch updates with an open pull request run through
 `pull_request`. An integration branch that is itself the source of an open pull
 request can trigger both a push and pull-request check. Obsolete runs for the
-same branch or pull request are cancelled. The release/manual workflow has
+same branch or pull request are cancelled. The release workflow has
 separate concurrency and does not cancel an in-progress publication. No
 heavyweight workflow is scheduled. Dependabot alerts, Secret Scanning and
 private vulnerability reporting remain separate security settings.
@@ -105,7 +115,7 @@ version, revision, build time, and OCI metadata after dependency installation,
 RuboCop, and asset compilation. Changing release metadata alone therefore reuses
 those expensive layers while still updating the final image metadata.
 
-Every manual release attempt passes its unique GitHub Actions run ID and attempt number
+Every release attempt passes its unique GitHub Actions run ID and attempt number
 as `OS_PACKAGE_REFRESH`. The final Docker image refreshes Debian package indexes and
 upgrades available OS packages in a separate late layer, avoiding cached APT security
 updates while retaining the expensive Bundler and asset build layers. Trivy continues
@@ -137,13 +147,25 @@ The intended release sequence is:
 develop on dev
 → create logical Conventional Commits
 → merge dev into main
-→ Actions: Manual container release on main (dry_run=true)
+→ dispatch on main with dry_run=true OR create a dry-run release-request branch
 → review build, integration tests, Brakeman, dependency audit and Trivy
-→ Actions: Manual container release on main (dry_run=false)
+→ dispatch on main with dry_run=false OR create a publish release-request branch
 → repeat gates, validate main SHA and unused tag
 → create exact tag → push tested image to Docker Hub
 → generate git-cliff notes → publish GitHub release
 ```
+
+For a connector-triggered run, create a **new branch** pointing exactly at the
+current `main` commit, without adding a commit. Example names are
+`release-requests/dry-run/v1.1.4/2026112401` and
+`release-requests/publish/v1.1.4/2026112402`. The GitHub App must be permitted
+to create refs in this repository, and the `create` event must be enabled.
+Branch creation is an explicit release request: never create a publish branch
+without the repository owner's authorization. Creating ordinary branches, tags,
+PRs, or releases does not publish images. A pending or failed dry-run does not
+grant publication approval. Use a new nonce for each retry. For automation-triggered
+runs, verify the resulting Actions run rather than assuming that a created ref
+necessarily triggered execution.
 
 No production host is contacted or redeployed; the workflow publishes an image
 to Docker Hub. Update production Compose to the new image tag separately.
