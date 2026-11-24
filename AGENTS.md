@@ -160,18 +160,24 @@ The intended release workflow is:
 Implement changes on dev
 → create logical Conventional Commits
 → merge dev into main
-→ manually dispatch container release on main in dry-run mode
+→ dispatch the container release on main in dry-run mode, or create an
+  explicit dry-run release-request branch pointing to current main
 → inspect full image build, tests and security gates
-→ manually dispatch again with dry_run=false
+→ dispatch again with dry_run=false, or create an authorized publish-request branch
 → create the validated tag → push the exact tested image to Docker Hub
 → generate git-cliff notes → publish the GitHub release
 ```
 
-Manual workflow dispatch is the only supported publishing trigger. Creating a
-tag or publishing a GitHub release manually must not independently build or push
-a container. The workflow must never publish from a branch other than main,
-reuse an existing tag, or publish before validation. Do not deploy to production
-hosts as part of this workflow.
+Only manual workflow dispatch on main or an explicitly authorized
+`release-requests/(dry-run|publish)/<tag>/<nonce>` branch created at the exact
+current main SHA may trigger a full release validation or publication. The
+nonce is 8–32 lowercase hex characters; each attempt must use a new branch.
+The workflow always checks out and validates the main commit, never unreviewed
+request-branch code. Creating a tag or publishing a GitHub release manually
+must not independently build or push a container. The workflow must never
+publish code other than the validated main commit, reuse an existing tag or
+publish before all gates pass. Do not deploy to production hosts as part of
+this workflow.
 
 
 ## Build metadata
