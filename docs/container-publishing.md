@@ -87,7 +87,8 @@ does not upload anything locally.
 - Set `dry_run` to **false** only after reviewing the dry-run results. The
   same full gates run again; only after they pass does the workflow create
   the tag at the validated `main` SHA, push `DOCKERHUB_IMAGE:<tag>` to
-  Docker Hub and publish the GitHub release with git-cliff notes.
+  Docker Hub, additionally update `DOCKERHUB_IMAGE:latest` for stable tags,
+  and publish the GitHub release with git-cliff notes.
 - An explicitly requested connector-driven run creates a new branch at the
   **current `main` SHA**, using `release-requests/dry-run/<tag>/<nonce>` for
   validation or `release-requests/publish/<tag>/<nonce>` for publication.
@@ -123,12 +124,21 @@ to block publication when the resulting image contains fixable HIGH or CRITICAL 
 For local security validation, supply a new `OS_PACKAGE_REFRESH` build argument to
 force this step to execute instead of reusing its cached layer.
 
-Each published release creates only `DOCKERHUB_IMAGE:<release tag>`. No
-additional branch, SHA or `latest` aliases are generated. The release tag must
-also be a valid Docker tag; incompatible names (for example, names containing
-`/`) fail publishing instead of being renamed. Use an image digest for
-reproducible deployments. The image is built for `linux/amd64` on the GitHub
-Ubuntu runner.
+Each published release creates `DOCKERHUB_IMAGE:<release tag>`. A successful
+**stable** release (a version tag without `-alpha`, `-beta` or `-rc`)
+additionally updates the mutable `DOCKERHUB_IMAGE:latest` alias using the
+**same tested local image**, without rebuilding. Prereleases never update
+`latest`; dry-runs publish neither tag. Both stable tags refer to the same
+image digest. If pushing the `latest` alias fails after the version-tagged
+image was pushed, the job fails and requires explicit reconciliation of the
+partially published release.
+
+No extra branch or SHA aliases are generated. The release tag must also be a
+valid Docker tag; incompatible names (for example, names containing `/`) fail
+publishing instead of being renamed. Use a version tag or image digest for
+reproducible deployments; `latest` moves forward with each successful stable
+release and should not be used for reproducible production rollouts. The image
+is built for `linux/amd64` on the GitHub Ubuntu runner.
 
 The release tag is the authoritative application version. The workflow passes
 it to the image as `APP_VERSION`, resolves `APP_REVISION` from the checked-out
@@ -151,7 +161,8 @@ develop on dev
 → review build, integration tests, Brakeman, dependency audit and Trivy
 → dispatch on main with dry_run=false OR create a publish release-request branch
 → repeat gates, validate main SHA and unused tag
-→ create exact tag → push tested image to Docker Hub
+→ create exact tag → push tested versioned image to Docker Hub
+→ for stable versions, update latest from the same tested image
 → generate git-cliff notes → publish GitHub release
 ```
 

@@ -164,7 +164,8 @@ Implement changes on dev
   explicit dry-run release-request branch pointing to current main
 → inspect full image build, tests and security gates
 → dispatch again with dry_run=false, or create an authorized publish-request branch
-→ create the validated tag → push the exact tested image to Docker Hub
+→ create the validated tag → push the exact tested image under its version tag
+→ for stable releases only, also push the same image under latest
 → generate git-cliff notes → publish the GitHub release
 ```
 
@@ -176,8 +177,10 @@ The workflow always checks out and validates the main commit, never unreviewed
 request-branch code. Creating a tag or publishing a GitHub release manually
 must not independently build or push a container. The workflow must never
 publish code other than the validated main commit, reuse an existing tag or
-publish before all gates pass. Do not deploy to production hosts as part of
-this workflow.
+publish before all gates pass. A stable release updates the mutable Docker
+`latest` alias from the same tested image; prereleases and dry-runs never
+update it. Version tags and image digests remain the reproducible deployment
+references. Do not deploy to production hosts as part of this workflow.
 
 
 ## Build metadata
