@@ -213,6 +213,15 @@ jobs:
         run: |
           docker tag "$TEST_IMAGE" "$PUBLISH_IMAGE:$RELEASE_TAG"
           docker push "$PUBLISH_IMAGE:$RELEASE_TAG"
+      - name: Publish latest alias for stable releases
+        if: ${{ env.DRY_RUN == 'false' && !contains(env.RELEASE_TAG, '-') }}
+        env:
+          PUBLISH_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker tag "$TEST_IMAGE" "$PUBLISH_IMAGE:latest"
+          docker push "$PUBLISH_IMAGE:latest"
       - name: Fetch the newly created tag for release notes
         if: ${{ env.DRY_RUN == 'false' }}
         run: git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
